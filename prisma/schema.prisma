@@ -63,6 +63,15 @@ enum EvidenceType {
   DOCUMENT
 }
 
+enum TicketAuditAction {
+  CREATED
+  STATUS_CHANGED
+  EVIDENCE_ADDED
+  DISCUSSION_MESSAGE_ADDED
+  VOTE_RECORDED
+  DECISION_PUBLISHED
+}
+
 model User {
   id                  Int                 @id @default(autoincrement())
   discordId           String?             @unique @db.VarChar(32)
@@ -79,6 +88,7 @@ model User {
   discussionMessages  DiscussionMessage[]
   votes               Vote[]
   decisionMemberships DecisionSteward[]
+  ticketAuditEntries  FiaTicketAuditLog[]
   notifications       Notification[]
   accounts            Account[]
   sessions            Session[]
@@ -298,6 +308,7 @@ model FiaTicket {
   discussionMessages DiscussionMessage[]
   votes              Vote[]
   decision           Decision?
+  auditLog            FiaTicketAuditLog[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -306,6 +317,24 @@ model FiaTicket {
   @@index([raceId, status])
   @@index([status, priority, createdAt])
   @@index([reportedByUserId])
+}
+
+model FiaTicketAuditLog {
+  id         Int               @id @default(autoincrement())
+  ticketId   Int
+  actorId    Int?
+  action     TicketAuditAction
+  fromStatus TicketStatus?
+  toStatus   TicketStatus?
+  details    String            @db.VarChar(1000)
+  ticket     FiaTicket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor      User?             @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([ticketId, createdAt])
+  @@index([actorId])
+  @@index([action, createdAt])
 }
 
 model FiaTicketDriver {

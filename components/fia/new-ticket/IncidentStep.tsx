@@ -2,116 +2,95 @@
 
 import { AlertTriangle, ClipboardList } from "lucide-react";
 import {
+  RaceSession,
   TicketPriority,
   ticketPriorityLabels,
 } from "@/domain";
+import type { TicketWizardDraft } from "./wizard-types";
 
-export type IncidentData = {
-  title: string;
-  lap: string;
-  corner: string;
-  priority: TicketPriority;
-  description: string;
-};
-
-type Props = {
-  data: IncidentData;
-  setData: React.Dispatch<React.SetStateAction<IncidentData>>;
+type IncidentStepProps = {
+  data: TicketWizardDraft;
+  setData: React.Dispatch<React.SetStateAction<TicketWizardDraft>>;
 };
 
 export default function IncidentStep({
   data,
   setData,
-}: Props) {
-  const priorities = Object.values(TicketPriority);
-
+}: IncidentStepProps) {
   return (
     <div className="space-y-8">
       <div>
         <div className="flex items-center gap-3">
           <ClipboardList className="text-blue-400" />
-
-          <h2 className="text-3xl font-bold text-white">
-            Vorfall
-          </h2>
+          <h2 className="text-3xl font-bold text-white">Vorfall</h2>
         </div>
-
         <p className="mt-2 text-slate-400">
-          Gib die Informationen zum Vorfall an.
+          Dokumentiere den Vorfall so präzise wie möglich.
         </p>
       </div>
 
-      <div>
-        <label className="mb-2 block text-sm font-medium text-slate-300">
-          Titel des Vorfalls
-        </label>
-
+      <label className="block text-sm font-medium text-slate-300">
+        Titel
         <input
           value={data.title}
-          onChange={(e) =>
-            setData((prev) => ({
-              ...prev,
-              title: e.target.value,
+          onChange={(event) =>
+            setData((previous) => ({
+              ...previous,
+              title: event.target.value,
             }))
           }
-          placeholder="z.B. Kontakt zwischen Car 7 und Car 18 in Kurve 4"
-          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-blue-500"
+          maxLength={160}
+          placeholder="Kontakt zwischen Car 7 und Car 18"
+          className="form-control mt-2"
         />
-      </div>
+      </label>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-300">
-            Runde
-          </label>
-
+        <label className="block text-sm font-medium text-slate-300">
+          Runde
           <input
+            type="number"
+            min={1}
+            max={999}
             value={data.lap}
-            onChange={(e) =>
-              setData((prev) => ({
-                ...prev,
-                lap: e.target.value,
+            onChange={(event) =>
+              setData((previous) => ({
+                ...previous,
+                lap: event.target.value,
               }))
             }
-            placeholder="12"
-            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-blue-500"
+            placeholder={data.session === RaceSession.Race ? "12" : "Optional"}
+            className="form-control mt-2"
           />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-300">
-            Kurve
-          </label>
-
+        </label>
+        <label className="block text-sm font-medium text-slate-300">
+          Kurve / Abschnitt
           <input
             value={data.corner}
-            onChange={(e) =>
-              setData((prev) => ({
-                ...prev,
-                corner: e.target.value,
+            onChange={(event) =>
+              setData((previous) => ({
+                ...previous,
+                corner: event.target.value,
               }))
             }
+            maxLength={80}
             placeholder="Turn 4"
-            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-blue-500"
+            className="form-control mt-2"
           />
-        </div>
+        </label>
       </div>
 
-      <div>
-        <label className="mb-3 block text-sm font-medium text-slate-300">
+      <fieldset>
+        <legend className="mb-3 text-sm font-medium text-slate-300">
           Priorität
-        </label>
-
+        </legend>
         <div className="flex flex-wrap gap-3">
-          {priorities.map((priority) => (
+          {Object.values(TicketPriority).map((priority) => (
             <button
               key={priority}
               type="button"
               onClick={() =>
-                setData((prev) => ({
-                  ...prev,
-                  priority,
-                }))
+                setData((previous) => ({ ...previous, priority }))
               }
               className={`flex items-center gap-2 rounded-xl border px-5 py-3 font-medium transition ${
                 data.priority === priority
@@ -124,26 +103,24 @@ export default function IncidentStep({
             </button>
           ))}
         </div>
-      </div>
+      </fieldset>
 
-      <div>
-        <label className="mb-2 block text-sm font-medium text-slate-300">
-          Beschreibung
-        </label>
-
+      <label className="block text-sm font-medium text-slate-300">
+        Beschreibung
         <textarea
           rows={8}
           value={data.description}
-          onChange={(e) =>
-            setData((prev) => ({
-              ...prev,
-              description: e.target.value,
+          onChange={(event) =>
+            setData((previous) => ({
+              ...previous,
+              description: event.target.value,
             }))
           }
-          placeholder="Beschreibe den Vorfall so detailliert wie möglich..."
-          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-4 text-white outline-none transition focus:border-blue-500"
+          maxLength={5000}
+          placeholder="Beschreibe Ablauf, Positionen und Folgen..."
+          className="form-control mt-2"
         />
-      </div>
+      </label>
     </div>
   );
 }

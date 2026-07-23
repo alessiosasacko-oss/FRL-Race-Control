@@ -1,11 +1,20 @@
 import {
+  EvidenceType,
   NotificationType,
   PenaltyType,
   RaceSession,
   Role,
+  TicketAuditAction,
   TicketPriority,
   TicketStatus,
 } from "./enums";
+
+export const evidenceTypeLabels: Record<EvidenceType, string> = {
+  [EvidenceType.Link]: "Link",
+  [EvidenceType.Image]: "Bild",
+  [EvidenceType.Video]: "Video",
+  [EvidenceType.Document]: "Dokument",
+};
 
 export const roleLabels: Record<Role, string> = {
   [Role.SuperAdmin]: "Super-Administrator",
@@ -54,4 +63,13 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   [NotificationType.FiaTicket]: "FIA-Ticket",
   [NotificationType.FiaDecision]: "FIA-Entscheidung",
   [NotificationType.Championship]: "Meisterschaft",
+};
+
+export const ticketAuditActionLabels: Record<TicketAuditAction, string> = {
+  [TicketAuditAction.Created]: "Ticket erstellt",
+  [TicketAuditAction.StatusChanged]: "Status geändert",
+  [TicketAuditAction.EvidenceAdded]: "Beweis hinzugefügt",
+  [TicketAuditAction.DiscussionMessageAdded]: "Kommentar hinzugefügt",
+  [TicketAuditAction.VoteRecorded]: "Steward-Bewertung gespeichert",
+  [TicketAuditAction.DecisionPublished]: "Entscheidung veröffentlicht",
 };

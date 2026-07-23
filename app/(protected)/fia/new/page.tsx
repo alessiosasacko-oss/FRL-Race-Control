@@ -1,8 +1,14 @@
 import AppLayout from "@/components/layout/AppLayout";
 import PageHeader from "@/components/ui/PageHeader";
-import TicketForm from "@/components/fia/TicketForm";
+import NewTicketWizard from "@/components/fia/new-ticket/NewTicketWizard";
+import { Permission } from "@/lib/auth/permissions";
+import { requirePermission } from "@/lib/auth/session";
+import { getTicketWizardOptions } from "@/lib/fia/queries";
 
-export default function NewTicketPage() {
+export default async function NewTicketPage() {
+  await requirePermission(Permission.SubmitFiaTicket);
+  const options = await getTicketWizardOptions();
+
   return (
     <AppLayout>
       <PageHeader
@@ -11,7 +17,7 @@ export default function NewTicketPage() {
       />
 
       <div className="mt-8">
-        <TicketForm />
+        <NewTicketWizard options={options} />
       </div>
     </AppLayout>
   );

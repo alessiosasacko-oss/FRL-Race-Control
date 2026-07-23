@@ -29,9 +29,11 @@ npm run db:seed
 ```
 
 Der Seed ist wiederholbar und verwendet die bestehenden Fixture-Daten für
-Ligen, Saisons, Teams, Fahrer, Rennen und FIA-Tickets. Die aktuelle UI liest
-weiterhin aus diesen Fixtures; nur Benutzer, OAuth-Verknüpfungen und Sitzungen
-werden in Phase 4 über die Datenbank verwaltet.
+Ligen, Saisons, Teams, Fahrer, Rennen und FIA-Tickets. Das FIA-Race-Control-
+Modul liest und schreibt seine Tickets, Beweismetadaten, Diskussionen,
+Bewertungen, Entscheidungen, Audit-Einträge und Benachrichtigungen direkt über
+Prisma. Binärdateien werden noch nicht gespeichert; Beweise verweisen auf eine
+URL und speichern Typ sowie Bezeichnung.
 
 Weitere Datenbankbefehle:
 

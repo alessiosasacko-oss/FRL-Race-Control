@@ -1,6 +1,10 @@
 import { Shield, Activity, Bell } from "lucide-react";
 
-export default function FIAHeader() {
+type FIAHeaderProps = {
+  openTickets: number;
+};
+
+export default function FIAHeader({ openTickets }: FIAHeaderProps) {
   return (
     <div className="mb-8 overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-r from-[#111827] via-[#162235] to-[#1b3b73]">
 
@@ -39,7 +43,7 @@ export default function FIAHeader() {
 
           <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-5 backdrop-blur">
             <Bell className="mb-2 text-yellow-400" size={24} />
-            <p className="text-3xl font-bold text-white">12</p>
+            <p className="text-3xl font-bold text-white">{openTickets}</p>
             <p className="text-sm text-slate-400">
               Offene Meldungen
             </p>

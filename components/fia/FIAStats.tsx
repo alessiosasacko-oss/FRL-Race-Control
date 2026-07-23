@@ -1,26 +1,20 @@
-import { tickets } from "@/lib/data/tickets";
-import { TicketStatus } from "@/domain";
 import {
   AlertTriangle,
   Clock3,
   CheckCircle2,
   Scale,
 } from "lucide-react";
+import type { FiaTicketStatsData } from "@/lib/fia/types";
 
-export default function FIAStats() {
-  const open = tickets.filter(
-    (ticket) => ticket.status === TicketStatus.Open,
-  ).length;
-  const working = tickets.filter(
-    (ticket) => ticket.status === TicketStatus.InReview,
-  ).length;
-  const finished = tickets.filter(
-    (ticket) => ticket.status === TicketStatus.Resolved,
-  ).length;
-  const total = tickets.length;
+type FIAStatsProps = {
+  stats: FiaTicketStatsData;
+};
+
+export default function FIAStats({ stats }: FIAStatsProps) {
+  const { open, inReview: working, resolved: finished, total } = stats;
   const percentageDenominator = total || 1;
 
-  const stats = [
+  const statItems = [
     {
       title: "Offene Fälle",
       value: open,
@@ -53,7 +47,7 @@ export default function FIAStats() {
 
   return (
     <div className="mb-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-      {stats.map((stat) => {
+      {statItems.map((stat) => {
         const Icon = stat.icon;
 
         return (

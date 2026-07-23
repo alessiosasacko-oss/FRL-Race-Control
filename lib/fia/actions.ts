@@ -1,0 +1,615 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import {
+  NotificationType as PrismaNotificationType,
+  PenaltyType as PrismaPenaltyType,
+  RaceSession as PrismaRaceSession,
+  TicketAuditAction as PrismaTicketAuditAction,
+  TicketPriority as PrismaTicketPriority,
+  TicketStatus as PrismaTicketStatus,
+  EvidenceType as PrismaEvidenceType,
+} from "@/generated/prisma/client";
+import {
+  penaltyTypeLabels,
+  ticketStatusLabels,
+  TicketStatus,
+} from "@/domain";
+import {
+  hasPermission,
+  Permission,
+} from "@/lib/auth/permissions";
+import {
+  requirePermission,
+} from "@/lib/auth/session";
+import { getPrismaClient } from "@/lib/db/prisma";
+import {
+  addEvidenceSchema,
+  createFiaTicketSchema,
+  decisionSchema,
+  discussionMessageSchema,
+  ticketIdSchema,
+  voteSchema,
+} from "@/lib/fia/schemas";
+import type { FiaActionState } from "@/lib/fia/types";
+
+function validationFailure(
+  message: string,
+  fieldErrors?: Record<string, string[]>,
+): FiaActionState {
+  return {
+    status: "error",
+    message,
+    fieldErrors,
+  };
+}
+
+function mutationFailure(): FiaActionState {
+  return validationFailure(
+    "Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.",
+  );
+}
+
+function parseEvidence(formData: FormData) {
+  const types = formData.getAll("evidenceType");
+  const urls = formData.getAll("evidenceUrl");
+  const labels = formData.getAll("evidenceLabel");
+
+  return urls.map((url, index) => ({
+    type: types[index],
+    url,
+    label: labels[index],
+  }));
+}
+
+function revalidateTicket(ticketId: number): void {
+  revalidatePath("/fia");
+  revalidatePath(`/fia/${ticketId}`);
+  revalidatePath("/notifications");
+}
+
+export async function createFiaTicketAction(
+  _previousState: FiaActionState,
+  formData: FormData,
+): Promise<FiaActionState> {
+  const user = await requirePermission(Permission.SubmitFiaTicket);
+  const parsed = createFiaTicketSchema.safeParse({
+    leagueId: formData.get("leagueId"),
+    seasonId: formData.get("seasonId"),
+    raceId: formData.get("raceId"),
+    title: formData.get("title"),
+    description: formData.get("description"),
+    session: formData.get("session"),
+    lap: formData.get("lap"),
+    corner: formData.get("corner"),
+    priority: formData.get("priority"),
+    driverIds: formData.getAll("driverId"),
+    evidence: parseEvidence(formData),
+  });
+
+  if (!parsed.success) {
+    return validationFailure(
+      "Bitte prüfe die Angaben im Ticket.",
+      parsed.error.flatten().fieldErrors as Record<string, string[]>,
+    );
+  }
+
+  const prisma = getPrismaClient();
+  let ticketId: number;
+
+  try {
+    ticketId = await prisma.$transaction(async (transaction) => {
+      const race = await transaction.race.findFirst({
+        where: {
+          id: parsed.data.raceId,
+          seasonId: parsed.data.seasonId,
+          season: { leagueId: parsed.data.leagueId },
+        },
+        select: { id: true, sessions: true },
+      });
+
+      if (
+        !race ||
+        !race.sessions.includes(
+          parsed.data.session as PrismaRaceSession,
+        )
+      ) {
+        throw new Error("INVALID_RACE");
+      }
+
+      const validDriverCount = await transaction.driver.count({
+        where: {
+          id: { in: parsed.data.driverIds },
+          leagueId: parsed.data.leagueId,
+          active: true,
+        },
+      });
+
+      if (validDriverCount !== parsed.data.driverIds.length) {
+        throw new Error("INVALID_DRIVERS");
+      }
+
+      const ticket = await transaction.fiaTicket.create({
+        data: {
+          leagueId: parsed.data.leagueId,
+          seasonId: parsed.data.seasonId,
+          raceId: parsed.data.raceId,
+          reportedByUserId: user.id,
+          title: parsed.data.title,
+          description: parsed.data.description,
+          session: parsed.data.session as PrismaRaceSession,
+          lap: parsed.data.lap ?? null,
+          corner: parsed.data.corner ?? null,
+          priority: parsed.data.priority as PrismaTicketPriority,
+          drivers: {
+            create: parsed.data.driverIds.map((driverId) => ({ driverId })),
+          },
+          evidence: {
+            create: parsed.data.evidence.map((evidence) => ({
+              submittedByUserId: user.id,
+              type: evidence.type as PrismaEvidenceType,
+              url: evidence.url,
+              label: evidence.label,
+            })),
+          },
+        },
+        select: { id: true },
+      });
+
+      await transaction.fiaTicketAuditLog.create({
+        data: {
+          ticketId: ticket.id,
+          actorId: user.id,
+          action: PrismaTicketAuditAction.CREATED,
+          fromStatus: null,
+          toStatus: PrismaTicketStatus.OPEN,
+          details:
+            parsed.data.evidence.length > 0
+              ? `Ticket mit ${parsed.data.evidence.length} Beweisnachweis(en) erstellt`
+              : "Ticket erstellt",
+        },
+      });
+
+      return ticket.id;
+    });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "INVALID_RACE") {
+      return validationFailure(
+        "Das gewählte Rennen gehört nicht zur Liga und Saison oder unterstützt die Session nicht.",
+      );
+    }
+
+    if (error instanceof Error && error.message === "INVALID_DRIVERS") {
+      return validationFailure(
+        "Mindestens ein gewählter Fahrer ist für diese Liga nicht verfügbar.",
+      );
+    }
+
+    return mutationFailure();
+  }
+
+  revalidateTicket(ticketId);
+  redirect(`/fia/${ticketId}`);
+}
+
+export async function startFiaReviewAction(
+  ticketIdInput: number,
+): Promise<void> {
+  const user = await requirePermission(Permission.ReviewFiaTicket);
+  const ticketId = ticketIdSchema.parse(ticketIdInput);
+  const prisma = getPrismaClient();
+
+  await prisma.$transaction(async (transaction) => {
+    const result = await transaction.fiaTicket.updateMany({
+      where: { id: ticketId, status: PrismaTicketStatus.OPEN },
+      data: { status: PrismaTicketStatus.IN_REVIEW },
+    });
+
+    if (result.count === 0) {
+      return;
+    }
+
+    await transaction.fiaTicketSteward.upsert({
+      where: { ticketId_userId: { ticketId, userId: user.id } },
+      update: {},
+      create: { ticketId, userId: user.id },
+    });
+
+    await transaction.fiaTicketAuditLog.create({
+      data: {
+        ticketId,
+        actorId: user.id,
+        action: PrismaTicketAuditAction.STATUS_CHANGED,
+        fromStatus: PrismaTicketStatus.OPEN,
+        toStatus: PrismaTicketStatus.IN_REVIEW,
+        details: `${ticketStatusLabels[TicketStatus.Open]} → ${ticketStatusLabels[TicketStatus.InReview]}`,
+      },
+    });
+  });
+
+  revalidateTicket(ticketId);
+}
+
+export async function addFiaEvidenceAction(
+  ticketIdInput: number,
+  _previousState: FiaActionState,
+  formData: FormData,
+): Promise<FiaActionState> {
+  const user = await requirePermission(Permission.SubmitFiaTicket);
+  const ticketIdResult = ticketIdSchema.safeParse(ticketIdInput);
+  const parsed = addEvidenceSchema.safeParse({
+    type: formData.get("type"),
+    url: formData.get("url"),
+    label: formData.get("label"),
+  });
+
+  if (!ticketIdResult.success || !parsed.success) {
+    return validationFailure(
+      "Bitte gib eine gültige Bezeichnung, URL und Beweisart an.",
+      parsed.success
+        ? undefined
+        : (parsed.error.flatten().fieldErrors as Record<string, string[]>),
+    );
+  }
+
+  const ticketId = ticketIdResult.data;
+  const prisma = getPrismaClient();
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const ticket = await transaction.fiaTicket.findUnique({
+        where: { id: ticketId },
+        select: {
+          status: true,
+          reportedByUserId: true,
+          drivers: { select: { driver: { select: { userId: true } } } },
+        },
+      });
+
+      const isRelated =
+        ticket?.reportedByUserId === user.id ||
+        ticket?.drivers.some(({ driver }) => driver.userId === user.id);
+      const canReview = hasPermission(
+        user.roles,
+        Permission.ReviewFiaTicket,
+      );
+
+      if (
+        !ticket ||
+        ticket.status === PrismaTicketStatus.RESOLVED ||
+        (!isRelated && !canReview)
+      ) {
+        throw new Error("FORBIDDEN");
+      }
+
+      await transaction.evidence.create({
+        data: {
+          ticketId,
+          submittedByUserId: user.id,
+          type: parsed.data.type as PrismaEvidenceType,
+          url: parsed.data.url,
+          label: parsed.data.label,
+        },
+      });
+
+      await transaction.fiaTicketAuditLog.create({
+        data: {
+          ticketId,
+          actorId: user.id,
+          action: PrismaTicketAuditAction.EVIDENCE_ADDED,
+          details: `Beweis hinzugefügt: ${parsed.data.label}`,
+        },
+      });
+    });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return validationFailure(
+        "Zu diesem Ticket können keine Beweise hinzugefügt werden.",
+      );
+    }
+
+    return mutationFailure();
+  }
+
+  revalidateTicket(ticketId);
+  return { status: "success", message: "Beweis wurde gespeichert." };
+}
+
+export async function addFiaDiscussionMessageAction(
+  ticketIdInput: number,
+  _previousState: FiaActionState,
+  formData: FormData,
+): Promise<FiaActionState> {
+  const user = await requirePermission(Permission.ReviewFiaTicket);
+  const ticketIdResult = ticketIdSchema.safeParse(ticketIdInput);
+  const parsed = discussionMessageSchema.safeParse({
+    message: formData.get("message"),
+  });
+
+  if (!ticketIdResult.success || !parsed.success) {
+    return validationFailure(
+      "Der Kommentar muss zwischen 2 und 5.000 Zeichen lang sein.",
+    );
+  }
+
+  const ticketId = ticketIdResult.data;
+  const prisma = getPrismaClient();
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const ticket = await transaction.fiaTicket.findUnique({
+        where: { id: ticketId },
+        select: { status: true },
+      });
+
+      if (!ticket || ticket.status === PrismaTicketStatus.RESOLVED) {
+        throw new Error("CLOSED");
+      }
+
+      await transaction.discussionMessage.create({
+        data: {
+          ticketId,
+          authorId: user.id,
+          message: parsed.data.message,
+        },
+      });
+
+      await transaction.fiaTicketSteward.upsert({
+        where: { ticketId_userId: { ticketId, userId: user.id } },
+        update: {},
+        create: { ticketId, userId: user.id },
+      });
+
+      await transaction.fiaTicketAuditLog.create({
+        data: {
+          ticketId,
+          actorId: user.id,
+          action: PrismaTicketAuditAction.DISCUSSION_MESSAGE_ADDED,
+          details: "Steward-Kommentar hinzugefügt",
+        },
+      });
+    });
+  } catch {
+    return mutationFailure();
+  }
+
+  revalidateTicket(ticketId);
+  return { status: "success", message: "Kommentar wurde gespeichert." };
+}
+
+export async function castFiaVoteAction(
+  ticketIdInput: number,
+  _previousState: FiaActionState,
+  formData: FormData,
+): Promise<FiaActionState> {
+  const user = await requirePermission(Permission.ReviewFiaTicket);
+  const ticketIdResult = ticketIdSchema.safeParse(ticketIdInput);
+  const parsed = voteSchema.safeParse({
+    penaltyType: formData.get("penaltyType"),
+    penaltyValue: formData.get("penaltyValue"),
+    reason: formData.get("reason"),
+  });
+
+  if (!ticketIdResult.success || !parsed.success) {
+    return validationFailure(
+      "Bitte wähle eine Strafe und gib eine nachvollziehbare Begründung an.",
+      parsed.success
+        ? undefined
+        : (parsed.error.flatten().fieldErrors as Record<string, string[]>),
+    );
+  }
+
+  const ticketId = ticketIdResult.data;
+  const prisma = getPrismaClient();
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const ticket = await transaction.fiaTicket.findUnique({
+        where: { id: ticketId },
+        select: { status: true },
+      });
+
+      if (ticket?.status !== PrismaTicketStatus.IN_REVIEW) {
+        throw new Error("NOT_IN_REVIEW");
+      }
+
+      await transaction.vote.upsert({
+        where: { ticketId_voterId: { ticketId, voterId: user.id } },
+        update: {
+          penaltyType: parsed.data.penaltyType as PrismaPenaltyType,
+          penaltyValue: parsed.data.penaltyValue ?? null,
+          reason: parsed.data.reason,
+        },
+        create: {
+          ticketId,
+          voterId: user.id,
+          penaltyType: parsed.data.penaltyType as PrismaPenaltyType,
+          penaltyValue: parsed.data.penaltyValue ?? null,
+          reason: parsed.data.reason,
+        },
+      });
+
+      await transaction.fiaTicketSteward.upsert({
+        where: { ticketId_userId: { ticketId, userId: user.id } },
+        update: {},
+        create: { ticketId, userId: user.id },
+      });
+
+      await transaction.fiaTicketAuditLog.create({
+        data: {
+          ticketId,
+          actorId: user.id,
+          action: PrismaTicketAuditAction.VOTE_RECORDED,
+          details: `Bewertung: ${penaltyTypeLabels[parsed.data.penaltyType]}`,
+        },
+      });
+    });
+  } catch {
+    return mutationFailure();
+  }
+
+  revalidateTicket(ticketId);
+  return { status: "success", message: "Bewertung wurde gespeichert." };
+}
+
+export async function publishFiaDecisionAction(
+  ticketIdInput: number,
+  _previousState: FiaActionState,
+  formData: FormData,
+): Promise<FiaActionState> {
+  const user = await requirePermission(Permission.DecideFiaTicket);
+  const ticketIdResult = ticketIdSchema.safeParse(ticketIdInput);
+  const parsed = decisionSchema.safeParse({
+    penaltyType: formData.get("penaltyType"),
+    penaltyValue: formData.get("penaltyValue"),
+    reason: formData.get("reason"),
+  });
+
+  if (!ticketIdResult.success || !parsed.success) {
+    return validationFailure(
+      "Bitte vervollständige die finale Entscheidung.",
+      parsed.success
+        ? undefined
+        : (parsed.error.flatten().fieldErrors as Record<string, string[]>),
+    );
+  }
+
+  const ticketId = ticketIdResult.data;
+  const prisma = getPrismaClient();
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const ticket = await transaction.fiaTicket.findUnique({
+        where: { id: ticketId },
+        select: {
+          title: true,
+          status: true,
+          reportedByUserId: true,
+          drivers: { select: { driver: { select: { userId: true } } } },
+          stewardAssignments: { select: { userId: true } },
+          votes: { select: { voterId: true } },
+          decision: { select: { id: true } },
+        },
+      });
+
+      if (
+        !ticket ||
+        ticket.status !== PrismaTicketStatus.IN_REVIEW ||
+        ticket.decision ||
+        ticket.votes.length === 0
+      ) {
+        throw new Error("INVALID_WORKFLOW");
+      }
+
+      const stewardIds = Array.from(
+        new Set([...ticket.votes.map((vote) => vote.voterId), user.id]),
+      );
+      const decision = await transaction.decision.create({
+        data: {
+          ticketId,
+          penaltyType: parsed.data.penaltyType as PrismaPenaltyType,
+          penaltyValue: parsed.data.penaltyValue ?? null,
+          reason: parsed.data.reason,
+          decidedAt: new Date(),
+          stewards: {
+            create: stewardIds.map((userId) => ({ userId })),
+          },
+        },
+        select: { id: true },
+      });
+
+      await transaction.fiaTicket.update({
+        where: { id: ticketId },
+        data: { status: PrismaTicketStatus.RESOLVED },
+      });
+
+      await transaction.fiaTicketAuditLog.createMany({
+        data: [
+          {
+            ticketId,
+            actorId: user.id,
+            action: PrismaTicketAuditAction.DECISION_PUBLISHED,
+            details: `Entscheidung: ${penaltyTypeLabels[parsed.data.penaltyType]}`,
+          },
+          {
+            ticketId,
+            actorId: user.id,
+            action: PrismaTicketAuditAction.STATUS_CHANGED,
+            fromStatus: PrismaTicketStatus.IN_REVIEW,
+            toStatus: PrismaTicketStatus.RESOLVED,
+            details: `${ticketStatusLabels[TicketStatus.InReview]} → ${ticketStatusLabels[TicketStatus.Resolved]}`,
+          },
+        ],
+      });
+
+      const recipientIds = new Set<number>();
+
+      if (ticket.reportedByUserId) {
+        recipientIds.add(ticket.reportedByUserId);
+      }
+
+      ticket.drivers.forEach(({ driver }) => {
+        if (driver.userId) {
+          recipientIds.add(driver.userId);
+        }
+      });
+      ticket.stewardAssignments.forEach(({ userId }) =>
+        recipientIds.add(userId),
+      );
+      recipientIds.delete(user.id);
+
+      if (recipientIds.size > 0) {
+        await transaction.notification.createMany({
+          data: Array.from(recipientIds).map((userId) => ({
+            userId,
+            type: PrismaNotificationType.FIA_DECISION,
+            title: `Entscheidung zu Ticket #${ticketId}`,
+            message: `${ticket.title}: ${penaltyTypeLabels[parsed.data.penaltyType]}`,
+            href: `/fia/${ticketId}`,
+          })),
+        });
+      }
+
+      return decision.id;
+    });
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      error.message === "INVALID_WORKFLOW"
+    ) {
+      return validationFailure(
+        "Eine Entscheidung erfordert ein Ticket in Bearbeitung, mindestens eine Steward-Bewertung und darf nur einmal veröffentlicht werden.",
+      );
+    }
+
+    return mutationFailure();
+  }
+
+  revalidateTicket(ticketId);
+  return {
+    status: "success",
+    message: "Entscheidung wurde veröffentlicht.",
+  };
+}
+
+export async function markAllFiaNotificationsReadAction(): Promise<void> {
+  const user = await requirePermission(Permission.ViewRaceControl);
+  const prisma = getPrismaClient();
+
+  await prisma.notification.updateMany({
+    where: {
+      userId: user.id,
+      readAt: null,
+      type: {
+        in: [
+          PrismaNotificationType.FIA_TICKET,
+          PrismaNotificationType.FIA_DECISION,
+        ],
+      },
+    },
+    data: { readAt: new Date() },
+  });
+
+  revalidatePath("/notifications");
+}

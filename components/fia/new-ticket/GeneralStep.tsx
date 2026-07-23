@@ -1,98 +1,139 @@
 "use client";
 
-type GeneralData = {
-  league: string;
-  season: string;
-  race: string;
+import {
+  raceSessionLabels,
+  type RaceSession,
+} from "@/domain";
+import type { TicketWizardOptions } from "@/lib/fia/types";
+import type { TicketWizardDraft } from "./wizard-types";
+
+type GeneralStepProps = {
+  data: TicketWizardDraft;
+  options: TicketWizardOptions;
+  setData: React.Dispatch<React.SetStateAction<TicketWizardDraft>>;
 };
 
-type Props = {
-  data: GeneralData;
-  setData: React.Dispatch<React.SetStateAction<GeneralData>>;
-};
+export default function GeneralStep({
+  data,
+  options,
+  setData,
+}: GeneralStepProps) {
+  const seasons = options.seasons.filter(
+    (season) => season.leagueId === Number(data.leagueId),
+  );
+  const races = options.races.filter(
+    (race) => race.seasonId === Number(data.seasonId),
+  );
+  const selectedRace = races.find(
+    (race) => race.id === Number(data.raceId),
+  );
 
-export default function GeneralStep({ data, setData }: Props) {
   return (
     <div className="space-y-8">
-
       <div>
         <h2 className="text-3xl font-bold text-white">
           Allgemeine Informationen
         </h2>
-
         <p className="mt-2 text-slate-400">
-          Wähle Liga, Saison und Rennen aus.
+          Wähle Liga, Saison, Rennen und Session aus.
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-300">
-            Liga
-          </label>
-
+      <div className="grid gap-6 md:grid-cols-2">
+        <label className="block text-sm font-medium text-slate-300">
+          Liga
           <select
-            value={data.league}
-            onChange={(e) =>
-              setData((prev) => ({
-                ...prev,
-                league: e.target.value,
+            value={data.leagueId}
+            onChange={(event) =>
+              setData((previous) => ({
+                ...previous,
+                leagueId: event.target.value,
+                seasonId: "",
+                raceId: "",
+                driverIds: [],
               }))
             }
-            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-blue-500"
+            className="form-control mt-2"
           >
             <option value="">Liga auswählen</option>
-            <option>F1</option>
-            <option>F2</option>
-            <option>F3</option>
-            <option>F4</option>
-            <option>F5</option>
-            <option>F6</option>
+            {options.leagues.map((league) => (
+              <option key={league.id} value={league.id}>
+                {league.code} · {league.name}
+              </option>
+            ))}
           </select>
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-300">
-            Saison
-          </label>
-
-          <select
-            value={data.season}
-            onChange={(e) =>
-              setData((prev) => ({
-                ...prev,
-                season: e.target.value,
-              }))
-            }
-            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-blue-500"
-          >
-            <option value="">Saison auswählen</option>
-            <option>Season 7</option>
-            <option>Season 8</option>
-          </select>
-        </div>
-
-      </div>
-
-      <div>
-        <label className="mb-2 block text-sm font-medium text-slate-300">
-          Grand Prix
         </label>
 
-        <input
-          value={data.race}
-          onChange={(e) =>
-            setData((prev) => ({
-              ...prev,
-              race: e.target.value,
-            }))
-          }
-          placeholder="z.B. Belgium Grand Prix"
-          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-blue-500"
-        />
+        <label className="block text-sm font-medium text-slate-300">
+          Saison
+          <select
+            value={data.seasonId}
+            disabled={!data.leagueId}
+            onChange={(event) =>
+              setData((previous) => ({
+                ...previous,
+                seasonId: event.target.value,
+                raceId: "",
+              }))
+            }
+            className="form-control mt-2 disabled:opacity-50"
+          >
+            <option value="">Saison auswählen</option>
+            {seasons.map((season) => (
+              <option key={season.id} value={season.id}>
+                {season.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
+      <label className="block text-sm font-medium text-slate-300">
+        Grand Prix
+        <select
+          value={data.raceId}
+          disabled={!data.seasonId}
+          onChange={(event) => {
+            const race = options.races.find(
+              (item) => item.id === Number(event.target.value),
+            );
+            setData((previous) => ({
+              ...previous,
+              raceId: event.target.value,
+              session: race?.sessions.at(-1) ?? previous.session,
+            }));
+          }}
+          className="form-control mt-2 disabled:opacity-50"
+        >
+          <option value="">Grand Prix auswählen</option>
+          {races.map((race) => (
+            <option key={race.id} value={race.id}>
+              {race.name} · {race.circuit}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block text-sm font-medium text-slate-300">
+        Session
+        <select
+          value={data.session}
+          disabled={!selectedRace}
+          onChange={(event) =>
+            setData((previous) => ({
+              ...previous,
+              session: event.target.value as RaceSession,
+            }))
+          }
+          className="form-control mt-2 disabled:opacity-50"
+        >
+          {(selectedRace?.sessions ?? []).map((session) => (
+            <option key={session} value={session}>
+              {raceSessionLabels[session]}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }

@@ -1,13 +1,10 @@
 import {
   fiaTicketSchema,
+  PenaltyType,
   RaceSession,
   TicketPriority,
   TicketStatus,
-  type FiaTicketWithRelations,
 } from "@/domain";
-import { drivers } from "./drivers";
-import { races } from "./races";
-import { teams } from "./teams";
 
 export const fiaTickets = fiaTicketSchema.array().parse([
   {
@@ -25,7 +22,7 @@ export const fiaTickets = fiaTicketSchema.array().parse([
     priority: TicketPriority.High,
     reportedByUserId: null,
     involvedDriverIds: [1, 2],
-    assignedStewardIds: [],
+    assignedStewardIds: [1],
     evidence: [],
     decision: null,
     createdAt: "2026-07-23T14:22:00+02:00",
@@ -65,41 +62,17 @@ export const fiaTickets = fiaTicketSchema.array().parse([
     priority: TicketPriority.Low,
     reportedByUserId: null,
     involvedDriverIds: [4],
-    assignedStewardIds: [],
+    assignedStewardIds: [1],
     evidence: [],
-    decision: null,
+    decision: {
+      penaltyType: PenaltyType.NoFurtherAction,
+      penaltyValue: null,
+      reason:
+        "Kein ausreichender Nachweis für einen unsicheren Release. Keine weitere Maßnahme.",
+      decidedByUserIds: [1],
+      decidedAt: "2026-07-22T20:05:00+02:00",
+    },
     createdAt: "2026-07-22T19:10:00+02:00",
     updatedAt: "2026-07-22T20:05:00+02:00",
   },
 ]);
-
-function findRequiredById<T extends { id: number }>(
-  records: T[],
-  id: number,
-  entityName: string,
-): T {
-  const record = records.find((item) => item.id === id);
-
-  if (!record) {
-    throw new Error(`${entityName} ${id} is missing from fixture data.`);
-  }
-
-  return record;
-}
-
-export const tickets: FiaTicketWithRelations[] = fiaTickets.map((ticket) => ({
-  ...ticket,
-  race: findRequiredById(races, ticket.raceId, "Race"),
-  drivers: ticket.involvedDriverIds.map((driverId) => {
-    const driver = findRequiredById(drivers, driverId, "Driver");
-
-    if (driver.teamId === null) {
-      throw new Error(`Driver ${driver.id} has no team assigned.`);
-    }
-
-    return {
-      ...driver,
-      team: findRequiredById(teams, driver.teamId, "Team"),
-    };
-  }),
-}));

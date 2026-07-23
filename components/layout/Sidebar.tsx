@@ -1,14 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  Home,
-  Calendar,
-  ClipboardCheck,
-  Trophy,
-  Users,
-  Flag,
-  Shield,
-  Bell,
   User,
   Settings,
   LogOut,
@@ -20,17 +12,7 @@ import {
   Permission,
 } from "@/lib/auth/permissions";
 import type { AuthenticatedUser } from "@/lib/auth/session";
-
-const menuItems = [
-  { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Kalender", href: "/calendar", icon: Calendar },
-  { name: "Rennanmeldung", href: "/attendance", icon: ClipboardCheck },
-  { name: "Meisterschaft", href: "/championship", icon: Trophy },
-  { name: "Fahrer", href: "/drivers", icon: Users },
-  { name: "Teams", href: "/teams", icon: Flag },
-  { name: "FIA", href: "/fia", icon: Shield },
-  { name: "Benachrichtigungen", href: "/notifications", icon: Bell },
-];
+import { mainNavigationItems } from "./navigation";
 
 type SidebarProps = {
   user: AuthenticatedUser;
@@ -43,7 +25,7 @@ export default function Sidebar({ user }: SidebarProps) {
   );
 
   return (
-    <aside className="flex h-screen w-72 flex-col border-r border-slate-800 bg-[#0F141B]">
+    <aside className="hidden h-screen w-72 flex-col border-r border-slate-800 bg-[#0F141B] lg:flex">
 
       {/* Logo */}
       <div className="border-b border-slate-800 px-6 py-6">
@@ -75,7 +57,7 @@ export default function Sidebar({ user }: SidebarProps) {
 
       <nav className="flex-1 px-4 py-5 space-y-2">
 
-        {menuItems.map((item) => {
+        {mainNavigationItems.map((item) => {
 
           const Icon = item.icon;
 

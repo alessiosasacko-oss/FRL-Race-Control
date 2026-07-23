@@ -8,6 +8,7 @@ import {
   Role as PrismaRole,
   TicketPriority as PrismaTicketPriority,
   TicketStatus as PrismaTicketStatus,
+  TicketAuditAction as PrismaTicketAuditAction,
 } from "../generated/prisma/client";
 import { drivers } from "../lib/data/drivers";
 import { leagues } from "../lib/data/leagues";
@@ -238,6 +239,35 @@ async function seed(): Promise<void> {
           })),
         });
       }
+    }
+
+    const existingCreationEntry = await prisma.fiaTicketAuditLog.findFirst({
+      where: {
+        ticketId: ticket.id,
+        action: PrismaTicketAuditAction.CREATED,
+      },
+      select: { id: true },
+    });
+
+    const creationEntryData = {
+      ticketId: ticket.id,
+      actorId: ticket.reportedByUserId,
+      action: PrismaTicketAuditAction.CREATED,
+      fromStatus: null,
+      toStatus: PrismaTicketStatus.OPEN,
+      details: "Ticket erstellt",
+      createdAt: new Date(ticket.createdAt),
+    };
+
+    if (existingCreationEntry) {
+      await prisma.fiaTicketAuditLog.update({
+        where: { id: existingCreationEntry.id },
+        data: creationEntryData,
+      });
+    } else {
+      await prisma.fiaTicketAuditLog.create({
+        data: creationEntryData,
+      });
     }
   }
 

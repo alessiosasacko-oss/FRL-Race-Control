@@ -17,3 +17,25 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+@layer components {
+  .filter-select {
+    @apply rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white transition hover:border-blue-500;
+  }
+
+  .pagination-link {
+    @apply inline-flex items-center justify-center gap-1 rounded-lg border border-slate-700 px-3 py-2 text-slate-300 transition hover:border-blue-500 hover:text-white;
+  }
+
+  .form-control {
+    @apply w-full rounded-xl border border-slate-700 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500;
+  }
+
+  .wizard-primary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .wizard-secondary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 px-5 py-3 text-slate-300 transition hover:border-blue-500 hover:text-white;
+  }
+}

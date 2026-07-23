@@ -1,79 +1,56 @@
-import {
-  Flag,
-  Timer,
-  AlertTriangle,
-  Shield,
-} from "lucide-react";
-import type { ReactNode } from "react";
-import {
-  ticketPriorityLabels,
-  ticketStatusLabels,
-  type FiaTicketWithRelations,
-} from "@/domain";
+import { CheckCircle2, Circle, Clock3 } from "lucide-react";
+import { TicketStatus, ticketStatusLabels } from "@/domain";
+import { startFiaReviewAction } from "@/lib/fia/actions";
+import type { FiaTicketDetail } from "@/lib/fia/types";
 
-type Props = {
-  ticket: FiaTicketWithRelations;
+type StatusCardProps = {
+  ticket: FiaTicketDetail;
+  canReview: boolean;
 };
 
-export default function StatusCard({ ticket }: Props) {
+const workflow = [
+  TicketStatus.Open,
+  TicketStatus.InReview,
+  TicketStatus.Resolved,
+];
+
+export default function StatusCard({
+  ticket,
+  canReview,
+}: StatusCardProps) {
+  const currentIndex = workflow.indexOf(ticket.status);
+  const startReview = startFiaReviewAction.bind(null, ticket.id);
+
   return (
-    <div className="rounded-2xl border border-slate-800 bg-[#151B24] p-6">
-      <h2 className="mb-6 text-xl font-bold text-white">
-        Renninformationen
-      </h2>
-
-      <div className="space-y-5">
-
-        <Row
-          icon={<Flag size={18} />}
-          title="Grand Prix"
-          value={ticket.race.name}
-        />
-
-        <Row
-          icon={<Timer size={18} />}
-          title="Runde"
-          value={ticket.lap}
-        />
-
-        <Row
-          icon={<Shield size={18} />}
-          title="Status"
-          value={ticketStatusLabels[ticket.status]}
-        />
-
-        <Row
-          icon={<AlertTriangle size={18} />}
-          title="Priorität"
-          value={ticketPriorityLabels[ticket.priority]}
-        />
-
+    <section className="rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-6">
+      <div className="flex items-center gap-2">
+        <Clock3 className="text-blue-400" size={20} />
+        <h2 className="text-xl font-bold text-white">Workflow</h2>
       </div>
-    </div>
-  );
-}
-
-function Row({
-  icon,
-  title,
-  value,
-}: {
-  icon: ReactNode;
-  title: string;
-  value: ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-
-      <div className="flex items-center gap-3 text-slate-400">
-        {icon}
-        {title}
-      </div>
-
-      <div className="font-semibold text-white">
-        {value}
-      </div>
-
-    </div>
+      <ol className="mt-6 space-y-4">
+        {workflow.map((status, index) => {
+          const complete = index <= currentIndex;
+          return (
+            <li key={status} className="flex items-center gap-3">
+              {complete ? (
+                <CheckCircle2 className="text-blue-400" size={20} />
+              ) : (
+                <Circle className="text-slate-600" size={20} />
+              )}
+              <span className={complete ? "text-white" : "text-slate-500"}>
+                {ticketStatusLabels[status]}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      {ticket.status === TicketStatus.Open && canReview ? (
+        <form action={startReview} className="mt-6">
+          <button type="submit" className="wizard-primary-button w-full">
+            Untersuchung beginnen
+          </button>
+        </form>
+      ) : null}
+    </section>
   );
 }

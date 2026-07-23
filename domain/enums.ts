@@ -56,6 +56,15 @@ export enum EvidenceType {
   Document = "DOCUMENT",
 }
 
+export enum TicketAuditAction {
+  Created = "CREATED",
+  StatusChanged = "STATUS_CHANGED",
+  EvidenceAdded = "EVIDENCE_ADDED",
+  DiscussionMessageAdded = "DISCUSSION_MESSAGE_ADDED",
+  VoteRecorded = "VOTE_RECORDED",
+  DecisionPublished = "DECISION_PUBLISHED",
+}
+
 export const roleSchema = z.enum(Role);
 export const ticketStatusSchema = z.enum(TicketStatus);
 export const ticketPrioritySchema = z.enum(TicketPriority);
@@ -63,3 +72,4 @@ export const penaltyTypeSchema = z.enum(PenaltyType);
 export const raceSessionSchema = z.enum(RaceSession);
 export const notificationTypeSchema = z.enum(NotificationType);
 export const evidenceTypeSchema = z.enum(EvidenceType);
+export const ticketAuditActionSchema = z.enum(TicketAuditAction);

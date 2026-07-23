@@ -5,105 +5,75 @@ import {
   ClipboardList,
   Flag,
   FileSearch,
-  Gavel,
   Shield,
 } from "lucide-react";
 
-type Props = {
+type StepSidebarProps = {
   currentStep: number;
+  maxStepReached: number;
   setCurrentStep: (step: number) => void;
 };
 
 const steps = [
-  {
-    id: 1,
-    title: "Allgemein",
-    icon: Shield,
-  },
-  {
-    id: 2,
-    title: "Fahrer",
-    icon: Flag,
-  },
-  {
-    id: 3,
-    title: "Vorfall",
-    icon: ClipboardList,
-  },
-  {
-    id: 4,
-    title: "Beweise",
-    icon: FileSearch,
-  },
-  {
-    id: 5,
-    title: "Entscheidung",
-    icon: Gavel,
-  },
-  {
-    id: 6,
-    title: "Übersicht",
-    icon: CheckCircle2,
-  },
+  { id: 1, title: "Allgemein", icon: Shield },
+  { id: 2, title: "Fahrer", icon: Flag },
+  { id: 3, title: "Vorfall", icon: ClipboardList },
+  { id: 4, title: "Beweise", icon: FileSearch },
+  { id: 5, title: "Übersicht", icon: CheckCircle2 },
 ];
 
 export default function StepSidebar({
   currentStep,
+  maxStepReached,
   setCurrentStep,
-}: Props) {
+}: StepSidebarProps) {
   return (
-    <aside className="w-72 border-r border-slate-800 bg-[#11161F] p-6">
+    <aside className="border-b border-slate-800 bg-[#11161F] p-4 lg:w-72 lg:border-b-0 lg:border-r lg:p-6">
       <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-400">
-        FIA RACE CONTROL
+        FIA Race Control
       </p>
-
-      <h2 className="mt-2 text-2xl font-bold text-white">
-        Neues Ticket
-      </h2>
-
+      <h2 className="mt-2 text-2xl font-bold text-white">Neues Ticket</h2>
       <p className="mt-2 text-sm text-slate-400">
         Erstelle eine neue Untersuchung.
       </p>
 
-      <div className="mt-10 space-y-2">
+      <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:mt-10 lg:grid-cols-1">
         {steps.map((step) => {
           const Icon = step.icon;
-
           const active = currentStep === step.id;
           const completed = currentStep > step.id;
+          const disabled = step.id > maxStepReached;
 
           return (
             <button
               key={step.id}
+              type="button"
               onClick={() => setCurrentStep(step.id)}
-              className={`flex w-full items-center gap-4 rounded-xl px-4 py-4 text-left transition ${
+              disabled={disabled}
+              className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 text-left transition lg:gap-4 lg:px-4 lg:py-4 ${
                 active
                   ? "bg-blue-600 text-white"
                   : completed
-                  ? "bg-green-500/10 text-green-400 hover:bg-green-500/20"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                    ? "bg-green-500/10 text-green-400 hover:bg-green-500/20"
+                    : disabled
+                      ? "cursor-not-allowed text-slate-600"
+                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
               }`}
             >
               <div
-                className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                className={`hidden h-10 w-10 items-center justify-center rounded-lg sm:flex ${
                   active
                     ? "bg-white/20"
                     : completed
-                    ? "bg-green-500/20"
-                    : "bg-slate-800"
+                      ? "bg-green-500/20"
+                      : "bg-slate-800"
                 }`}
               >
                 <Icon size={20} />
               </div>
-
               <div>
-                <p className="text-sm font-semibold">
-                  {step.title}
-                </p>
-
-                <p className="text-xs opacity-70">
-                  Schritt {step.id}
-                </p>
+                <p className="text-sm font-semibold">{step.title}</p>
+                <p className="text-xs opacity-70">Schritt {step.id} von 5</p>
               </div>
             </button>
           );

@@ -9,12 +9,10 @@ import {
   evidenceTypeSchema,
   penaltyTypeSchema,
   raceSessionSchema,
+  ticketAuditActionSchema,
   ticketPrioritySchema,
   ticketStatusSchema,
 } from "./enums";
-import type { Driver } from "./driver";
-import type { Race } from "./race";
-import type { Team } from "./team";
 
 export const ticketEvidenceSchema = z
   .object({
@@ -37,6 +35,18 @@ export const ticketDecisionSchema = z
   })
   .strict();
 
+export const ticketAuditEntrySchema = z
+  .object({
+    id: entityIdSchema,
+    action: ticketAuditActionSchema,
+    actorUserId: entityIdSchema.nullable(),
+    fromStatus: ticketStatusSchema.nullable(),
+    toStatus: ticketStatusSchema.nullable(),
+    details: z.string().trim().min(1).max(1000),
+    createdAt: isoDateTimeSchema,
+  })
+  .strict();
+
 export const fiaTicketSchema = z
   .object({
     id: entityIdSchema,
@@ -55,6 +65,7 @@ export const fiaTicketSchema = z
     assignedStewardIds: z.array(entityIdSchema),
     evidence: z.array(ticketEvidenceSchema),
     decision: ticketDecisionSchema.nullable(),
+    auditLog: z.array(ticketAuditEntrySchema).default([]),
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,
   })
@@ -80,13 +91,5 @@ export const fiaTicketSchema = z
 
 export type TicketEvidence = z.infer<typeof ticketEvidenceSchema>;
 export type TicketDecision = z.infer<typeof ticketDecisionSchema>;
+export type TicketAuditEntry = z.infer<typeof ticketAuditEntrySchema>;
 export type FiaTicket = z.infer<typeof fiaTicketSchema>;
-
-export type FiaTicketDriverWithTeam = Driver & {
-  team: Team;
-};
-
-export type FiaTicketWithRelations = FiaTicket & {
-  race: Race;
-  drivers: FiaTicketDriverWithTeam[];
-};

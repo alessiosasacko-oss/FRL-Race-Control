@@ -4,44 +4,36 @@ import {
   Flag,
   MapPin,
   Clock3,
+  MessageSquare,
+  Paperclip,
+  Vote,
 } from "lucide-react";
-import {
-  ticketPriorityLabels,
-  ticketStatusLabels,
-  TicketPriority,
-  TicketStatus,
-  type FiaTicketWithRelations,
-} from "@/domain";
+import { raceSessionLabels } from "@/domain";
+import type { FiaTicketListItem } from "@/lib/fia/types";
+import PriorityBadge from "./PriorityBadge";
+import StatusBadge from "./StatusBadge";
 
 type Props = {
-  ticket: FiaTicketWithRelations;
+  ticket: FiaTicketListItem;
 };
 
 export default function TicketCard({ ticket }: Props) {
-  const statusClasses: Record<TicketStatus, string> = {
-    [TicketStatus.Open]:
-      "bg-red-500/15 text-red-400 border border-red-500/30",
-    [TicketStatus.InReview]:
-      "bg-yellow-500/15 text-yellow-300 border border-yellow-500/30",
-    [TicketStatus.Resolved]:
-      "bg-green-500/15 text-green-400 border border-green-500/30",
-  };
-
-  const priorityClasses: Record<TicketPriority, string> = {
-    [TicketPriority.High]: "bg-red-500/15 text-red-400",
-    [TicketPriority.Normal]: "bg-yellow-500/15 text-yellow-300",
-    [TicketPriority.Low]: "bg-green-500/15 text-green-400",
-  };
+  const updatedAt = new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(ticket.updatedAt));
 
   return (
-    <Link href={`/fia/${ticket.id}`}>
-      <div className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-[#151B24] p-6 transition-all duration-300 hover:-translate-y-1 hover:border-blue-500/70 hover:shadow-2xl hover:shadow-blue-500/20">
+    <Link
+      href={`/fia/${ticket.id}`}
+      className="group relative block overflow-hidden rounded-2xl border border-slate-800 bg-[#151B24] p-4 transition-all duration-300 hover:-translate-y-1 hover:border-blue-500/70 hover:shadow-2xl hover:shadow-blue-500/20 sm:p-6"
+    >
 
         {/* Blaue Seitenleiste */}
         <div className="absolute left-0 top-0 h-full w-1 bg-blue-500" />
 
         {/* Kopf */}
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-400">
               {ticket.race.name}
@@ -52,13 +44,7 @@ export default function TicketCard({ ticket }: Props) {
             </h2>
           </div>
 
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              statusClasses[ticket.status]
-            }`}
-          >
-            {ticketStatusLabels[ticket.status]}
-          </span>
+          <StatusBadge status={ticket.status} />
         </div>
 
         {/* Fahrer */}
@@ -75,7 +61,7 @@ export default function TicketCard({ ticket }: Props) {
                   </h3>
 
                   <p className="text-sm text-slate-400">
-                    {driver.team.name}
+                    {driver.team?.name ?? "Ohne Team"}
                   </p>
                 </div>
 
@@ -92,25 +78,31 @@ export default function TicketCard({ ticket }: Props) {
 
           <div className="flex items-center gap-2">
             <Flag size={16} />
-            Runde {ticket.lap}
+            {ticket.lap ? `Runde ${ticket.lap}` : raceSessionLabels[ticket.session]}
           </div>
 
           <div className="flex items-center gap-2">
             <MapPin size={16} />
-            {ticket.corner}
+            {ticket.corner ?? "Keine Kurve angegeben"}
           </div>
 
           <div className="flex items-center gap-2">
             <Clock3 size={16} />
-            Heute
+            {updatedAt}
           </div>
 
-          <div
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              priorityClasses[ticket.priority]
-            }`}
-          >
-            {ticketPriorityLabels[ticket.priority]}
+          <PriorityBadge priority={ticket.priority} />
+
+          <div className="ml-auto flex items-center gap-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1">
+              <Paperclip size={14} /> {ticket.counts.evidence}
+            </span>
+            <span className="flex items-center gap-1">
+              <MessageSquare size={14} /> {ticket.counts.discussionMessages}
+            </span>
+            <span className="flex items-center gap-1">
+              <Vote size={14} /> {ticket.counts.votes}
+            </span>
           </div>
         </div>
 
@@ -127,7 +119,6 @@ export default function TicketCard({ ticket }: Props) {
           </div>
 
         </div>
-      </div>
     </Link>
   );
 }
