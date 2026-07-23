@@ -1,0 +1,389 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  DRIVER
+  STEWARD
+  LEAGUE_MANAGER
+  ADMIN
+}
+
+enum TicketStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum PenaltyType {
+  NO_FURTHER_ACTION
+  WARNING
+  REPRIMAND
+  TIME_PENALTY
+  GRID_PENALTY
+  DRIVE_THROUGH
+  STOP_AND_GO
+  DISQUALIFICATION
+  POINTS_DEDUCTION
+}
+
+enum RaceSession {
+  PRACTICE
+  QUALIFYING
+  SPRINT
+  RACE
+}
+
+enum NotificationType {
+  SYSTEM
+  RACE_REMINDER
+  ATTENDANCE
+  FIA_TICKET
+  FIA_DECISION
+  CHAMPIONSHIP
+}
+
+enum EvidenceType {
+  LINK
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+model User {
+  id                  Int                 @id @default(autoincrement())
+  discordId           String?             @unique @db.VarChar(32)
+  displayName         String              @db.VarChar(160)
+  avatarUrl           String?             @db.Text
+  roles               Role[]              @default([DRIVER])
+  active              Boolean             @default(true)
+  driver              Driver?
+  reportedTickets     FiaTicket[]         @relation("TicketReporter")
+  ticketAssignments   FiaTicketSteward[]
+  submittedEvidence   Evidence[]          @relation("EvidenceSubmitter")
+  discussionMessages  DiscussionMessage[]
+  votes               Vote[]
+  decisionMemberships DecisionSteward[]
+  notifications       Notification[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([active])
+  @@index([displayName])
+}
+
+model Driver {
+  id          Int               @id @default(autoincrement())
+  userId      Int?              @unique
+  teamId      Int?
+  leagueId    Int
+  name        String            @db.VarChar(160)
+  number      Int
+  flag        String            @db.VarChar(16)
+  countryCode String            @db.Char(2)
+  active      Boolean           @default(true)
+  user        User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  team        Team?             @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  league      League            @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  standings   DriverStanding[]
+  ticketLinks FiaTicketDriver[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([leagueId, number])
+  @@index([leagueId, active])
+  @@index([teamId])
+  @@index([name])
+}
+
+model Team {
+  id        Int            @id @default(autoincrement())
+  leagueId  Int
+  name      String         @db.VarChar(160)
+  shortName String         @db.VarChar(12)
+  color     String         @db.Char(7)
+  active    Boolean        @default(true)
+  league    League         @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  drivers   Driver[]
+  standings TeamStanding[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([leagueId, name])
+  @@unique([leagueId, shortName])
+  @@index([leagueId, active])
+}
+
+model League {
+  id              Int         @id @default(autoincrement())
+  currentSeasonId Int?        @unique
+  name            String      @db.VarChar(160)
+  code            String      @unique @db.VarChar(12)
+  description     String?     @db.Text
+  active          Boolean     @default(true)
+  currentSeason   Season?     @relation("CurrentSeason", fields: [currentSeasonId], references: [id], onDelete: SetNull)
+  seasons         Season[]    @relation("LeagueSeasons")
+  teams           Team[]
+  drivers         Driver[]
+  tickets         FiaTicket[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([active])
+  @@index([name])
+}
+
+model Season {
+  id                Int           @id @default(autoincrement())
+  leagueId          Int
+  name              String        @db.VarChar(160)
+  startsOn          DateTime      @db.Date
+  endsOn            DateTime      @db.Date
+  active            Boolean       @default(true)
+  league            League        @relation("LeagueSeasons", fields: [leagueId], references: [id], onDelete: Restrict)
+  currentForLeagues League[]      @relation("CurrentSeason")
+  races             Race[]
+  championship      Championship?
+  tickets           FiaTicket[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([leagueId, name])
+  @@index([leagueId, active])
+  @@index([startsOn, endsOn])
+}
+
+model Race {
+  id          Int           @id @default(autoincrement())
+  seasonId    Int
+  name        String        @db.VarChar(160)
+  circuit     String        @db.VarChar(160)
+  countryCode String        @db.Char(2)
+  round       Int
+  scheduledAt DateTime
+  sessions    RaceSession[]
+  completed   Boolean       @default(false)
+  season      Season        @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  tickets     FiaTicket[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([seasonId, round])
+  @@unique([seasonId, name])
+  @@index([seasonId, scheduledAt])
+  @@index([completed, scheduledAt])
+}
+
+model Championship {
+  id              Int              @id @default(autoincrement())
+  seasonId        Int              @unique
+  name            String           @db.VarChar(160)
+  season          Season           @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  driverStandings DriverStanding[]
+  teamStandings   TeamStanding[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([name])
+}
+
+model DriverStanding {
+  id             Int          @id @default(autoincrement())
+  championshipId Int
+  driverId       Int
+  position       Int
+  points         Float        @default(0)
+  wins           Int          @default(0)
+  podiums        Int          @default(0)
+  penaltyPoints  Float        @default(0)
+  championship   Championship @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  driver         Driver       @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([championshipId, driverId])
+  @@unique([championshipId, position])
+  @@index([driverId])
+  @@index([championshipId, points])
+}
+
+model TeamStanding {
+  id             Int          @id @default(autoincrement())
+  championshipId Int
+  teamId         Int
+  position       Int
+  points         Float        @default(0)
+  wins           Int          @default(0)
+  championship   Championship @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  team           Team         @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([championshipId, teamId])
+  @@unique([championshipId, position])
+  @@index([teamId])
+  @@index([championshipId, points])
+}
+
+model FiaTicket {
+  id                 Int                 @id @default(autoincrement())
+  leagueId           Int
+  seasonId           Int
+  raceId             Int
+  reportedByUserId   Int?
+  title              String              @db.VarChar(160)
+  description        String              @db.Text
+  session            RaceSession
+  lap                Int?
+  corner             String?             @db.VarChar(80)
+  status             TicketStatus        @default(OPEN)
+  priority           TicketPriority      @default(NORMAL)
+  league             League              @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  season             Season              @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  race               Race                @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  reportedBy         User?               @relation("TicketReporter", fields: [reportedByUserId], references: [id], onDelete: SetNull)
+  drivers            FiaTicketDriver[]
+  stewardAssignments FiaTicketSteward[]
+  evidence           Evidence[]
+  discussionMessages DiscussionMessage[]
+  votes              Vote[]
+  decision           Decision?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([leagueId, status])
+  @@index([seasonId, status])
+  @@index([raceId, status])
+  @@index([status, priority, createdAt])
+  @@index([reportedByUserId])
+}
+
+model FiaTicketDriver {
+  id        Int       @id @default(autoincrement())
+  ticketId  Int
+  driverId  Int
+  ticket    FiaTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  driver    Driver    @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([ticketId, driverId])
+  @@index([driverId, ticketId])
+}
+
+model FiaTicketSteward {
+  id        Int       @id @default(autoincrement())
+  ticketId  Int
+  userId    Int
+  ticket    FiaTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([ticketId, userId])
+  @@index([userId, ticketId])
+}
+
+model Evidence {
+  id                Int          @id @default(autoincrement())
+  ticketId          Int
+  submittedByUserId Int?
+  type              EvidenceType
+  url               String       @db.Text
+  label             String       @db.VarChar(160)
+  ticket            FiaTicket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  submittedBy       User?        @relation("EvidenceSubmitter", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@unique([ticketId, url])
+  @@index([submittedByUserId])
+  @@index([ticketId, type])
+}
+
+model DiscussionMessage {
+  id        Int       @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  message   String    @db.Text
+  ticket    FiaTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
+}
+
+model Vote {
+  id           Int         @id @default(autoincrement())
+  ticketId     Int
+  voterId      Int
+  penaltyType  PenaltyType
+  penaltyValue Float?
+  reason       String      @db.Text
+  ticket       FiaTicket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  voter        User        @relation(fields: [voterId], references: [id], onDelete: Restrict)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([ticketId, voterId])
+  @@index([voterId])
+  @@index([ticketId, penaltyType])
+}
+
+model Decision {
+  id           Int               @id @default(autoincrement())
+  ticketId     Int               @unique
+  penaltyType  PenaltyType
+  penaltyValue Float?
+  reason       String            @db.Text
+  decidedAt    DateTime
+  ticket       FiaTicket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  stewards     DecisionSteward[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([penaltyType])
+  @@index([decidedAt])
+}
+
+model DecisionSteward {
+  id         Int      @id @default(autoincrement())
+  decisionId Int
+  userId     Int
+  decision   Decision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([decisionId, userId])
+  @@index([userId, decisionId])
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  type      NotificationType
+  title     String           @db.VarChar(160)
+  message   String           @db.VarChar(1000)
+  href      String?          @db.VarChar(500)
+  readAt    DateTime?
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId, readAt, createdAt])
+  @@index([type, createdAt])
+}

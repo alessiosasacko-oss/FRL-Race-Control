@@ -6,6 +6,7 @@ import {
   titleSchema,
 } from "./common";
 import {
+  evidenceTypeSchema,
   penaltyTypeSchema,
   raceSessionSchema,
   ticketPrioritySchema,
@@ -18,7 +19,7 @@ import type { Team } from "./team";
 export const ticketEvidenceSchema = z
   .object({
     id: entityIdSchema,
-    type: z.enum(["LINK", "IMAGE", "VIDEO", "DOCUMENT"]),
+    type: evidenceTypeSchema,
     url: z.url(),
     label: titleSchema,
     submittedByUserId: entityIdSchema.nullable(),

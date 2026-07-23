@@ -47,9 +47,17 @@ export enum NotificationType {
   Championship = "CHAMPIONSHIP",
 }
 
+export enum EvidenceType {
+  Link = "LINK",
+  Image = "IMAGE",
+  Video = "VIDEO",
+  Document = "DOCUMENT",
+}
+
 export const roleSchema = z.enum(Role);
 export const ticketStatusSchema = z.enum(TicketStatus);
 export const ticketPrioritySchema = z.enum(TicketPriority);
 export const penaltyTypeSchema = z.enum(PenaltyType);
 export const raceSessionSchema = z.enum(RaceSession);
 export const notificationTypeSchema = z.enum(NotificationType);
+export const evidenceTypeSchema = z.enum(EvidenceType);
