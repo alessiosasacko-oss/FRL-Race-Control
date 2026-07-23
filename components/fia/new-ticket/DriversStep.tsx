@@ -1,15 +1,13 @@
 "use client";
 
 import { Plus, Trash2, Users } from "lucide-react";
+import type { Driver } from "@/domain";
 
-export type Driver = {
-  id: number;
-  name: string;
-};
+export type DriverDraft = Pick<Driver, "id" | "name">;
 
 type Props = {
-  drivers: Driver[];
-  setDrivers: React.Dispatch<React.SetStateAction<Driver[]>>;
+  drivers: DriverDraft[];
+  setDrivers: React.Dispatch<React.SetStateAction<DriverDraft[]>>;
 };
 
 export default function DriversStep({

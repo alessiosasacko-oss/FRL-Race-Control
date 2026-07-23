@@ -1,7 +1,7 @@
-import type { Ticket } from "@/types/fia";
+import type { FiaTicketWithRelations } from "@/domain";
 
 type Props = {
-  ticket: Ticket;
+  ticket: FiaTicketWithRelations;
 };
 
 export default function DriversCard({ ticket }: Props) {
@@ -23,7 +23,7 @@ export default function DriversCard({ ticket }: Props) {
               </h3>
 
               <p className="text-sm text-slate-400">
-                {driver.team}
+                {driver.team.name}
               </p>
             </div>
 

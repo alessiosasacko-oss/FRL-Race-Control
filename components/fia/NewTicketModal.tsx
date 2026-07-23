@@ -1,6 +1,10 @@
 "use client";
 
 import { X, Upload, Link2, AlertTriangle } from "lucide-react";
+import {
+  TicketPriority,
+  ticketPriorityLabels,
+} from "@/domain";
 
 type Props = {
   open: boolean;
@@ -182,13 +186,13 @@ export default function NewTicketModal({ open, onClose }: Props) {
 
             <div className="flex gap-4">
 
-              {["Niedrig", "Normal", "Hoch"].map((priority) => (
+              {Object.values(TicketPriority).map((priority) => (
                 <button
                   key={priority}
                   className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-5 py-3 text-white transition hover:border-blue-500"
                 >
                   <AlertTriangle size={16} />
-                  {priority}
+                  {ticketPriorityLabels[priority]}
                 </button>
               ))}
 

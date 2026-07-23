@@ -1,3 +1,5 @@
+import { races } from "@/lib/data/races";
+
 export default function TicketForm() {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8">
@@ -8,9 +10,11 @@ export default function TicketForm() {
           </label>
 
           <select className="w-full rounded-xl border border-slate-700 bg-slate-800 p-3 text-white">
-            <option>Italian Grand Prix</option>
-            <option>Belgian Grand Prix</option>
-            <option>British Grand Prix</option>
+            {races.map((race) => (
+              <option key={race.id} value={race.id}>
+                {race.name}
+              </option>
+            ))}
           </select>
         </div>
 

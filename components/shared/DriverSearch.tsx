@@ -2,18 +2,15 @@
 
 import { Search, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { Driver, Team } from "@/domain";
 
-export type Driver = {
-  id: number;
-  name: string;
-  number: number;
-  team: string;
-  flag: string;
+type SearchableDriver = Driver & {
+  team: Team;
 };
 
 type Props = {
-  drivers: Driver[];
-  onSelect: (driver: Driver) => void;
+  drivers: SearchableDriver[];
+  onSelect: (driver: SearchableDriver) => void;
 };
 
 export default function DriverSearch({
@@ -26,7 +23,7 @@ export default function DriverSearch({
     if (!query.trim()) return drivers;
 
     return drivers.filter((driver) =>
-      `${driver.name} ${driver.team} ${driver.number}`
+      `${driver.name} ${driver.team.name} ${driver.number}`
         .toLowerCase()
         .includes(query.toLowerCase())
     );
@@ -75,7 +72,7 @@ export default function DriverSearch({
                   </p>
 
                   <p className="text-sm text-slate-400">
-                    {driver.team}
+                    {driver.team.name}
                   </p>
 
                 </div>

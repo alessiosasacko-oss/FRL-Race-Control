@@ -5,10 +5,14 @@ import {
   Shield,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import type { Ticket } from "@/types/fia";
+import {
+  ticketPriorityLabels,
+  ticketStatusLabels,
+  type FiaTicketWithRelations,
+} from "@/domain";
 
 type Props = {
-  ticket: Ticket;
+  ticket: FiaTicketWithRelations;
 };
 
 export default function StatusCard({ ticket }: Props) {
@@ -23,7 +27,7 @@ export default function StatusCard({ ticket }: Props) {
         <Row
           icon={<Flag size={18} />}
           title="Grand Prix"
-          value={ticket.race}
+          value={ticket.race.name}
         />
 
         <Row
@@ -35,13 +39,13 @@ export default function StatusCard({ ticket }: Props) {
         <Row
           icon={<Shield size={18} />}
           title="Status"
-          value={ticket.status}
+          value={ticketStatusLabels[ticket.status]}
         />
 
         <Row
           icon={<AlertTriangle size={18} />}
           title="Priorität"
-          value={ticket.priority}
+          value={ticketPriorityLabels[ticket.priority]}
         />
 
       </div>

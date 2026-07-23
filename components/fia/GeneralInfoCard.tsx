@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
-import type { Ticket } from "@/types/fia";
+import {
+  ticketPriorityLabels,
+  type FiaTicketWithRelations,
+} from "@/domain";
 
 type Props = {
-  ticket: Ticket;
+  ticket: FiaTicketWithRelations;
 };
 
 export default function GeneralInfoCard({ ticket }: Props) {
@@ -13,10 +16,13 @@ export default function GeneralInfoCard({ ticket }: Props) {
       </h2>
 
       <div className="grid grid-cols-2 gap-6 text-sm">
-        <Info title="Rennen" value={ticket.race} />
+        <Info title="Rennen" value={ticket.race.name} />
         <Info title="Runde" value={ticket.lap} />
         <Info title="Kurve" value={ticket.corner} />
-        <Info title="Priorität" value={ticket.priority} />
+        <Info
+          title="Priorität"
+          value={ticketPriorityLabels[ticket.priority]}
+        />
       </div>
     </div>
   );

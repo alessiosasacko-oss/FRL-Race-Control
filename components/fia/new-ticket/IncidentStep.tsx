@@ -1,12 +1,16 @@
 "use client";
 
 import { AlertTriangle, ClipboardList } from "lucide-react";
+import {
+  TicketPriority,
+  ticketPriorityLabels,
+} from "@/domain";
 
 export type IncidentData = {
   title: string;
   lap: string;
   corner: string;
-  priority: "Niedrig" | "Normal" | "Hoch";
+  priority: TicketPriority;
   description: string;
 };
 
@@ -19,11 +23,7 @@ export default function IncidentStep({
   data,
   setData,
 }: Props) {
-  const priorities: IncidentData["priority"][] = [
-    "Niedrig",
-    "Normal",
-    "Hoch",
-  ];
+  const priorities = Object.values(TicketPriority);
 
   return (
     <div className="space-y-8">
@@ -120,7 +120,7 @@ export default function IncidentStep({
               }`}
             >
               <AlertTriangle size={16} />
-              {priority}
+              {ticketPriorityLabels[priority]}
             </button>
           ))}
         </div>

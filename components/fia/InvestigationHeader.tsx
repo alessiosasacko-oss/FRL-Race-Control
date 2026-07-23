@@ -1,7 +1,10 @@
-import type { Ticket } from "@/types/fia";
+import {
+  ticketStatusLabels,
+  type FiaTicketWithRelations,
+} from "@/domain";
 
 type Props = {
-  ticket: Ticket;
+  ticket: FiaTicketWithRelations;
 };
 
 export default function InvestigationHeader({ ticket }: Props) {
@@ -23,7 +26,7 @@ export default function InvestigationHeader({ ticket }: Props) {
         </div>
 
         <div className="rounded-xl bg-red-600 px-5 py-2 font-semibold text-white">
-          {ticket.status}
+          {ticketStatusLabels[ticket.status]}
         </div>
       </div>
     </div>

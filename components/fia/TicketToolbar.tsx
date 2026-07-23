@@ -7,6 +7,12 @@ import {
   SlidersHorizontal,
   RotateCcw,
 } from "lucide-react";
+import {
+  TicketPriority,
+  TicketStatus,
+  ticketPriorityLabels,
+  ticketStatusLabels,
+} from "@/domain";
 import NewTicketModal from "./NewTicketModal";
 
 const filterGroups: Array<{
@@ -18,11 +24,21 @@ const filterGroups: Array<{
   { label: "Rennen", options: ["Alle Rennen"] },
   {
     label: "Status",
-    options: ["Alle", "Offen", "In Bearbeitung", "Erledigt"],
+    options: [
+      "Alle",
+      ...Object.values(TicketStatus).map(
+        (status) => ticketStatusLabels[status],
+      ),
+    ],
   },
   {
     label: "Priorität",
-    options: ["Alle", "Hoch", "Normal", "Niedrig"],
+    options: [
+      "Alle",
+      ...Object.values(TicketPriority).map(
+        (priority) => ticketPriorityLabels[priority],
+      ),
+    ],
   },
 ];
 

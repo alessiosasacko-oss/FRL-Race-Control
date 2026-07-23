@@ -1,7 +1,7 @@
-import type { Ticket } from "@/types/fia";
+import type { FiaTicketWithRelations } from "@/domain";
 
 type Props = {
-  ticket: Ticket;
+  ticket: FiaTicketWithRelations;
 };
 
 export default function DescriptionCard({ ticket }: Props) {

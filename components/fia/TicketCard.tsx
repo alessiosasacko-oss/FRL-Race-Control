@@ -5,30 +5,32 @@ import {
   MapPin,
   Clock3,
 } from "lucide-react";
-import type {
-  Ticket,
+import {
+  ticketPriorityLabels,
+  ticketStatusLabels,
   TicketPriority,
   TicketStatus,
-} from "@/types/fia";
+  type FiaTicketWithRelations,
+} from "@/domain";
 
 type Props = {
-  ticket: Ticket;
+  ticket: FiaTicketWithRelations;
 };
 
 export default function TicketCard({ ticket }: Props) {
   const statusClasses: Record<TicketStatus, string> = {
-    Offen:
+    [TicketStatus.Open]:
       "bg-red-500/15 text-red-400 border border-red-500/30",
-    "In Bearbeitung":
+    [TicketStatus.InReview]:
       "bg-yellow-500/15 text-yellow-300 border border-yellow-500/30",
-    Erledigt:
+    [TicketStatus.Resolved]:
       "bg-green-500/15 text-green-400 border border-green-500/30",
   };
 
   const priorityClasses: Record<TicketPriority, string> = {
-    Hoch: "bg-red-500/15 text-red-400",
-    Normal: "bg-yellow-500/15 text-yellow-300",
-    Niedrig: "bg-green-500/15 text-green-400",
+    [TicketPriority.High]: "bg-red-500/15 text-red-400",
+    [TicketPriority.Normal]: "bg-yellow-500/15 text-yellow-300",
+    [TicketPriority.Low]: "bg-green-500/15 text-green-400",
   };
 
   return (
@@ -42,7 +44,7 @@ export default function TicketCard({ ticket }: Props) {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-400">
-              {ticket.race}
+              {ticket.race.name}
             </p>
 
             <h2 className="mt-2 text-2xl font-bold text-white">
@@ -55,7 +57,7 @@ export default function TicketCard({ ticket }: Props) {
               statusClasses[ticket.status]
             }`}
           >
-            {ticket.status}
+            {ticketStatusLabels[ticket.status]}
           </span>
         </div>
 
@@ -73,7 +75,7 @@ export default function TicketCard({ ticket }: Props) {
                   </h3>
 
                   <p className="text-sm text-slate-400">
-                    {driver.team}
+                    {driver.team.name}
                   </p>
                 </div>
 
@@ -108,7 +110,7 @@ export default function TicketCard({ ticket }: Props) {
               priorityClasses[ticket.priority]
             }`}
           >
-            {ticket.priority}
+            {ticketPriorityLabels[ticket.priority]}
           </div>
         </div>
 

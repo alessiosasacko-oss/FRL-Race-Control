@@ -1,27 +1,48 @@
-export type Driver = {
-  id: number;
-  name: string;
-  number: number;
-  flag: string;
-  teamId: number;
-  league: string;
-};
+import { driverSchema } from "@/domain";
 
-export const drivers: Driver[] = [
+export const drivers = driverSchema.array().parse([
   {
     id: 1,
-    name: "Max Müller",
-    number: 23,
-    flag: "🇩🇪",
+    userId: null,
+    name: "Max Verstappen",
+    number: 1,
+    flag: "🇳🇱",
+    countryCode: "NL",
     teamId: 1,
-    league: "F1",
+    leagueId: 1,
+    active: true,
   },
   {
     id: 2,
-    name: "Luca Rossi",
-    number: 44,
-    flag: "🇮🇹",
+    userId: null,
+    name: "Lando Norris",
+    number: 4,
+    flag: "🇬🇧",
+    countryCode: "GB",
     teamId: 2,
-    league: "F1",
+    leagueId: 1,
+    active: true,
   },
-];
+  {
+    id: 3,
+    userId: null,
+    name: "Charles Leclerc",
+    number: 16,
+    flag: "🇲🇨",
+    countryCode: "MC",
+    teamId: 3,
+    leagueId: 1,
+    active: true,
+  },
+  {
+    id: 4,
+    userId: null,
+    name: "George Russell",
+    number: 63,
+    flag: "🇬🇧",
+    countryCode: "GB",
+    teamId: 4,
+    leagueId: 1,
+    active: true,
+  },
+]);

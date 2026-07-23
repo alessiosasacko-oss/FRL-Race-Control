@@ -1,4 +1,5 @@
 import { tickets } from "@/lib/data/tickets";
+import { TicketStatus } from "@/domain";
 import {
   AlertTriangle,
   Clock3,
@@ -7,12 +8,17 @@ import {
 } from "lucide-react";
 
 export default function FIAStats() {
-  const open = tickets.filter((t) => t.status === "Offen").length;
-  const working = tickets.filter(
-    (t) => t.status === "In Bearbeitung"
+  const open = tickets.filter(
+    (ticket) => ticket.status === TicketStatus.Open,
   ).length;
-  const finished = tickets.filter((t) => t.status === "Erledigt").length;
-  const total = tickets.length || 1;
+  const working = tickets.filter(
+    (ticket) => ticket.status === TicketStatus.InReview,
+  ).length;
+  const finished = tickets.filter(
+    (ticket) => ticket.status === TicketStatus.Resolved,
+  ).length;
+  const total = tickets.length;
+  const percentageDenominator = total || 1;
 
   const stats = [
     {
@@ -20,21 +26,21 @@ export default function FIAStats() {
       value: open,
       color: "bg-red-500",
       icon: AlertTriangle,
-      progress: (open / total) * 100,
+      progress: (open / percentageDenominator) * 100,
     },
     {
       title: "In Bearbeitung",
       value: working,
       color: "bg-yellow-500",
       icon: Clock3,
-      progress: (working / total) * 100,
+      progress: (working / percentageDenominator) * 100,
     },
     {
       title: "Abgeschlossen",
       value: finished,
       color: "bg-green-500",
       icon: CheckCircle2,
-      progress: (finished / total) * 100,
+      progress: (finished / percentageDenominator) * 100,
     },
     {
       title: "Gesamt",
