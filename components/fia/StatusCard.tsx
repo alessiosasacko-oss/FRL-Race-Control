@@ -4,9 +4,11 @@ import {
   AlertTriangle,
   Shield,
 } from "lucide-react";
+import type { ReactNode } from "react";
+import type { Ticket } from "@/types/fia";
 
 type Props = {
-  ticket: any;
+  ticket: Ticket;
 };
 
 export default function StatusCard({ ticket }: Props) {
@@ -52,9 +54,9 @@ function Row({
   title,
   value,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
-  value: any;
+  value: ReactNode;
 }) {
   return (
     <div className="flex items-center justify-between border-b border-slate-800 pb-3">

@@ -1,5 +1,7 @@
+import type { Ticket } from "@/types/fia";
+
 type Props = {
-  ticket: any;
+  ticket: Ticket;
 };
 
 export default function DriversCard({ ticket }: Props) {
@@ -10,7 +12,7 @@ export default function DriversCard({ ticket }: Props) {
       </h2>
 
       <div className="space-y-4">
-        {ticket.drivers.map((driver: any) => (
+        {ticket.drivers.map((driver) => (
           <div
             key={driver.id}
             className="flex items-center justify-between rounded-xl bg-slate-800 p-4"

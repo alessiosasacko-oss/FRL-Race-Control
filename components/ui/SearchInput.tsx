@@ -1,37 +1,23 @@
-import { ReactNode } from "react";
+"use client";
 
 type Props = {
-  title: string;
-  value: string | number;
-  icon: ReactNode;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
 };
 
-export default function StatCard({
-  title,
+export default function SearchInput({
   value,
-  icon,
+  onChange,
+  placeholder = "Suchen...",
 }: Props) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-[#151B24] p-5">
-
-      <div className="flex justify-between items-center">
-
-        <div>
-          <p className="text-slate-400 text-sm">
-            {title}
-          </p>
-
-          <h2 className="text-3xl font-bold mt-1">
-            {value}
-          </h2>
-        </div>
-
-        <div className="rounded-xl bg-blue-600 p-3">
-          {icon}
-        </div>
-
-      </div>
-
-    </div>
+    <input
+      type="search"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500"
+    />
   );
 }

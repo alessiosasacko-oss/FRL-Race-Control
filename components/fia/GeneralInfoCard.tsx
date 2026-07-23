@@ -1,5 +1,8 @@
+import type { ReactNode } from "react";
+import type { Ticket } from "@/types/fia";
+
 type Props = {
-  ticket: any;
+  ticket: Ticket;
 };
 
 export default function GeneralInfoCard({ ticket }: Props) {
@@ -24,7 +27,7 @@ function Info({
   value,
 }: {
   title: string;
-  value: any;
+  value: ReactNode;
 }) {
   return (
     <div>

@@ -1,4 +1,6 @@
-export const tickets = [
+import type { Ticket } from "@/types/fia";
+
+export const tickets: Ticket[] = [
   {
     id: 24,
     title: "Kollision in Turn 1",

@@ -9,6 +9,23 @@ import {
 } from "lucide-react";
 import NewTicketModal from "./NewTicketModal";
 
+const filterGroups: Array<{
+  label: string;
+  options: string[];
+}> = [
+  { label: "Liga", options: ["F1", "F2", "F3", "F4", "F5", "F6"] },
+  { label: "Saison", options: ["Season 7"] },
+  { label: "Rennen", options: ["Alle Rennen"] },
+  {
+    label: "Status",
+    options: ["Alle", "Offen", "In Bearbeitung", "Erledigt"],
+  },
+  {
+    label: "Priorität",
+    options: ["Alle", "Hoch", "Normal", "Niedrig"],
+  },
+];
+
 export default function TicketToolbar() {
   const [open, setOpen] = useState(false);
 
@@ -61,20 +78,14 @@ export default function TicketToolbar() {
             <span className="font-semibold">Filter</span>
           </div>
 
-          {[
-            ["Liga", ["F1", "F2", "F3", "F4", "F5", "F6"]],
-            ["Saison", ["Season 7"]],
-            ["Rennen", ["Alle Rennen"]],
-            ["Status", ["Alle", "Offen", "In Bearbeitung", "Erledigt"]],
-            ["Priorität", ["Alle", "Hoch", "Normal", "Niedrig"]],
-          ].map(([label, options]) => (
+          {filterGroups.map(({ label, options }) => (
             <select
               key={label}
               className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white transition hover:border-blue-500"
             >
               <option>{label}</option>
 
-              {(options as string[]).map((option) => (
+              {options.map((option) => (
                 <option key={option}>{option}</option>
               ))}
             </select>

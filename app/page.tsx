@@ -1,5 +1,4 @@
 import Button from "@/components/ui/Button";
-import Navbar from "@/components/layout/Navbar";
 import Card from "@/components/ui/Card";
 import Layout from "@/components/layout/Layout";
 

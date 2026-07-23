@@ -3,16 +3,20 @@ import {
   ArrowRight,
   Flag,
   MapPin,
-  AlertTriangle,
   Clock3,
 } from "lucide-react";
+import type {
+  Ticket,
+  TicketPriority,
+  TicketStatus,
+} from "@/types/fia";
 
 type Props = {
-  ticket: any;
+  ticket: Ticket;
 };
 
 export default function TicketCard({ ticket }: Props) {
-  const statusClasses = {
+  const statusClasses: Record<TicketStatus, string> = {
     Offen:
       "bg-red-500/15 text-red-400 border border-red-500/30",
     "In Bearbeitung":
@@ -21,7 +25,7 @@ export default function TicketCard({ ticket }: Props) {
       "bg-green-500/15 text-green-400 border border-green-500/30",
   };
 
-  const priorityClasses = {
+  const priorityClasses: Record<TicketPriority, string> = {
     Hoch: "bg-red-500/15 text-red-400",
     Normal: "bg-yellow-500/15 text-yellow-300",
     Niedrig: "bg-green-500/15 text-green-400",
@@ -48,7 +52,7 @@ export default function TicketCard({ ticket }: Props) {
 
           <span
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              statusClasses[ticket.status as keyof typeof statusClasses]
+              statusClasses[ticket.status]
             }`}
           >
             {ticket.status}
@@ -57,7 +61,7 @@ export default function TicketCard({ ticket }: Props) {
 
         {/* Fahrer */}
         <div className="mt-6 grid gap-3 md:grid-cols-2">
-          {ticket.drivers.map((driver: any) => (
+          {ticket.drivers.map((driver) => (
             <div
               key={driver.id}
               className="rounded-xl border border-slate-700 bg-[#1B2330] p-4 transition hover:border-blue-500/50"
@@ -101,7 +105,7 @@ export default function TicketCard({ ticket }: Props) {
 
           <div
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              priorityClasses[ticket.priority as keyof typeof priorityClasses]
+              priorityClasses[ticket.priority]
             }`}
           >
             {ticket.priority}

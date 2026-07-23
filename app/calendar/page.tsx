@@ -1,12 +1,12 @@
 import AppLayout from "@/components/layout/AppLayout";
 import EmptyState from "@/components/ui/EmptyState";
 
-export default function ProfilePage() {
+export default function CalendarPage() {
   return (
     <AppLayout>
       <EmptyState
-        title="Profil"
-        description="Die Profilverwaltung wird in einer späteren Phase umgesetzt."
+        title="Kalender"
+        description="Der Rennkalender wird in einer späteren Phase angebunden."
       />
     </AppLayout>
   );

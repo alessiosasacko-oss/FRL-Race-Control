@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import Button from "@/components/ui/Button";
 
 export default function Navbar() {
@@ -19,21 +20,21 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-8">
-        <a href="#" className="text-gray-300 transition hover:text-white">
+        <Link href="/" className="text-gray-300 transition hover:text-white">
           Home
-        </a>
+        </Link>
 
-        <a href="#" className="text-gray-300 transition hover:text-white">
+        <Link href="/calendar" className="text-gray-300 transition hover:text-white">
           Kalender
-        </a>
+        </Link>
 
-        <a href="#" className="text-gray-300 transition hover:text-white">
+        <Link href="/championship" className="text-gray-300 transition hover:text-white">
           Standings
-        </a>
+        </Link>
 
-        <a href="#" className="text-gray-300 transition hover:text-white">
+        <Link href="/teams" className="text-gray-300 transition hover:text-white">
           Teams
-        </a>
+        </Link>
 
         <Button text="Discord Login" />
       </div>

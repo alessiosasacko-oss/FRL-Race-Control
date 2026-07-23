@@ -1,5 +1,7 @@
+import type { Ticket } from "@/types/fia";
+
 type Props = {
-  ticket: any;
+  ticket: Ticket;
 };
 
 export default function InvestigationHeader({ ticket }: Props) {
