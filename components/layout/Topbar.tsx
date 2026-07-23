@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Bell, Menu, Search, UserRound } from "lucide-react";
+import { Bell, Menu, Search, Settings, UserRound } from "lucide-react";
 import { roleLabels } from "@/domain";
+import { hasPermission, Permission } from "@/lib/auth/permissions";
 import type { AuthenticatedUser } from "@/lib/auth/session";
 import { mainNavigationItems } from "./navigation";
 
@@ -9,6 +10,11 @@ type TopbarProps = {
 };
 
 export default function Topbar({ user }: TopbarProps) {
+  const canManageAdministration = hasPermission(
+    user.roles,
+    Permission.ManageAdministration,
+  );
+
   return (
     <header className="flex min-h-20 items-center justify-between gap-4 border-b border-slate-800 bg-[#0F141B] px-4 py-4 sm:px-6 lg:px-8">
 
@@ -44,6 +50,15 @@ export default function Topbar({ user }: TopbarProps) {
                 </Link>
               );
             })}
+            {canManageAdministration ? (
+              <Link
+                href="/admin"
+                className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-300 transition hover:bg-blue-600 hover:text-white"
+              >
+                <Settings size={18} />
+                Administration
+              </Link>
+            ) : null}
           </nav>
         </details>
 

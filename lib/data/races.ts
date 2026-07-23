@@ -1,4 +1,4 @@
-import { RaceSession, raceSchema } from "@/domain";
+import { RaceSession, RaceStatus, raceSchema } from "@/domain";
 
 export const races = raceSchema.array().parse([
   {
@@ -9,12 +9,16 @@ export const races = raceSchema.array().parse([
     countryCode: "BE",
     round: 7,
     scheduledAt: "2026-07-27T20:00:00+02:00",
+    timezone: "Europe/Berlin",
+    status: RaceStatus.Scheduled,
     sessions: [
       RaceSession.Practice,
       RaceSession.Qualifying,
       RaceSession.Race,
     ],
-    completed: false,
+    sprint: false,
+    doublePoints: false,
+    mystery: false,
   },
   {
     id: 2,
@@ -24,12 +28,16 @@ export const races = raceSchema.array().parse([
     countryCode: "IT",
     round: 8,
     scheduledAt: "2026-08-03T20:00:00+02:00",
+    timezone: "Europe/Berlin",
+    status: RaceStatus.Scheduled,
     sessions: [
       RaceSession.Practice,
       RaceSession.Qualifying,
       RaceSession.Race,
     ],
-    completed: false,
+    sprint: false,
+    doublePoints: false,
+    mystery: false,
   },
   {
     id: 3,
@@ -39,11 +47,15 @@ export const races = raceSchema.array().parse([
     countryCode: "GB",
     round: 6,
     scheduledAt: "2026-07-20T20:00:00+02:00",
+    timezone: "Europe/Berlin",
+    status: RaceStatus.Completed,
     sessions: [
       RaceSession.Practice,
       RaceSession.Qualifying,
       RaceSession.Race,
     ],
-    completed: true,
+    sprint: false,
+    doublePoints: false,
+    mystery: false,
   },
 ]);

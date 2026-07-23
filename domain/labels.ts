@@ -3,6 +3,7 @@ import {
   NotificationType,
   PenaltyType,
   RaceSession,
+  RaceStatus,
   Role,
   TicketAuditAction,
   TicketPriority,
@@ -54,6 +55,13 @@ export const raceSessionLabels: Record<RaceSession, string> = {
   [RaceSession.Qualifying]: "Qualifying",
   [RaceSession.Sprint]: "Sprint",
   [RaceSession.Race]: "Rennen",
+};
+
+export const raceStatusLabels: Record<RaceStatus, string> = {
+  [RaceStatus.Scheduled]: "Geplant",
+  [RaceStatus.InProgress]: "Läuft",
+  [RaceStatus.Completed]: "Abgeschlossen",
+  [RaceStatus.Cancelled]: "Abgesagt",
 };
 
 export const notificationTypeLabels: Record<NotificationType, string> = {

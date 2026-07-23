@@ -5,7 +5,7 @@ import {
   isoDateTimeSchema,
   titleSchema,
 } from "./common";
-import { raceSessionSchema } from "./enums";
+import { raceSessionSchema, raceStatusSchema } from "./enums";
 
 export const raceSchema = z
   .object({
@@ -16,8 +16,12 @@ export const raceSchema = z
     countryCode: countryCodeSchema,
     round: z.number().int().positive(),
     scheduledAt: isoDateTimeSchema,
+    timezone: z.string().trim().min(1).max(64),
+    status: raceStatusSchema,
     sessions: z.array(raceSessionSchema).min(1),
-    completed: z.boolean(),
+    sprint: z.boolean(),
+    doublePoints: z.boolean(),
+    mystery: z.boolean(),
   })
   .strict()
   .refine(

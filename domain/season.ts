@@ -13,6 +13,7 @@ export const seasonSchema = z
     startsOn: isoDateSchema,
     endsOn: isoDateSchema,
     active: z.boolean(),
+    archivedAt: z.iso.datetime().nullable(),
   })
   .strict()
   .refine((season) => season.endsOn >= season.startsOn, {

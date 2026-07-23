@@ -47,6 +47,13 @@ enum RaceSession {
   RACE
 }
 
+enum RaceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 enum NotificationType {
   SYSTEM
   RACE_REMINDER
@@ -89,6 +96,7 @@ model User {
   votes               Vote[]
   decisionMemberships DecisionSteward[]
   ticketAuditEntries  FiaTicketAuditLog[]
+  principalTeams      Team[]              @relation("TeamPrincipal")
   notifications       Notification[]
   accounts            Account[]
   sessions            Session[]
@@ -157,21 +165,26 @@ model Driver {
 }
 
 model Team {
-  id        Int            @id @default(autoincrement())
-  leagueId  Int
-  name      String         @db.VarChar(160)
-  shortName String         @db.VarChar(12)
-  color     String         @db.Char(7)
-  active    Boolean        @default(true)
-  league    League         @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  drivers   Driver[]
-  standings TeamStanding[]
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id              Int            @id @default(autoincrement())
+  leagueId        Int
+  seasonId        Int
+  principalUserId Int?
+  name            String         @db.VarChar(160)
+  shortName       String         @db.VarChar(12)
+  color           String         @db.Char(7)
+  active          Boolean        @default(true)
+  league          League         @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  season          Season         @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  principal       User?          @relation("TeamPrincipal", fields: [principalUserId], references: [id], onDelete: SetNull)
+  drivers         Driver[]
+  standings       TeamStanding[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  @@unique([leagueId, name])
-  @@unique([leagueId, shortName])
-  @@index([leagueId, active])
+  @@unique([seasonId, name])
+  @@unique([seasonId, shortName])
+  @@index([leagueId, seasonId, active])
+  @@index([principalUserId])
 }
 
 model League {
@@ -200,9 +213,11 @@ model Season {
   startsOn          DateTime      @db.Date
   endsOn            DateTime      @db.Date
   active            Boolean       @default(true)
+  archivedAt        DateTime?
   league            League        @relation("LeagueSeasons", fields: [leagueId], references: [id], onDelete: Restrict)
   currentForLeagues League[]      @relation("CurrentSeason")
   races             Race[]
+  teams             Team[]
   championship      Championship?
   tickets           FiaTicket[]
   createdAt         DateTime      @default(now())
@@ -210,28 +225,33 @@ model Season {
 
   @@unique([leagueId, name])
   @@index([leagueId, active])
+  @@index([leagueId, archivedAt])
   @@index([startsOn, endsOn])
 }
 
 model Race {
-  id          Int           @id @default(autoincrement())
-  seasonId    Int
-  name        String        @db.VarChar(160)
-  circuit     String        @db.VarChar(160)
-  countryCode String        @db.Char(2)
-  round       Int
-  scheduledAt DateTime
-  sessions    RaceSession[]
-  completed   Boolean       @default(false)
-  season      Season        @relation(fields: [seasonId], references: [id], onDelete: Restrict)
-  tickets     FiaTicket[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           Int           @id @default(autoincrement())
+  seasonId     Int
+  name         String        @db.VarChar(160)
+  circuit      String        @db.VarChar(160)
+  countryCode  String        @db.Char(2)
+  round        Int
+  scheduledAt  DateTime
+  timezone     String        @default("Europe/Berlin") @db.VarChar(64)
+  status       RaceStatus    @default(SCHEDULED)
+  sessions     RaceSession[]
+  sprint       Boolean       @default(false)
+  doublePoints Boolean       @default(false)
+  mystery      Boolean       @default(false)
+  season       Season        @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  tickets      FiaTicket[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@unique([seasonId, round])
   @@unique([seasonId, name])
   @@index([seasonId, scheduledAt])
-  @@index([completed, scheduledAt])
+  @@index([status, scheduledAt])
 }
 
 model Championship {

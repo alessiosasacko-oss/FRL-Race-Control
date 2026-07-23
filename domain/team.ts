@@ -9,6 +9,8 @@ export const teamSchema = z
   .object({
     id: entityIdSchema,
     leagueId: entityIdSchema,
+    seasonId: entityIdSchema,
+    principalUserId: entityIdSchema.nullable(),
     name: titleSchema,
     shortName: z.string().trim().min(2).max(12),
     color: hexColorSchema,

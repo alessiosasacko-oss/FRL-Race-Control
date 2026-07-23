@@ -40,6 +40,13 @@ export enum RaceSession {
   Race = "RACE",
 }
 
+export enum RaceStatus {
+  Scheduled = "SCHEDULED",
+  InProgress = "IN_PROGRESS",
+  Completed = "COMPLETED",
+  Cancelled = "CANCELLED",
+}
+
 export enum NotificationType {
   System = "SYSTEM",
   RaceReminder = "RACE_REMINDER",
@@ -70,6 +77,7 @@ export const ticketStatusSchema = z.enum(TicketStatus);
 export const ticketPrioritySchema = z.enum(TicketPriority);
 export const penaltyTypeSchema = z.enum(PenaltyType);
 export const raceSessionSchema = z.enum(RaceSession);
+export const raceStatusSchema = z.enum(RaceStatus);
 export const notificationTypeSchema = z.enum(NotificationType);
 export const evidenceTypeSchema = z.enum(EvidenceType);
 export const ticketAuditActionSchema = z.enum(TicketAuditAction);

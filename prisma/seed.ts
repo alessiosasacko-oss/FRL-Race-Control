@@ -5,6 +5,7 @@ import {
   PenaltyType as PrismaPenaltyType,
   PrismaClient,
   RaceSession as PrismaRaceSession,
+  RaceStatus as PrismaRaceStatus,
   Role as PrismaRole,
   TicketPriority as PrismaTicketPriority,
   TicketStatus as PrismaTicketStatus,
@@ -65,6 +66,9 @@ async function seed(): Promise<void> {
       startsOn: new Date(`${season.startsOn}T00:00:00.000Z`),
       endsOn: new Date(`${season.endsOn}T00:00:00.000Z`),
       active: season.active,
+      archivedAt: season.archivedAt
+        ? new Date(season.archivedAt)
+        : null,
     };
 
     await prisma.season.upsert({
@@ -84,6 +88,8 @@ async function seed(): Promise<void> {
   for (const team of teams) {
     const data = {
       leagueId: team.leagueId,
+      seasonId: team.seasonId,
+      principalUserId: team.principalUserId,
       name: team.name,
       shortName: team.shortName,
       color: team.color,
@@ -124,10 +130,14 @@ async function seed(): Promise<void> {
       countryCode: race.countryCode,
       round: race.round,
       scheduledAt: new Date(race.scheduledAt),
+      timezone: race.timezone,
+      status: race.status as PrismaRaceStatus,
       sessions: race.sessions.map(
         (session) => session as PrismaRaceSession,
       ),
-      completed: race.completed,
+      sprint: race.sprint,
+      doublePoints: race.doublePoints,
+      mystery: race.mystery,
     };
 
     await prisma.race.upsert({

@@ -8,5 +8,6 @@ export const seasons = seasonSchema.array().parse([
     startsOn: "2026-01-01",
     endsOn: "2026-12-31",
     active: true,
+    archivedAt: null,
   },
 ]);

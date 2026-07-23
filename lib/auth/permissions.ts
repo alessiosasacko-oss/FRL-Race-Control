@@ -8,6 +8,8 @@ export enum Permission {
   ManageTeam = "MANAGE_TEAM",
   ManageUsers = "MANAGE_USERS",
   ManageAdministration = "MANAGE_ADMINISTRATION",
+  ViewMasterData = "VIEW_MASTER_DATA",
+  ManageMasterData = "MANAGE_MASTER_DATA",
 }
 
 const allPermissions = Object.values(Permission);
@@ -21,26 +23,32 @@ export const rolePermissions: Record<Role, readonly Permission[]> = {
     Permission.DecideFiaTicket,
     Permission.ManageUsers,
     Permission.ManageAdministration,
+    Permission.ViewMasterData,
+    Permission.ManageMasterData,
   ],
   [Role.FiaPresident]: [
     Permission.ViewRaceControl,
     Permission.SubmitFiaTicket,
     Permission.ReviewFiaTicket,
     Permission.DecideFiaTicket,
+    Permission.ViewMasterData,
   ],
   [Role.Steward]: [
     Permission.ViewRaceControl,
     Permission.SubmitFiaTicket,
     Permission.ReviewFiaTicket,
+    Permission.ViewMasterData,
   ],
   [Role.TeamPrincipal]: [
     Permission.ViewRaceControl,
     Permission.SubmitFiaTicket,
     Permission.ManageTeam,
+    Permission.ViewMasterData,
   ],
   [Role.Driver]: [
     Permission.ViewRaceControl,
     Permission.SubmitFiaTicket,
+    Permission.ViewMasterData,
   ],
 };
 
