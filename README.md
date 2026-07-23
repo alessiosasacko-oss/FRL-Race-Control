@@ -30,8 +30,8 @@ npm run db:seed
 
 Der Seed ist wiederholbar und verwendet die bestehenden Fixture-Daten für
 Ligen, Saisons, Teams, Fahrer, Rennen und FIA-Tickets. Die aktuelle UI liest
-weiterhin aus diesen Fixtures; in Phase 3 werden noch keine Datenbankabfragen
-in Seiten oder Komponenten ausgeführt.
+weiterhin aus diesen Fixtures; nur Benutzer, OAuth-Verknüpfungen und Sitzungen
+werden in Phase 4 über die Datenbank verwaltet.
 
 Weitere Datenbankbefehle:
 
@@ -40,6 +40,33 @@ npm run db:validate
 npm run db:generate
 npm run db:studio
 ```
+
+## Discord-Anmeldung
+
+1. Im [Discord Developer Portal](https://discord.com/developers/applications)
+   eine OAuth-Anwendung anlegen.
+2. Unter OAuth2 die lokale Redirect-URL
+   `http://localhost:3000/api/auth/callback/discord` hinterlegen.
+3. In `.env` die Werte `AUTH_DISCORD_ID` und `AUTH_DISCORD_SECRET` aus der
+   Discord-Anwendung eintragen.
+4. Einen sicheren Schlüssel erzeugen und als `AUTH_SECRET` speichern:
+
+```bash
+npm exec auth secret
+```
+
+`AUTH_URL` muss der öffentlichen Basis-URL der jeweiligen Umgebung entsprechen.
+In Produktion ist die Redirect-URL entsprechend mit HTTPS im Discord Developer
+Portal zu hinterlegen.
+
+Auth.js speichert Sitzungen in PostgreSQL. Der Browser erhält nur das
+zufällige, HTTP-only Session-Token. Neue Discord-Benutzer werden als
+`DRIVER` angelegt und können anschließend über die Datenbank einer oder
+mehreren Rollen zugeordnet werden.
+
+Geschützte Seiten liegen in `app/(protected)`. `proxy.ts` übernimmt die frühe
+Weiterleitung zur Anmeldung; der geschützte Layout- und Datenzugriff prüft die
+Sitzung zusätzlich serverseitig.
 
 ## Validierung
 
@@ -50,5 +77,5 @@ npm run build
 ```
 
 `prisma generate`, TypeScript, ESLint und der Produktions-Build benötigen
-keine laufende Datenbank. Nur Migrationen, Seed und Prisma Studio verbinden
-sich mit PostgreSQL.
+keine laufende Datenbank. Migrationen, Seed, Prisma Studio und die laufende
+Authentifizierung verbinden sich mit PostgreSQL.

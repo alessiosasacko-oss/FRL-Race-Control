@@ -10,6 +10,8 @@ export const userSchema = z
   .object({
     id: entityIdSchema,
     discordId: z.string().regex(/^\d+$/).nullable(),
+    email: z.email().nullable(),
+    emailVerified: isoDateTimeSchema.nullable(),
     displayName: titleSchema,
     avatarUrl: z.url().nullable(),
     roles: z.array(roleSchema).min(1),

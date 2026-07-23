@@ -1,4 +1,4 @@
-import Button from "@/components/ui/Button";
+import DiscordSignInButton from "@/components/auth/DiscordSignInButton";
 import Card from "@/components/ui/Card";
 import Layout from "@/components/layout/Layout";
 
@@ -23,7 +23,7 @@ export default function Home() {
         </p>
 
         <div className="mt-10">
-          <Button text="Mit Discord anmelden" />
+          <DiscordSignInButton />
         </div>
       </div>
 

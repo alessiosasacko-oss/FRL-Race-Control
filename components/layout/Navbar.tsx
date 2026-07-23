@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import Button from "@/components/ui/Button";
+import DiscordSignInButton from "@/components/auth/DiscordSignInButton";
 
 export default function Navbar() {
   return (
@@ -36,7 +36,7 @@ export default function Navbar() {
           Teams
         </Link>
 
-        <Button text="Discord Login" />
+        <DiscordSignInButton text="Discord Login" />
       </div>
     </nav>
   );

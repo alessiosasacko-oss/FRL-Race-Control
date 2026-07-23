@@ -1,10 +1,12 @@
 import { z } from "zod";
 
 export enum Role {
-  Driver = "DRIVER",
-  Steward = "STEWARD",
-  LeagueManager = "LEAGUE_MANAGER",
+  SuperAdmin = "SUPER_ADMIN",
   Admin = "ADMIN",
+  FiaPresident = "FIA_PRESIDENT",
+  Steward = "STEWARD",
+  TeamPrincipal = "TEAM_PRINCIPAL",
+  Driver = "DRIVER",
 }
 
 export enum TicketStatus {

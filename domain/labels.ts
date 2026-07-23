@@ -8,10 +8,12 @@ import {
 } from "./enums";
 
 export const roleLabels: Record<Role, string> = {
-  [Role.Driver]: "Fahrer",
-  [Role.Steward]: "Steward",
-  [Role.LeagueManager]: "Ligaleitung",
+  [Role.SuperAdmin]: "Super-Administrator",
   [Role.Admin]: "Administrator",
+  [Role.FiaPresident]: "FIA-Präsident",
+  [Role.Steward]: "Steward",
+  [Role.TeamPrincipal]: "Teamchef",
+  [Role.Driver]: "Fahrer",
 };
 
 export const ticketStatusLabels: Record<TicketStatus, string> = {

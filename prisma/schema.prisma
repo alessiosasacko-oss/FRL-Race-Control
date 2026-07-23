@@ -8,10 +8,12 @@ datasource db {
 }
 
 enum Role {
-  DRIVER
-  STEWARD
-  LEAGUE_MANAGER
+  SUPER_ADMIN
   ADMIN
+  FIA_PRESIDENT
+  STEWARD
+  TEAM_PRINCIPAL
+  DRIVER
 }
 
 enum TicketStatus {
@@ -64,6 +66,8 @@ enum EvidenceType {
 model User {
   id                  Int                 @id @default(autoincrement())
   discordId           String?             @unique @db.VarChar(32)
+  email               String?             @unique @db.VarChar(320)
+  emailVerified       DateTime?
   displayName         String              @db.VarChar(160)
   avatarUrl           String?             @db.Text
   roles               Role[]              @default([DRIVER])
@@ -76,11 +80,46 @@ model User {
   votes               Vote[]
   decisionMemberships DecisionSteward[]
   notifications       Notification[]
+  accounts            Account[]
+  sessions            Session[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
   @@index([active])
   @@index([displayName])
+}
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            Int
+  type              String   @db.VarChar(32)
+  provider          String   @db.VarChar(64)
+  providerAccountId String   @db.VarChar(255)
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
+  expires_at        Int?
+  token_type        String?  @db.VarChar(64)
+  scope             String?  @db.Text
+  id_token          String?  @db.Text
+  session_state     String?  @db.VarChar(255)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  sessionToken String   @id @db.VarChar(255)
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expires])
 }
 
 model Driver {

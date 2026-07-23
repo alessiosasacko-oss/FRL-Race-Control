@@ -1,7 +1,11 @@
 import AppLayout from "@/components/layout/AppLayout";
 import EmptyState from "@/components/ui/EmptyState";
+import { Permission } from "@/lib/auth/permissions";
+import { requirePermission } from "@/lib/auth/session";
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  await requirePermission(Permission.ManageAdministration);
+
   return (
     <AppLayout>
       <EmptyState

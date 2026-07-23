@@ -1,8 +1,12 @@
-"use client";
+import { Bell, Search, UserRound } from "lucide-react";
+import { roleLabels } from "@/domain";
+import type { AuthenticatedUser } from "@/lib/auth/session";
 
-import { Bell, Search } from "lucide-react";
+type TopbarProps = {
+  user: AuthenticatedUser;
+};
 
-export default function Topbar() {
+export default function Topbar({ user }: TopbarProps) {
   return (
     <header className="flex h-20 items-center justify-between border-b border-slate-800 bg-[#0F141B] px-8">
 
@@ -32,6 +36,18 @@ export default function Topbar() {
         <button className="rounded-xl bg-[#151B24] p-3 transition hover:bg-blue-600">
           <Bell size={20} />
         </button>
+
+        <div className="flex items-center gap-3 rounded-xl bg-[#151B24] px-4 py-2">
+          <UserRound size={20} className="text-blue-400" />
+          <div>
+            <p className="text-sm font-semibold text-white">
+              {user.displayName}
+            </p>
+            <p className="text-xs text-slate-400">
+              {roleLabels[user.roles[0]]}
+            </p>
+          </div>
+        </div>
 
       </div>
 

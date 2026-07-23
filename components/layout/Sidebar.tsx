@@ -1,5 +1,3 @@
-"use client";
-
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -13,7 +11,15 @@ import {
   Bell,
   User,
   Settings,
+  LogOut,
 } from "lucide-react";
+import { roleLabels } from "@/domain";
+import { signOutCurrentUser } from "@/lib/auth/actions";
+import {
+  hasPermission,
+  Permission,
+} from "@/lib/auth/permissions";
+import type { AuthenticatedUser } from "@/lib/auth/session";
 
 const menuItems = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -26,7 +32,16 @@ const menuItems = [
   { name: "Benachrichtigungen", href: "/notifications", icon: Bell },
 ];
 
-export default function Sidebar() {
+type SidebarProps = {
+  user: AuthenticatedUser;
+};
+
+export default function Sidebar({ user }: SidebarProps) {
+  const canManageAdministration = hasPermission(
+    user.roles,
+    Permission.ManageAdministration,
+  );
+
   return (
     <aside className="flex h-screen w-72 flex-col border-r border-slate-800 bg-[#0F141B]">
 
@@ -101,11 +116,11 @@ export default function Sidebar() {
             <div>
 
               <h3 className="font-semibold text-white">
-                Alessio
+                {user.displayName}
               </h3>
 
               <p className="text-xs text-slate-400">
-                Fahrer • Steward • Admin
+                {user.roles.map((role) => roleLabels[role]).join(" • ")}
               </p>
 
             </div>
@@ -120,13 +135,25 @@ export default function Sidebar() {
             Profil
           </Link>
 
-          <Link
-            href="/admin"
-            className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700"
-          >
-            <Settings size={18} />
-            Administration
-          </Link>
+          {canManageAdministration ? (
+            <Link
+              href="/admin"
+              className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700"
+            >
+              <Settings size={18} />
+              Administration
+            </Link>
+          ) : null}
+
+          <form action={signOutCurrentUser}>
+            <button
+              type="submit"
+              className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700"
+            >
+              <LogOut size={18} />
+              Abmelden
+            </button>
+          </form>
 
         </div>
 
