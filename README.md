@@ -91,6 +91,49 @@ und geschlossene Rennanmeldungen. Für die SMTP-Zustellung werden `SMTP_URL`,
 die Anwendung einschließlich Production Build vollständig lauffähig; es wird
 lediglich keine Outbox verarbeitet.
 
+## Discord-Bot und Automation
+
+Phase 9 verwendet Discord.js und eine persistente `DiscordDelivery`-Outbox.
+Dadurch werden Discord-API-Aufrufe niemals innerhalb einer fachlichen
+Datenbanktransaktion ausgeführt. Kanal- und Rollenzuordnungen werden unter
+`/admin/automation` konfiguriert.
+
+1. Im Discord Developer Portal für den Bot den **Server Members Intent**
+   aktivieren.
+2. Den Bot mit den Rechten zum Anzeigen von Kanälen, Senden von Nachrichten,
+   Einbetten von Links und Verwalten von Rollen zum FRL-Server einladen.
+3. `DISCORD_BOT_TOKEN` und `INTERNAL_API_SECRET` in `.env` setzen.
+4. Bot und Worker als langlebigen Prozess starten:
+
+```bash
+npm run bot:start
+```
+
+Alternativ kann ein externer Scheduler die fälligen Jobs ausführen:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $INTERNAL_API_SECRET" \
+  http://localhost:3000/api/internal/automation/run
+```
+
+Ein einzelner Lauf ist lokal auch mit `npm run automation:run` möglich.
+Automationsjobs besitzen Sperren, Run-Historie, exponentielle Wiederholung und
+eine manuelle Retry-Funktion. Die Standardjobs verarbeiten Rennanmeldungs- und
+Rennwochenend-Erinnerungen, Meisterschaftsprüfungen, Bereinigungen, E-Mail- und
+Discord-Outboxes, Mystery-Race-Veröffentlichungen, Statistiken, geplante
+Mitteilungen und Discord-Rollen.
+
+Interne Webhook-Ereignisse können idempotent an
+`POST /api/internal/webhooks` übergeben werden. Status- und Sync-Endpunkte
+unter `/api/internal/status` und `/api/internal/discord/sync` verwenden
+dasselbe Bearer-Secret. Secrets werden nicht in der Datenbank gespeichert.
+
+Ankündigungen werden unter `/admin/announcements` für App, Discord, E-Mail oder
+alle Ziele geplant. E-Mail- und Discord-Zustellung bleiben ohne konfigurierte
+externe Dienste aus, während TypeScript, Lint und Production Build keine
+Netzwerk- oder Datenbankverbindung benötigen.
+
 ## Validierung
 
 ```bash

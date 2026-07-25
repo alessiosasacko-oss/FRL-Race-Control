@@ -123,6 +123,82 @@ enum EmailDeliveryStatus {
   FAILED
 }
 
+enum DiscordChannelPurpose {
+  ATTENDANCE_OPENED
+  ATTENDANCE_CLOSING_SOON
+  ATTENDANCE_CLOSED
+  RACE_WEEKEND
+  SPRINT_RESULTS
+  RACE_RESULTS
+  DRIVER_STANDINGS
+  TEAM_STANDINGS
+  FIA_DECISION
+  PENALTY_ISSUED
+  SEASON_STARTED
+  SEASON_FINISHED
+  ADMIN_ANNOUNCEMENT
+}
+
+enum DiscordDeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum AnnouncementTarget {
+  APP
+  DISCORD
+  EMAIL
+  ALL
+}
+
+enum AnnouncementStatus {
+  SCHEDULED
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+enum AutomationJobType {
+  ATTENDANCE_REMINDERS
+  UPCOMING_RACE_REMINDERS
+  CHAMPIONSHIP_VERIFICATION
+  NOTIFICATION_CLEANUP
+  EMAIL_QUEUE
+  DISCORD_QUEUE
+  MYSTERY_RACE_PUBLICATION
+  STATISTICS_REFRESH
+  ANNOUNCEMENT_PUBLICATION
+  DISCORD_ROLE_SYNC
+}
+
+enum AutomationJobStatus {
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  FAILED
+  DISABLED
+}
+
+enum WebhookEventType {
+  RACE_FINISHED
+  ATTENDANCE_CHANGED
+  FIA_DECISION
+  CHAMPIONSHIP_RECALCULATED
+  NOTIFICATION_CREATED
+  USER_UPDATED
+  DISCORD_SYNCHRONIZED
+}
+
+enum WebhookEventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
 enum EvidenceType {
   LINK
   IMAGE
@@ -142,6 +218,12 @@ enum TicketAuditAction {
 model User {
   id                      Int                      @id @default(autoincrement())
   discordId               String?                  @unique @db.VarChar(32)
+  discordUsername         String?                  @db.VarChar(64)
+  discordGlobalName       String?                  @db.VarChar(160)
+  discordGuildNickname    String?                  @db.VarChar(160)
+  discordAvatarUrl        String?                  @db.Text
+  discordVerifiedAt       DateTime?
+  discordSyncedAt         DateTime?
   email                   String?                  @unique @db.VarChar(320)
   emailVerified           DateTime?
   displayName             String                   @db.VarChar(160)
@@ -163,6 +245,9 @@ model User {
   notifications           Notification[]
   settings                UserSettings?
   emailDeliveries         EmailDelivery[]
+  createdAnnouncements    Announcement[]
+  retriedAutomationRuns   AutomationJobRun[]       @relation("AutomationRunRetryActor")
+  systemAuditEntries      SystemAuditLog[]
   accounts                Account[]
   sessions                Session[]
   createdAt               DateTime                 @default(now())
@@ -272,6 +357,8 @@ model League {
   teams           Team[]
   drivers         Driver[]
   tickets         FiaTicket[]
+  discordChannels DiscordChannelMapping[]
+  discordDeliveries DiscordDelivery[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
@@ -782,4 +869,179 @@ model EmailDelivery {
 
   @@index([status, scheduledFor])
   @@index([userId, createdAt])
+}
+
+model DiscordGuildSettings {
+  id               Int                     @id @default(autoincrement())
+  guildId          String                  @unique @db.VarChar(32)
+  guildName        String                  @db.VarChar(160)
+  enabled          Boolean                 @default(true)
+  botUserId        String?                 @db.VarChar(32)
+  botUsername      String?                 @db.VarChar(64)
+  lastConnectedAt  DateTime?
+  lastHeartbeatAt  DateTime?
+  lastError        String?                 @db.Text
+  channelMappings  DiscordChannelMapping[]
+  roleMappings     DiscordRoleMapping[]
+  deliveries       DiscordDelivery[]
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@index([enabled])
+  @@index([lastHeartbeatAt])
+}
+
+model DiscordChannelMapping {
+  id              Int                       @id @default(autoincrement())
+  guildSettingsId Int
+  leagueId        Int?
+  scopeKey        String                    @db.VarChar(64)
+  purpose         DiscordChannelPurpose
+  channelId       String                    @db.VarChar(32)
+  channelName     String?                   @db.VarChar(160)
+  enabled         Boolean                   @default(true)
+  guildSettings   DiscordGuildSettings      @relation(fields: [guildSettingsId], references: [id], onDelete: Cascade)
+  league          League?                   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@unique([guildSettingsId, scopeKey, purpose])
+  @@index([leagueId, purpose, enabled])
+  @@index([channelId])
+}
+
+model DiscordRoleMapping {
+  id              Int                  @id @default(autoincrement())
+  guildSettingsId Int
+  role            Role
+  discordRoleId   String               @db.VarChar(32)
+  discordRoleName String?              @db.VarChar(160)
+  enabled         Boolean              @default(true)
+  guildSettings   DiscordGuildSettings @relation(fields: [guildSettingsId], references: [id], onDelete: Cascade)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@unique([guildSettingsId, role])
+  @@index([discordRoleId])
+}
+
+model DiscordDelivery {
+  id              Int                       @id @default(autoincrement())
+  guildSettingsId Int
+  leagueId        Int?
+  announcementId  Int?
+  purpose         DiscordChannelPurpose
+  status          DiscordDeliveryStatus     @default(PENDING)
+  payload         Json
+  dedupeKey       String                    @unique @db.VarChar(190)
+  channelId       String?                   @db.VarChar(32)
+  discordMessageId String?                  @db.VarChar(32)
+  attempts        Int                       @default(0)
+  scheduledFor    DateTime                  @default(now())
+  sentAt          DateTime?
+  lastError       String?                   @db.Text
+  guildSettings   DiscordGuildSettings      @relation(fields: [guildSettingsId], references: [id], onDelete: Cascade)
+  league          League?                   @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  announcement    Announcement?             @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@index([status, scheduledFor])
+  @@index([guildSettingsId, purpose, createdAt])
+  @@index([leagueId, createdAt])
+  @@index([announcementId])
+}
+
+model Announcement {
+  id              Int                @id @default(autoincrement())
+  createdByUserId Int
+  title           String             @db.VarChar(160)
+  content         String             @db.Text
+  href            String?            @db.VarChar(500)
+  priority        NotificationPriority @default(NORMAL)
+  target          AnnouncementTarget
+  status          AnnouncementStatus @default(SCHEDULED)
+  pinned          Boolean            @default(false)
+  scheduledFor    DateTime           @default(now())
+  publishedAt     DateTime?
+  lastError       String?            @db.Text
+  createdBy       User               @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  discordDeliveries DiscordDelivery[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([status, scheduledFor])
+  @@index([pinned, publishedAt])
+  @@index([createdByUserId, createdAt])
+}
+
+model AutomationJob {
+  id              Int                 @id @default(autoincrement())
+  type            AutomationJobType   @unique
+  name            String              @db.VarChar(160)
+  status          AutomationJobStatus @default(SCHEDULED)
+  enabled         Boolean             @default(true)
+  intervalMinutes Int
+  nextRunAt       DateTime
+  lastRunAt       DateTime?
+  lockedAt        DateTime?
+  attempts        Int                 @default(0)
+  lastError       String?             @db.Text
+  lastResult      Json?
+  runs            AutomationJobRun[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([enabled, status, nextRunAt])
+  @@index([lockedAt])
+}
+
+model AutomationJobRun {
+  id             Int                 @id @default(autoincrement())
+  jobId          Int
+  retryActorId   Int?
+  status         AutomationJobStatus @default(RUNNING)
+  startedAt      DateTime            @default(now())
+  finishedAt     DateTime?
+  result         Json?
+  error          String?             @db.Text
+  job            AutomationJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  retryActor     User?               @relation("AutomationRunRetryActor", fields: [retryActorId], references: [id], onDelete: SetNull)
+  createdAt      DateTime            @default(now())
+
+  @@index([jobId, startedAt])
+  @@index([status, startedAt])
+  @@index([retryActorId])
+}
+
+model WebhookEvent {
+  id            Int                @id @default(autoincrement())
+  type          WebhookEventType
+  source        String             @db.VarChar(80)
+  status        WebhookEventStatus @default(PENDING)
+  dedupeKey     String             @unique @db.VarChar(190)
+  payload       Json
+  attempts      Int                @default(0)
+  processedAt   DateTime?
+  lastError     String?            @db.Text
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([status, createdAt])
+  @@index([type, createdAt])
+}
+
+model SystemAuditLog {
+  id         Int      @id @default(autoincrement())
+  actorId    Int?
+  action     String   @db.VarChar(80)
+  entityType String   @db.VarChar(80)
+  entityId   Int?
+  metadata   Json?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, entityId])
 }

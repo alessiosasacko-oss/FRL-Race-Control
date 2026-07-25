@@ -23,3 +23,11 @@ export async function signInWithDiscord(formData: FormData): Promise<void> {
 export async function signOutCurrentUser(): Promise<void> {
   await signOut({ redirectTo: "/" });
 }
+
+export async function reconnectDiscordAccount(): Promise<void> {
+  await signIn(
+    "discord",
+    { redirectTo: "/settings" },
+    { prompt: "consent" },
+  );
+}

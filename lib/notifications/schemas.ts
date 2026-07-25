@@ -1,7 +1,5 @@
 import { z } from "zod";
 import {
-  NotificationPriority,
-  NotificationType,
   notificationPrioritySchema,
   notificationTypeSchema,
 } from "@/domain";
@@ -79,27 +77,4 @@ export const profileSettingsSchema = z.object({
     (value) => (value === "" || value === null ? null : value),
     z.coerce.number().int().min(1).max(999).nullable(),
   ),
-});
-
-export const announcementSchema = z.object({
-  title: z.string().trim().min(3).max(160),
-  message: z.string().trim().min(3).max(1000),
-  href: z.preprocess(
-    (value) => (value === "" || value === null ? null : value),
-    z
-      .string()
-      .regex(/^\/(?!\/)/, "Nur interne Links sind erlaubt.")
-      .max(500)
-      .nullable(),
-  ),
-  priority: z.enum(NotificationPriority),
-  type: z
-    .enum([
-      NotificationType.AdminAnnouncement,
-      NotificationType.System,
-      NotificationType.QualifyingBan,
-      NotificationType.RaceBan,
-    ])
-    .default(NotificationType.AdminAnnouncement),
-  email: z.boolean(),
 });

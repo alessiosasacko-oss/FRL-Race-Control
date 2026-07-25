@@ -11,9 +11,11 @@ import {
 } from "@/generated/prisma/client";
 import {
   ChampionshipAdjustmentTarget,
+  DiscordChannelPurpose,
   NotificationPriority,
   NotificationType,
   ResultSession,
+  WebhookEventType,
 } from "@/domain";
 import {
   hasPermission,
@@ -24,6 +26,7 @@ import {
   requirePermission,
 } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { recordWebhookEvent } from "@/lib/integrations/events";
 import {
   attendanceUpdateSchema,
   championshipAdjustmentInputSchema,
@@ -292,6 +295,18 @@ export async function updateAttendanceAction(
           newState: serializable(attendance),
         },
       });
+      await recordWebhookEvent(transaction, {
+        type: WebhookEventType.AttendanceChanged,
+        source: "attendance-action",
+        dedupeKey: `attendance-changed:${attendance.id}:${attendance.updatedAt.getTime()}`,
+        payload: {
+          attendanceId: attendance.id,
+          raceId: race.id,
+          driverId: driver.id,
+          status: parsed.data.status,
+          actorId: user.id,
+        },
+      });
       if (driver.userId && driver.userId !== user.id) {
         await createNotifications(transaction, [driver.userId], {
           type: NotificationType.Attendance,
@@ -338,7 +353,7 @@ export async function saveResultsAction(
   const race = await prisma.race.findUnique({
     where: { id: parsed.data.raceId },
     include: {
-      season: true,
+      season: { include: { league: true } },
       resultSessions: {
         where: {
           session: parsed.data.session as PrismaResultSession,
@@ -477,6 +492,19 @@ export async function saveResultsAction(
           newState: serializable(parsed.data),
         },
       });
+      if (parsed.data.session === ResultSession.Race) {
+        await recordWebhookEvent(transaction, {
+          type: WebhookEventType.RaceFinished,
+          source: "results-action",
+          dedupeKey: `race-finished:${race.id}:${session.updatedAt.getTime()}`,
+          payload: {
+            raceId: race.id,
+            seasonId: race.seasonId,
+            resultSessionId: session.id,
+            resultCount: parsed.data.results.length,
+          },
+        });
+      }
       await recalculateChampionship(
         transaction,
         race.seasonId,
@@ -486,15 +514,33 @@ export async function saveResultsAction(
         transaction,
         race.season.leagueId,
       );
-      await createNotifications(transaction, recipients, {
-        type: NotificationType.RaceResult,
-        priority: NotificationPriority.High,
-        title: `${race.name}: Neues ${parsed.data.session === ResultSession.Sprint ? "Sprint-" : "Renn"}ergebnis`,
-        message:
-          "Das vollständige Ergebnis wurde veröffentlicht und die Meisterschaft aktualisiert.",
-        href: `/results/${race.id}`,
-        relatedEntity: { type: "Race", id: race.id },
-      });
+      await createNotifications(
+        transaction,
+        recipients,
+        {
+          type: NotificationType.RaceResult,
+          priority: NotificationPriority.High,
+          title: `${race.name}: Neues ${parsed.data.session === ResultSession.Sprint ? "Sprint-" : "Renn"}ergebnis`,
+          message:
+            "Das vollständige Ergebnis wurde veröffentlicht und die Meisterschaft aktualisiert.",
+          href: `/results/${race.id}`,
+          relatedEntity: { type: "Race", id: race.id },
+          dedupeKey: `race-result:${race.id}:${parsed.data.session}:${session.updatedAt.getTime()}`,
+        },
+        {
+          discordPurpose:
+            parsed.data.session === ResultSession.Sprint
+              ? DiscordChannelPurpose.SprintResults
+              : DiscordChannelPurpose.RaceResults,
+          leagueId: race.season.leagueId,
+          discordContext: {
+            league: race.season.league.name,
+            season: race.season.name,
+            race: race.name,
+            track: race.mystery ? "Mystery Race" : race.circuit,
+          },
+        },
+      );
     });
   } catch {
     return databaseError();

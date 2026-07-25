@@ -208,7 +208,23 @@ export function canonicalPrismaAdapter(): Adapter {
         return undefined;
       }
 
-      await prisma.account.delete({ where: { id: account.id } });
+      await prisma.$transaction(async (transaction) => {
+        await transaction.account.delete({ where: { id: account.id } });
+        if (provider === "discord") {
+          await transaction.user.update({
+            where: { id: account.userId },
+            data: {
+              discordId: null,
+              discordUsername: null,
+              discordGlobalName: null,
+              discordGuildNickname: null,
+              discordAvatarUrl: null,
+              discordVerifiedAt: null,
+              discordSyncedAt: null,
+            },
+          });
+        }
+      });
       return toAdapterAccount(account);
     },
 

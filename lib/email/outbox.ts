@@ -4,6 +4,7 @@ import {
   EmailDeliveryStatus,
 } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { logger } from "@/lib/observability/logger";
 
 const MAX_ATTEMPTS = 5;
 
@@ -112,6 +113,10 @@ export async function processEmailOutbox(
               Math.min(24, 2 ** nextAttempt) * 60 * 60 * 1000,
           ),
         },
+      });
+      logger.error("Email delivery failed", error, {
+        deliveryId: delivery.id,
+        attempts: nextAttempt,
       });
       failed += 1;
     }

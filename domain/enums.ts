@@ -116,6 +116,82 @@ export enum EmailDeliveryStatus {
   Failed = "FAILED",
 }
 
+export enum DiscordChannelPurpose {
+  AttendanceOpened = "ATTENDANCE_OPENED",
+  AttendanceClosingSoon = "ATTENDANCE_CLOSING_SOON",
+  AttendanceClosed = "ATTENDANCE_CLOSED",
+  RaceWeekend = "RACE_WEEKEND",
+  SprintResults = "SPRINT_RESULTS",
+  RaceResults = "RACE_RESULTS",
+  DriverStandings = "DRIVER_STANDINGS",
+  TeamStandings = "TEAM_STANDINGS",
+  FiaDecision = "FIA_DECISION",
+  PenaltyIssued = "PENALTY_ISSUED",
+  SeasonStarted = "SEASON_STARTED",
+  SeasonFinished = "SEASON_FINISHED",
+  AdminAnnouncement = "ADMIN_ANNOUNCEMENT",
+}
+
+export enum DiscordDeliveryStatus {
+  Pending = "PENDING",
+  Sending = "SENDING",
+  Sent = "SENT",
+  Failed = "FAILED",
+  Skipped = "SKIPPED",
+}
+
+export enum AnnouncementTarget {
+  App = "APP",
+  Discord = "DISCORD",
+  Email = "EMAIL",
+  All = "ALL",
+}
+
+export enum AnnouncementStatus {
+  Scheduled = "SCHEDULED",
+  Published = "PUBLISHED",
+  Failed = "FAILED",
+  Cancelled = "CANCELLED",
+}
+
+export enum AutomationJobType {
+  AttendanceReminders = "ATTENDANCE_REMINDERS",
+  UpcomingRaceReminders = "UPCOMING_RACE_REMINDERS",
+  ChampionshipVerification = "CHAMPIONSHIP_VERIFICATION",
+  NotificationCleanup = "NOTIFICATION_CLEANUP",
+  EmailQueue = "EMAIL_QUEUE",
+  DiscordQueue = "DISCORD_QUEUE",
+  MysteryRacePublication = "MYSTERY_RACE_PUBLICATION",
+  StatisticsRefresh = "STATISTICS_REFRESH",
+  AnnouncementPublication = "ANNOUNCEMENT_PUBLICATION",
+  DiscordRoleSync = "DISCORD_ROLE_SYNC",
+}
+
+export enum AutomationJobStatus {
+  Scheduled = "SCHEDULED",
+  Running = "RUNNING",
+  Completed = "COMPLETED",
+  Failed = "FAILED",
+  Disabled = "DISABLED",
+}
+
+export enum WebhookEventType {
+  RaceFinished = "RACE_FINISHED",
+  AttendanceChanged = "ATTENDANCE_CHANGED",
+  FiaDecision = "FIA_DECISION",
+  ChampionshipRecalculated = "CHAMPIONSHIP_RECALCULATED",
+  NotificationCreated = "NOTIFICATION_CREATED",
+  UserUpdated = "USER_UPDATED",
+  DiscordSynchronized = "DISCORD_SYNCHRONIZED",
+}
+
+export enum WebhookEventStatus {
+  Pending = "PENDING",
+  Processing = "PROCESSING",
+  Processed = "PROCESSED",
+  Failed = "FAILED",
+}
+
 export enum EvidenceType {
   Link = "LINK",
   Image = "IMAGE",
@@ -150,5 +226,13 @@ export const championshipAuditActionSchema = z.enum(
 export const notificationTypeSchema = z.enum(NotificationType);
 export const notificationPrioritySchema = z.enum(NotificationPriority);
 export const emailDeliveryStatusSchema = z.enum(EmailDeliveryStatus);
+export const discordChannelPurposeSchema = z.enum(DiscordChannelPurpose);
+export const discordDeliveryStatusSchema = z.enum(DiscordDeliveryStatus);
+export const announcementTargetSchema = z.enum(AnnouncementTarget);
+export const announcementStatusSchema = z.enum(AnnouncementStatus);
+export const automationJobTypeSchema = z.enum(AutomationJobType);
+export const automationJobStatusSchema = z.enum(AutomationJobStatus);
+export const webhookEventTypeSchema = z.enum(WebhookEventType);
+export const webhookEventStatusSchema = z.enum(WebhookEventStatus);
 export const evidenceTypeSchema = z.enum(EvidenceType);
 export const ticketAuditActionSchema = z.enum(TicketAuditAction);

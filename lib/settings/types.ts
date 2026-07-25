@@ -20,6 +20,11 @@ export type SettingsPageData = {
     email: string | null;
     avatarUrl: string | null;
     discordId: string | null;
+    discordUsername: string | null;
+    discordGlobalName: string | null;
+    discordGuildNickname: string | null;
+    discordVerifiedAt: string | null;
+    discordSyncedAt: string | null;
     roles: Role[];
   };
   driver: {

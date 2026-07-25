@@ -7,9 +7,11 @@ import {
   RaceStatus as PrismaRaceStatus,
 } from "@/generated/prisma/client";
 import {
+  DiscordChannelPurpose,
   NotificationType,
   RaceSession,
 } from "@/domain";
+import { enqueueDiscordDelivery } from "@/lib/discord/outbox";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
@@ -169,20 +171,32 @@ export async function createSeasonAction(
           endsOn: new Date(`${parsed.data.endsOn}T00:00:00.000Z`),
           active: parsed.data.active,
         },
+        include: { league: true },
       });
       const recipients = await leagueUserIds(
         transaction,
         season.leagueId,
       );
-      await createNotifications(transaction, recipients, {
-        type: NotificationType.NewSeason,
-        title: `Neue Saison: ${season.name}`,
-        message:
-          "Eine neue FRL-Saison wurde angelegt und ist in Kalender und Meisterschaft verfügbar.",
-        href: `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`,
-        relatedEntity: { type: "Season", id: season.id },
-        dedupeKey: `new-season:${season.id}`,
-      });
+      await createNotifications(
+        transaction,
+        recipients,
+        {
+          type: NotificationType.NewSeason,
+          title: `Neue Saison: ${season.name}`,
+          message:
+            "Eine neue FRL-Saison wurde angelegt und ist in Kalender und Meisterschaft verfügbar.",
+          href: `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`,
+          relatedEntity: { type: "Season", id: season.id },
+          dedupeKey: `new-season:${season.id}`,
+        },
+        {
+          leagueId: season.leagueId,
+          discordContext: {
+            league: season.league.name,
+            season: season.name,
+          },
+        },
+      );
     });
   } catch {
     return databaseError();
@@ -261,16 +275,29 @@ export async function archiveSeasonAction(
   const prisma = getPrismaClient();
 
   try {
-    await prisma.$transaction([
-      prisma.season.update({
+    await prisma.$transaction(async (transaction) => {
+      const season = await transaction.season.update({
         where: { id: seasonId.data },
         data: { active: false, archivedAt: new Date() },
-      }),
-      prisma.league.updateMany({
+        include: { league: true },
+      });
+      await transaction.league.updateMany({
         where: { currentSeasonId: seasonId.data },
         data: { currentSeasonId: null },
-      }),
-    ]);
+      });
+      await enqueueDiscordDelivery(transaction, {
+        purpose: DiscordChannelPurpose.SeasonFinished,
+        leagueId: season.leagueId,
+        payload: {
+          title: `${season.name} beendet`,
+          description: "Die Saison wurde abgeschlossen und archiviert.",
+          href: `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`,
+          league: season.league.name,
+          season: season.name,
+        },
+        dedupeKey: `season-finished:${season.id}`,
+      });
+    });
   } catch {
     return databaseError();
   }
@@ -376,21 +403,37 @@ export async function createRaceAction(
           doublePoints: parsed.data.doublePoints,
           mystery: parsed.data.mystery,
         },
+        include: {
+          season: { include: { league: true } },
+        },
       });
       const recipients = await leagueUserIds(
         transaction,
         parsed.data.leagueId,
       );
-      await createNotifications(transaction, recipients, {
-        type: NotificationType.NewRace,
-        title: `Neues Rennen: ${
-          race.mystery ? "Mystery Race" : race.name
-        }`,
-        message: `Runde ${race.round} wurde dem Rennkalender hinzugefügt.`,
-        href: "/calendar",
-        relatedEntity: { type: "Race", id: race.id },
-        dedupeKey: `new-race:${race.id}`,
-      });
+      await createNotifications(
+        transaction,
+        recipients,
+        {
+          type: NotificationType.NewRace,
+          title: `Neues Rennen: ${
+            race.mystery ? "Mystery Race" : race.name
+          }`,
+          message: `Runde ${race.round} wurde dem Rennkalender hinzugefügt.`,
+          href: "/calendar",
+          relatedEntity: { type: "Race", id: race.id },
+          dedupeKey: `new-race:${race.id}`,
+        },
+        {
+          leagueId: parsed.data.leagueId,
+          discordContext: {
+            league: race.season.league.name,
+            season: race.season.name,
+            race: race.mystery ? "Mystery Race" : race.name,
+            track: race.mystery ? "Wird später bekanntgegeben" : race.circuit,
+          },
+        },
+      );
 
       if (attendanceDeadline && attendanceDeadline > new Date()) {
         const drivers = await transaction.driver.findMany({
@@ -415,6 +458,17 @@ export async function createRaceAction(
             href: `/attendance?raceId=${race.id}`,
             relatedEntity: { type: "Race", id: race.id },
             dedupeKey: `attendance-open:${race.id}`,
+          },
+          {
+            leagueId: parsed.data.leagueId,
+            discordContext: {
+              league: race.season.league.name,
+              season: race.season.name,
+              race: race.mystery ? "Mystery Race" : race.name,
+              track: race.mystery
+                ? "Wird später bekanntgegeben"
+                : race.circuit,
+            },
           },
         );
       }

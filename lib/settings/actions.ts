@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { NotificationType as PrismaNotificationType } from "@/generated/prisma/client";
+import { WebhookEventType } from "@/domain";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { recordWebhookEvent } from "@/lib/integrations/events";
 import {
   notificationSettingsSchema,
   profileSettingsSchema,
@@ -74,24 +76,32 @@ export async function updateProfileSettingsAction(
   }
 
   try {
-    await prisma.$transaction([
-      prisma.user.update({
+    await prisma.$transaction(async (transaction) => {
+      const updatedUser = await transaction.user.update({
         where: { id: user.id },
         data: { displayName: parsed.data.displayName },
-      }),
-      ...(driver
-        ? [
-            prisma.driver.update({
-              where: { id: driver.id },
-              data: {
-                name: parsed.data.displayName,
-                flag: parsed.data.flag as string,
-                number: parsed.data.driverNumber as number,
-              },
-            }),
-          ]
-        : []),
-    ]);
+      });
+      if (driver) {
+        await transaction.driver.update({
+          where: { id: driver.id },
+          data: {
+            name: parsed.data.displayName,
+            flag: parsed.data.flag as string,
+            number: parsed.data.driverNumber as number,
+          },
+        });
+      }
+      await recordWebhookEvent(transaction, {
+        type: WebhookEventType.UserUpdated,
+        source: "settings-action",
+        dedupeKey: `user-updated:${user.id}:${updatedUser.updatedAt.getTime()}`,
+        payload: {
+          userId: user.id,
+          driverId: driver?.id ?? null,
+          fields: ["displayName", ...(driver ? ["driver"] : [])],
+        },
+      });
+    });
   } catch {
     return errorState(
       "Das Profil konnte nicht gespeichert werden. Die Fahrernummer ist möglicherweise bereits vergeben.",

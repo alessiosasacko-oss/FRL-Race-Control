@@ -8,14 +8,44 @@ import {
   type PrismaClient,
 } from "@/generated/prisma/client";
 import {
+  DiscordChannelPurpose,
   NotificationPriority,
+  NotificationType as DomainNotificationType,
+  WebhookEventType,
   type NotificationType,
 } from "@/domain";
+import { enqueueDiscordDelivery } from "@/lib/discord/outbox";
+import { recordWebhookEvent } from "@/lib/integrations/events";
 import { zonedLocalToUtc } from "@/lib/master-data/timezone";
 import { renderNotificationEmail } from "@/lib/email/templates";
 import type { NotificationPayload } from "./types";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
+
+const discordPurposeByNotification: Partial<
+  Record<DomainNotificationType, DiscordChannelPurpose>
+> = {
+  [DomainNotificationType.AttendanceOpen]:
+    DiscordChannelPurpose.AttendanceOpened,
+  [DomainNotificationType.AttendanceClosingSoon]:
+    DiscordChannelPurpose.AttendanceClosingSoon,
+  [DomainNotificationType.AttendanceClosed]:
+    DiscordChannelPurpose.AttendanceClosed,
+  [DomainNotificationType.RaceReminder]:
+    DiscordChannelPurpose.RaceWeekend,
+  [DomainNotificationType.NewRace]:
+    DiscordChannelPurpose.RaceWeekend,
+  [DomainNotificationType.RaceResult]:
+    DiscordChannelPurpose.RaceResults,
+  [DomainNotificationType.FiaDecision]:
+    DiscordChannelPurpose.FiaDecision,
+  [DomainNotificationType.Penalty]:
+    DiscordChannelPurpose.PenaltyIssued,
+  [DomainNotificationType.NewSeason]:
+    DiscordChannelPurpose.SeasonStarted,
+  [DomainNotificationType.AdminAnnouncement]:
+    DiscordChannelPurpose.AdminAnnouncement,
+};
 
 function categoryEnabled(
   categories: readonly string[],
@@ -96,7 +126,26 @@ export async function createNotifications(
   database: DatabaseClient,
   recipientIds: readonly number[],
   payload: NotificationPayload,
-  options: { allowEmail?: boolean } = {},
+  options: {
+    inApp?: boolean;
+    allowEmail?: boolean;
+    allowDiscord?: boolean;
+    discordPurpose?: DiscordChannelPurpose;
+    leagueId?: number | null;
+    discordContext?: {
+      league?: string | null;
+      season?: string | null;
+      race?: string | null;
+      track?: string | null;
+      color?: string;
+      iconUrl?: string | null;
+      fields?: Array<{
+        name: string;
+        value: string;
+        inline?: boolean;
+      }>;
+    };
+  } = {},
 ): Promise<void> {
   const uniqueRecipientIds = [...new Set(recipientIds)];
   if (uniqueRecipientIds.length === 0) return;
@@ -111,6 +160,7 @@ export async function createNotifications(
   for (const user of users) {
     const settings = user.settings;
     const inAppEnabled =
+      options.inApp !== false &&
       (settings?.inAppEnabled ?? true) &&
       (settings
         ? categoryEnabled(settings.inAppCategories, payload.type)
@@ -184,6 +234,50 @@ export async function createNotifications(
         await database.emailDelivery.create({ data });
       }
     }
+  }
+
+  const eventKey =
+    payload.dedupeKey ?? `notification:${crypto.randomUUID()}`;
+  await recordWebhookEvent(database, {
+    type: WebhookEventType.NotificationCreated,
+    source: "notification-service",
+    dedupeKey: `webhook:${eventKey}`,
+    payload: {
+      type: payload.type,
+      priority,
+      title: payload.title,
+      recipientCount: users.length,
+      relatedEntity: payload.relatedEntity ?? null,
+    },
+  });
+
+  const purpose =
+    options.discordPurpose ??
+    discordPurposeByNotification[payload.type];
+  if (options.allowDiscord !== false && purpose) {
+    await enqueueDiscordDelivery(database, {
+      purpose,
+      leagueId: options.leagueId,
+      payload: {
+        title: payload.title,
+        description: payload.message,
+        href: payload.href,
+        color:
+          options.discordContext?.color ??
+          (priority === NotificationPriority.Urgent
+            ? "#DC2626"
+            : priority === NotificationPriority.High
+              ? "#F59E0B"
+              : "#2563EB"),
+        iconUrl: options.discordContext?.iconUrl,
+        league: options.discordContext?.league,
+        season: options.discordContext?.season,
+        race: options.discordContext?.race,
+        track: options.discordContext?.track,
+        fields: options.discordContext?.fields,
+      },
+      dedupeKey: `discord:${eventKey}`,
+    });
   }
 }
 

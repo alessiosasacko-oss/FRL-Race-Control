@@ -6,6 +6,7 @@ import {
   Flag,
   Layers3,
   Megaphone,
+  Bot,
   Trophy,
   Users,
 } from "lucide-react";
@@ -55,6 +56,12 @@ const areas = [
     title: "Meisterschaft",
     description: "Ergebnisse, Punktesystem und Neuberechnung",
     icon: Calculator,
+  },
+  {
+    href: "/admin/automation",
+    title: "Automation & Discord",
+    description: "Bot, Warteschlangen, Rollen, Kanäle und geplante Jobs",
+    icon: Bot,
   },
   {
     href: "/admin/announcements",

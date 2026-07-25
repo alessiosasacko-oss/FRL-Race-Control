@@ -8,10 +8,14 @@ import {
 } from "@/generated/prisma/client";
 import {
   ChampionshipAdjustmentTarget,
+  DiscordChannelPurpose,
   NotificationType,
   ResultSession,
   ResultStatus,
+  WebhookEventType,
 } from "@/domain";
+import { enqueueDiscordDelivery } from "@/lib/discord/outbox";
+import { recordWebhookEvent } from "@/lib/integrations/events";
 import {
   calculateResultPoints,
   defaultPositionRows,
@@ -159,7 +163,7 @@ export async function recalculateChampionship(
   const season = await database.season.findUnique({
     where: { id: seasonId },
     include: {
-      championship: { select: { id: true } },
+      championship: { select: { id: true, updatedAt: true } },
       league: {
         include: {
           drivers: {
@@ -208,7 +212,7 @@ export async function recalculateChampionship(
         seasonId,
         name: `${season.name} Championship`,
       },
-      select: { id: true },
+      select: { id: true, updatedAt: true },
     }));
   const positionPoints = new Map(
     scoring.positions.map((position) => [
@@ -480,5 +484,68 @@ export async function recalculateChampionship(
       "Die Fahrer- und Teamwertung wurde anhand der aktuellen Ergebnisse neu berechnet.",
     href: `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`,
     relatedEntity: { type: "Season", id: season.id },
+    dedupeKey: `championship-updated:${season.id}:${championship.updatedAt?.getTime?.() ?? Date.now()}`,
+  });
+
+  const [driverTop, teamTop] = await Promise.all([
+    database.driverStanding.findMany({
+      where: { championshipId: championship.id },
+      orderBy: { position: "asc" },
+      take: 5,
+      include: { driver: { select: { name: true } } },
+    }),
+    database.teamStanding.findMany({
+      where: { championshipId: championship.id },
+      orderBy: { position: "asc" },
+      take: 5,
+      include: { team: { select: { name: true } } },
+    }),
+  ]);
+  const href = `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`;
+  await enqueueDiscordDelivery(database, {
+    purpose: DiscordChannelPurpose.DriverStandings,
+    leagueId: season.leagueId,
+    payload: {
+      title: `${season.name}: Fahrerwertung`,
+      description: "Aktueller Stand nach der Neuberechnung.",
+      href,
+      league: season.league.name,
+      season: season.name,
+      fields: driverTop.map((standing) => ({
+        name: `${standing.position}. ${standing.driver.name}`,
+        value: `${standing.points} Punkte`,
+        inline: false,
+      })),
+    },
+    dedupeKey: `driver-standings:${season.id}:${championship.updatedAt.getTime()}`,
+  });
+  await enqueueDiscordDelivery(database, {
+    purpose: DiscordChannelPurpose.TeamStandings,
+    leagueId: season.leagueId,
+    payload: {
+      title: `${season.name}: Teamwertung`,
+      description: "Aktueller Stand nach der Neuberechnung.",
+      href,
+      league: season.league.name,
+      season: season.name,
+      fields: teamTop.map((standing) => ({
+        name: `${standing.position}. ${standing.team.name}`,
+        value: `${standing.points} Punkte`,
+        inline: false,
+      })),
+    },
+    dedupeKey: `team-standings:${season.id}:${championship.updatedAt.getTime()}`,
+  });
+  await recordWebhookEvent(database, {
+    type: WebhookEventType.ChampionshipRecalculated,
+    source: "championship-recalculation",
+    dedupeKey: `championship-recalculated:${season.id}:${championship.updatedAt.getTime()}`,
+    payload: {
+      championshipId: championship.id,
+      seasonId: season.id,
+      leagueId: season.leagueId,
+      driverCount: driverRows.length,
+      teamCount: teamRows.length,
+    },
   });
 }

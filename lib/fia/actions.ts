@@ -17,6 +17,7 @@ import {
   penaltyTypeLabels,
   ticketStatusLabels,
   TicketStatus,
+  WebhookEventType,
 } from "@/domain";
 import {
   hasPermission,
@@ -26,6 +27,7 @@ import {
   requirePermission,
 } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { recordWebhookEvent } from "@/lib/integrations/events";
 import { recalculateChampionship } from "@/lib/championship/recalculation";
 import { createNotifications } from "@/lib/notifications/service";
 import {
@@ -531,8 +533,16 @@ export async function publishFiaDecisionAction(
         select: {
           title: true,
           seasonId: true,
+          leagueId: true,
           status: true,
           reportedByUserId: true,
+          season: {
+            select: {
+              name: true,
+              league: { select: { name: true } },
+            },
+          },
+          race: { select: { name: true, circuit: true, mystery: true } },
           drivers: { select: { driver: { select: { userId: true } } } },
           stewardAssignments: { select: { userId: true } },
           votes: { select: { voterId: true } },
@@ -606,14 +616,41 @@ export async function publishFiaDecisionAction(
       );
       recipientIds.delete(user.id);
 
-      await createNotifications(transaction, [...recipientIds], {
-        type: NotificationType.FiaDecision,
-        priority: NotificationPriority.High,
-        title: `Entscheidung zu Ticket #${ticketId}`,
-        message: `${ticket.title}: ${penaltyTypeLabels[parsed.data.penaltyType]}`,
-        href: `/fia/${ticketId}`,
-        relatedEntity: { type: "FiaTicket", id: ticketId },
-        dedupeKey: `fia-decision:${ticketId}`,
+      await createNotifications(
+        transaction,
+        [...recipientIds],
+        {
+          type: NotificationType.FiaDecision,
+          priority: NotificationPriority.High,
+          title: `Entscheidung zu Ticket #${ticketId}`,
+          message: `${ticket.title}: ${penaltyTypeLabels[parsed.data.penaltyType]}`,
+          href: `/fia/${ticketId}`,
+          relatedEntity: { type: "FiaTicket", id: ticketId },
+          dedupeKey: `fia-decision:${ticketId}`,
+        },
+        {
+          leagueId: ticket.leagueId,
+          discordContext: {
+            league: ticket.season.league.name,
+            season: ticket.season.name,
+            race: ticket.race.name,
+            track: ticket.race.mystery
+              ? "Mystery Race"
+              : ticket.race.circuit,
+          },
+        },
+      );
+      await recordWebhookEvent(transaction, {
+        type: WebhookEventType.FiaDecision,
+        source: "fia-decision-action",
+        dedupeKey: `fia-decision-webhook:${ticketId}`,
+        payload: {
+          ticketId,
+          decisionId: decision.id,
+          penaltyType: parsed.data.penaltyType,
+          penaltyValue: parsed.data.penaltyValue ?? null,
+          actorId: user.id,
+        },
       });
       if (parsed.data.penaltyType !== "NO_FURTHER_ACTION") {
         const affectedUsers = ticket.drivers.flatMap(({ driver }) =>
@@ -621,15 +658,30 @@ export async function publishFiaDecisionAction(
             ? [driver.userId]
             : [],
         );
-        await createNotifications(transaction, affectedUsers, {
-          type: NotificationType.Penalty,
-          priority: NotificationPriority.Urgent,
-          title: `Strafe aus Ticket #${ticketId}`,
-          message: `${ticket.title}: ${penaltyTypeLabels[parsed.data.penaltyType]}`,
-          href: `/fia/${ticketId}`,
-          relatedEntity: { type: "Decision", id: decision.id },
-          dedupeKey: `fia-penalty:${decision.id}`,
-        });
+        await createNotifications(
+          transaction,
+          affectedUsers,
+          {
+            type: NotificationType.Penalty,
+            priority: NotificationPriority.Urgent,
+            title: `Strafe aus Ticket #${ticketId}`,
+            message: `${ticket.title}: ${penaltyTypeLabels[parsed.data.penaltyType]}`,
+            href: `/fia/${ticketId}`,
+            relatedEntity: { type: "Decision", id: decision.id },
+            dedupeKey: `fia-penalty:${decision.id}`,
+          },
+          {
+            leagueId: ticket.leagueId,
+            discordContext: {
+              league: ticket.season.league.name,
+              season: ticket.season.name,
+              race: ticket.race.name,
+              track: ticket.race.mystery
+                ? "Mystery Race"
+                : ticket.race.circuit,
+            },
+          },
+        );
       }
 
       if (parsed.data.penaltyType === "POINTS_DEDUCTION") {

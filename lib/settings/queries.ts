@@ -46,6 +46,11 @@ export async function getSettingsPageData(
       avatarUrl: user.avatarUrl,
       discordId:
         user.discordId ?? user.accounts[0]?.providerAccountId ?? null,
+      discordUsername: user.discordUsername,
+      discordGlobalName: user.discordGlobalName,
+      discordGuildNickname: user.discordGuildNickname,
+      discordVerifiedAt: user.discordVerifiedAt?.toISOString() ?? null,
+      discordSyncedAt: user.discordSyncedAt?.toISOString() ?? null,
       roles: user.roles as Role[],
     },
     driver: user.driver

@@ -1,7 +1,8 @@
-import { ShieldCheck } from "lucide-react";
+import { RefreshCw, ShieldCheck } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import SettingsForms from "@/components/settings/SettingsForms";
 import { roleLabels } from "@/domain";
+import { reconnectDiscordAccount } from "@/lib/auth/actions";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getSettingsPageData } from "@/lib/settings/queries";
 
@@ -41,10 +42,15 @@ export default async function SettingsPage() {
                 Discord
               </dt>
               <dd className="mt-2 text-white">
-                {data.user.discordId
-                  ? `Verbunden · ${data.user.discordId}`
+                {data.user.discordVerifiedAt
+                  ? `Verifiziert · ${data.user.discordGlobalName ?? data.user.discordUsername ?? data.user.discordId}`
                   : "Nicht verbunden"}
               </dd>
+              {data.user.discordGuildNickname ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  Servername: {data.user.discordGuildNickname}
+                </p>
+              ) : null}
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-4">
               <dt className="text-xs uppercase tracking-widest text-slate-500">
@@ -63,6 +69,12 @@ export default async function SettingsPage() {
               </dd>
             </div>
           </dl>
+          <form action={reconnectDiscordAccount} className="mt-5">
+            <button className="wizard-secondary-button">
+              <RefreshCw size={17} />
+              Discord-Verbindung erneut bestätigen
+            </button>
+          </form>
         </section>
       </div>
     </AppLayout>

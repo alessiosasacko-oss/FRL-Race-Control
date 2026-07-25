@@ -17,6 +17,7 @@ export enum Permission {
   ManageResults = "MANAGE_RESULTS",
   ManageScoring = "MANAGE_SCORING",
   ManageChampionshipAdjustments = "MANAGE_CHAMPIONSHIP_ADJUSTMENTS",
+  ManageAutomation = "MANAGE_AUTOMATION",
 }
 
 const allPermissions = Object.values(Permission);
@@ -38,6 +39,7 @@ export const rolePermissions: Record<Role, readonly Permission[]> = {
     Permission.ManageResults,
     Permission.ManageScoring,
     Permission.ManageChampionshipAdjustments,
+    Permission.ManageAutomation,
   ],
   [Role.FiaPresident]: [
     Permission.ViewRaceControl,
