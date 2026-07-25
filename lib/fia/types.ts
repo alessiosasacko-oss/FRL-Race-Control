@@ -1,6 +1,5 @@
 import type {
   EvidenceType,
-  NotificationType,
   PenaltyType,
   RaceSession,
   TicketAuditAction,
@@ -79,16 +78,6 @@ export type FiaTicketListItem = {
     discussionMessages: number;
     votes: number;
   };
-};
-
-export type FiaNotificationItem = {
-  id: number;
-  type: NotificationType;
-  title: string;
-  message: string;
-  href: string | null;
-  readAt: string | null;
-  createdAt: string;
 };
 
 export type FiaTicketListData = {

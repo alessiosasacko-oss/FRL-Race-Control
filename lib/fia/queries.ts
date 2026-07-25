@@ -1,7 +1,6 @@
 import "server-only";
 import {
   EvidenceType,
-  NotificationType,
   PenaltyType,
   RaceSession,
   TicketAuditAction,
@@ -13,7 +12,6 @@ import {
   TicketPriority as PrismaTicketPriority,
   TicketStatus as PrismaTicketStatus,
   RaceSession as PrismaRaceSession,
-  NotificationType as PrismaNotificationType,
 } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { fiaTicketListParamsSchema } from "@/lib/fia/schemas";
@@ -24,7 +22,6 @@ import type {
   FiaTicketListItem,
   FiaTicketListParams,
   FiaTicketStatsData,
-  FiaNotificationItem,
   TicketWizardOptions,
 } from "@/lib/fia/types";
 
@@ -422,39 +419,4 @@ export async function getFiaTicketById(
       actor: entry.actor,
     })),
   };
-}
-
-export async function getUserFiaNotifications(
-  userId: number,
-): Promise<FiaNotificationItem[]> {
-  const prisma = getPrismaClient();
-  const notifications = await prisma.notification.findMany({
-    where: {
-      userId,
-      type: {
-        in: [
-          PrismaNotificationType.FIA_TICKET,
-          PrismaNotificationType.FIA_DECISION,
-        ],
-      },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    select: {
-      id: true,
-      type: true,
-      title: true,
-      message: true,
-      href: true,
-      readAt: true,
-      createdAt: true,
-    },
-  });
-
-  return notifications.map((notification) => ({
-    ...notification,
-    type: notification.type as NotificationType,
-    readAt: notification.readAt?.toISOString() ?? null,
-    createdAt: notification.createdAt.toISOString(),
-  }));
 }

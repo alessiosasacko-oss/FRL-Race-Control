@@ -95,6 +95,32 @@ enum NotificationType {
   FIA_TICKET
   FIA_DECISION
   CHAMPIONSHIP
+  PENALTY
+  QUALIFYING_BAN
+  RACE_BAN
+  ATTENDANCE_OPEN
+  ATTENDANCE_CLOSING_SOON
+  ATTENDANCE_CLOSED
+  RACE_RESULT
+  CHAMPIONSHIP_UPDATED
+  NEW_SEASON
+  NEW_RACE
+  ADMIN_ANNOUNCEMENT
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  SKIPPED
+  FAILED
 }
 
 enum EvidenceType {
@@ -135,6 +161,8 @@ model User {
   championshipAdjustments ChampionshipAdjustment[]
   championshipAudits      ChampionshipAudit[]
   notifications           Notification[]
+  settings                UserSettings?
+  emailDeliveries         EmailDelivery[]
   accounts                Account[]
   sessions                Session[]
   createdAt               DateTime                 @default(now())
@@ -692,17 +720,66 @@ model DecisionSteward {
 }
 
 model Notification {
-  id        Int              @id @default(autoincrement())
-  userId    Int
-  type      NotificationType
-  title     String           @db.VarChar(160)
-  message   String           @db.VarChar(1000)
-  href      String?          @db.VarChar(500)
-  readAt    DateTime?
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id                Int                  @id @default(autoincrement())
+  userId            Int
+  type              NotificationType
+  priority          NotificationPriority @default(NORMAL)
+  title             String               @db.VarChar(160)
+  message           String               @db.VarChar(1000)
+  href              String?              @db.VarChar(500)
+  relatedEntityType String?              @db.VarChar(80)
+  relatedEntityId   Int?
+  dedupeKey         String?              @unique @db.VarChar(190)
+  readAt            DateTime?
+  archivedAt        DateTime?
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailDelivery     EmailDelivery?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
-  @@index([userId, readAt, createdAt])
+  @@index([userId, archivedAt, readAt, createdAt])
   @@index([type, createdAt])
+  @@index([priority, createdAt])
+  @@index([relatedEntityType, relatedEntityId])
+}
+
+model UserSettings {
+  id                    Int                @id @default(autoincrement())
+  userId                Int                @unique
+  inAppEnabled          Boolean            @default(true)
+  inAppCategories       NotificationType[] @default([])
+  emailEnabled          Boolean            @default(false)
+  emailCategories       NotificationType[] @default([])
+  quietHoursEnabled     Boolean            @default(false)
+  quietHoursStartMinute Int?
+  quietHoursEndMinute   Int?
+  timezone              String             @default("Europe/Berlin") @db.VarChar(80)
+  theme                 String             @default("dark") @db.VarChar(32)
+  language              String             @default("de") @db.VarChar(16)
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@index([emailEnabled])
+}
+
+model EmailDelivery {
+  id             Int                 @id @default(autoincrement())
+  userId         Int
+  notificationId Int?                @unique
+  recipient      String              @db.VarChar(320)
+  subject        String              @db.VarChar(200)
+  html           String              @db.Text
+  status         EmailDeliveryStatus @default(PENDING)
+  attempts       Int                 @default(0)
+  scheduledFor   DateTime            @default(now())
+  sentAt         DateTime?
+  lastError      String?             @db.Text
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notification   Notification?       @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([status, scheduledFor])
+  @@index([userId, createdAt])
 }

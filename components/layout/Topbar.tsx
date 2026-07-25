@@ -1,15 +1,20 @@
 import Link from "next/link";
-import { Bell, Menu, Search, Settings, UserRound } from "lucide-react";
+import { Bell, Menu, Settings, UserRound } from "lucide-react";
 import { roleLabels } from "@/domain";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import type { AuthenticatedUser } from "@/lib/auth/session";
 import { mainNavigationItems } from "./navigation";
+import GlobalSearch from "@/components/search/GlobalSearch";
 
 type TopbarProps = {
   user: AuthenticatedUser;
+  unreadNotifications: number;
 };
 
-export default function Topbar({ user }: TopbarProps) {
+export default function Topbar({
+  user,
+  unreadNotifications,
+}: TopbarProps) {
   const canManageAdministration = hasPermission(
     user.roles,
     Permission.ManageAdministration,
@@ -59,26 +64,29 @@ export default function Topbar({ user }: TopbarProps) {
                 Administration
               </Link>
             ) : null}
+            <Link
+              href="/settings"
+              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-300 transition hover:bg-blue-600 hover:text-white"
+            >
+              <Settings size={18} />
+              Einstellungen
+            </Link>
           </nav>
         </details>
 
-        <div className="hidden items-center gap-2 rounded-xl bg-[#151B24] px-4 py-2 xl:flex">
-
-          <Search size={18} className="text-slate-400" />
-
-          <input
-            placeholder="Suchen..."
-            className="bg-transparent text-sm outline-none placeholder:text-slate-500"
-          />
-
-        </div>
+        <GlobalSearch />
 
         <Link
           href="/notifications"
           aria-label="Benachrichtigungen öffnen"
-          className="rounded-xl bg-[#151B24] p-3 transition hover:bg-blue-600"
+          className="relative rounded-xl bg-[#151B24] p-3 transition hover:bg-blue-600"
         >
           <Bell size={20} />
+          {unreadNotifications > 0 ? (
+            <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              {unreadNotifications > 99 ? "99+" : unreadNotifications}
+            </span>
+          ) : null}
         </Link>
 
         <div className="hidden items-center gap-3 rounded-xl bg-[#151B24] px-4 py-2 sm:flex">

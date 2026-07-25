@@ -3,6 +3,7 @@ import {
   ChampionshipAdjustmentTarget,
   ChampionshipAuditAction,
   EvidenceType,
+  NotificationPriority,
   NotificationType,
   PenaltyType,
   RaceSession,
@@ -114,9 +115,30 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   [NotificationType.System]: "System",
   [NotificationType.RaceReminder]: "Rennerinnerung",
   [NotificationType.Attendance]: "Rennanmeldung",
-  [NotificationType.FiaTicket]: "FIA-Ticket",
+  [NotificationType.FiaTicket]: "FIA-Ticket erstellt",
   [NotificationType.FiaDecision]: "FIA-Entscheidung",
   [NotificationType.Championship]: "Meisterschaft",
+  [NotificationType.Penalty]: "Strafe",
+  [NotificationType.QualifyingBan]: "Qualifying-Sperre",
+  [NotificationType.RaceBan]: "Rennsperre",
+  [NotificationType.AttendanceOpen]: "Rennanmeldung geöffnet",
+  [NotificationType.AttendanceClosingSoon]: "Anmeldeschluss naht",
+  [NotificationType.AttendanceClosed]: "Rennanmeldung geschlossen",
+  [NotificationType.RaceResult]: "Neues Rennergebnis",
+  [NotificationType.ChampionshipUpdated]: "Meisterschaft aktualisiert",
+  [NotificationType.NewSeason]: "Neue Saison",
+  [NotificationType.NewRace]: "Neues Rennen",
+  [NotificationType.AdminAnnouncement]: "Admin-Mitteilung",
+};
+
+export const notificationPriorityLabels: Record<
+  NotificationPriority,
+  string
+> = {
+  [NotificationPriority.Low]: "Niedrig",
+  [NotificationPriority.Normal]: "Normal",
+  [NotificationPriority.High]: "Hoch",
+  [NotificationPriority.Urgent]: "Dringend",
 };
 
 export const ticketAuditActionLabels: Record<TicketAuditAction, string> = {

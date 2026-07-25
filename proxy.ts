@@ -9,7 +9,11 @@ const sessionCookieNames = [
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  if (publicRoutes.has(pathname) || pathname.startsWith("/api/auth")) {
+  if (
+    publicRoutes.has(pathname) ||
+    pathname.startsWith("/api/auth") ||
+    pathname === "/api/notifications/email"
+  ) {
     return NextResponse.next();
   }
 

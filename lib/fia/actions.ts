@@ -3,15 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
-  NotificationType as PrismaNotificationType,
   PenaltyType as PrismaPenaltyType,
   RaceSession as PrismaRaceSession,
+  Role as PrismaRole,
   TicketAuditAction as PrismaTicketAuditAction,
   TicketPriority as PrismaTicketPriority,
   TicketStatus as PrismaTicketStatus,
   EvidenceType as PrismaEvidenceType,
 } from "@/generated/prisma/client";
 import {
+  NotificationPriority,
+  NotificationType,
   penaltyTypeLabels,
   ticketStatusLabels,
   TicketStatus,
@@ -25,6 +27,7 @@ import {
 } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { recalculateChampionship } from "@/lib/championship/recalculation";
+import { createNotifications } from "@/lib/notifications/service";
 import {
   addEvidenceSchema,
   createFiaTicketSchema,
@@ -68,6 +71,7 @@ function revalidateTicket(ticketId: number): void {
   revalidatePath("/fia");
   revalidatePath(`/fia/${ticketId}`);
   revalidatePath("/notifications");
+  revalidatePath("/dashboard");
 }
 
 export async function createFiaTicketAction(
@@ -155,7 +159,14 @@ export async function createFiaTicketAction(
             })),
           },
         },
-        select: { id: true },
+        select: {
+          id: true,
+          drivers: {
+            select: {
+              driver: { select: { userId: true } },
+            },
+          },
+        },
       });
 
       await transaction.fiaTicketAuditLog.create({
@@ -170,6 +181,40 @@ export async function createFiaTicketAction(
               ? `Ticket mit ${parsed.data.evidence.length} Beweisnachweis(en) erstellt`
               : "Ticket erstellt",
         },
+      });
+
+      const raceControlUsers = await transaction.user.findMany({
+        where: {
+          active: true,
+          roles: {
+            hasSome: [
+              PrismaRole.SUPER_ADMIN,
+              PrismaRole.ADMIN,
+              PrismaRole.FIA_PRESIDENT,
+              PrismaRole.STEWARD,
+            ],
+          },
+        },
+        select: { id: true },
+      });
+      const recipients = new Set(
+        raceControlUsers.map((recipient) => recipient.id),
+      );
+      ticket.drivers.forEach(({ driver }) => {
+        if (driver.userId) recipients.add(driver.userId);
+      });
+      recipients.delete(user.id);
+      await createNotifications(transaction, [...recipients], {
+        type: NotificationType.FiaTicket,
+        priority:
+          parsed.data.priority === "HIGH"
+            ? NotificationPriority.High
+            : NotificationPriority.Normal,
+        title: `Neues FIA-Ticket #${ticket.id}`,
+        message: parsed.data.title,
+        href: `/fia/${ticket.id}`,
+        relatedEntity: { type: "FiaTicket", id: ticket.id },
+        dedupeKey: `fia-ticket:${ticket.id}`,
       });
 
       return ticket.id;
@@ -561,15 +606,29 @@ export async function publishFiaDecisionAction(
       );
       recipientIds.delete(user.id);
 
-      if (recipientIds.size > 0) {
-        await transaction.notification.createMany({
-          data: Array.from(recipientIds).map((userId) => ({
-            userId,
-            type: PrismaNotificationType.FIA_DECISION,
-            title: `Entscheidung zu Ticket #${ticketId}`,
-            message: `${ticket.title}: ${penaltyTypeLabels[parsed.data.penaltyType]}`,
-            href: `/fia/${ticketId}`,
-          })),
+      await createNotifications(transaction, [...recipientIds], {
+        type: NotificationType.FiaDecision,
+        priority: NotificationPriority.High,
+        title: `Entscheidung zu Ticket #${ticketId}`,
+        message: `${ticket.title}: ${penaltyTypeLabels[parsed.data.penaltyType]}`,
+        href: `/fia/${ticketId}`,
+        relatedEntity: { type: "FiaTicket", id: ticketId },
+        dedupeKey: `fia-decision:${ticketId}`,
+      });
+      if (parsed.data.penaltyType !== "NO_FURTHER_ACTION") {
+        const affectedUsers = ticket.drivers.flatMap(({ driver }) =>
+          driver.userId && driver.userId !== user.id
+            ? [driver.userId]
+            : [],
+        );
+        await createNotifications(transaction, affectedUsers, {
+          type: NotificationType.Penalty,
+          priority: NotificationPriority.Urgent,
+          title: `Strafe aus Ticket #${ticketId}`,
+          message: `${ticket.title}: ${penaltyTypeLabels[parsed.data.penaltyType]}`,
+          href: `/fia/${ticketId}`,
+          relatedEntity: { type: "Decision", id: decision.id },
+          dedupeKey: `fia-penalty:${decision.id}`,
         });
       }
 
@@ -602,25 +661,4 @@ export async function publishFiaDecisionAction(
     status: "success",
     message: "Entscheidung wurde veröffentlicht.",
   };
-}
-
-export async function markAllFiaNotificationsReadAction(): Promise<void> {
-  const user = await requirePermission(Permission.ViewRaceControl);
-  const prisma = getPrismaClient();
-
-  await prisma.notification.updateMany({
-    where: {
-      userId: user.id,
-      readAt: null,
-      type: {
-        in: [
-          PrismaNotificationType.FIA_TICKET,
-          PrismaNotificationType.FIA_DECISION,
-        ],
-      },
-    },
-    data: { readAt: new Date() },
-  });
-
-  revalidatePath("/notifications");
 }

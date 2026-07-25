@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   Flag,
   Layers3,
+  Megaphone,
   Trophy,
   Users,
 } from "lucide-react";
@@ -54,6 +55,12 @@ const areas = [
     title: "Meisterschaft",
     description: "Ergebnisse, Punktesystem und Neuberechnung",
     icon: Calculator,
+  },
+  {
+    href: "/admin/announcements",
+    title: "Kommunikation",
+    description: "Plattformweite Mitteilungen und E-Mail-Auslösung",
+    icon: Megaphone,
   },
 ];
 

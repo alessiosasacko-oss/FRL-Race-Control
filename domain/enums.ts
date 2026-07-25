@@ -88,6 +88,32 @@ export enum NotificationType {
   FiaTicket = "FIA_TICKET",
   FiaDecision = "FIA_DECISION",
   Championship = "CHAMPIONSHIP",
+  Penalty = "PENALTY",
+  QualifyingBan = "QUALIFYING_BAN",
+  RaceBan = "RACE_BAN",
+  AttendanceOpen = "ATTENDANCE_OPEN",
+  AttendanceClosingSoon = "ATTENDANCE_CLOSING_SOON",
+  AttendanceClosed = "ATTENDANCE_CLOSED",
+  RaceResult = "RACE_RESULT",
+  ChampionshipUpdated = "CHAMPIONSHIP_UPDATED",
+  NewSeason = "NEW_SEASON",
+  NewRace = "NEW_RACE",
+  AdminAnnouncement = "ADMIN_ANNOUNCEMENT",
+}
+
+export enum NotificationPriority {
+  Low = "LOW",
+  Normal = "NORMAL",
+  High = "HIGH",
+  Urgent = "URGENT",
+}
+
+export enum EmailDeliveryStatus {
+  Pending = "PENDING",
+  Sending = "SENDING",
+  Sent = "SENT",
+  Skipped = "SKIPPED",
+  Failed = "FAILED",
 }
 
 export enum EvidenceType {
@@ -122,5 +148,7 @@ export const championshipAuditActionSchema = z.enum(
   ChampionshipAuditAction,
 );
 export const notificationTypeSchema = z.enum(NotificationType);
+export const notificationPrioritySchema = z.enum(NotificationPriority);
+export const emailDeliveryStatusSchema = z.enum(EmailDeliveryStatus);
 export const evidenceTypeSchema = z.enum(EvidenceType);
 export const ticketAuditActionSchema = z.enum(TicketAuditAction);

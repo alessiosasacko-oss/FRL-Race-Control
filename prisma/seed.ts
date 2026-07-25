@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   EvidenceType as PrismaEvidenceType,
+  NotificationType as PrismaNotificationType,
   PenaltyType as PrismaPenaltyType,
   PrismaClient,
   RaceSession as PrismaRaceSession,
@@ -46,6 +47,28 @@ async function seed(): Promise<void> {
       displayName: "FRL Race Control",
       roles: [PrismaRole.ADMIN, PrismaRole.STEWARD],
       active: true,
+    },
+  });
+  await prisma.userSettings.upsert({
+    where: { userId: 1 },
+    update: {
+      inAppEnabled: true,
+      inAppCategories: Object.values(PrismaNotificationType),
+      emailEnabled: false,
+      emailCategories: Object.values(PrismaNotificationType),
+      timezone: "Europe/Berlin",
+      theme: "dark",
+      language: "de",
+    },
+    create: {
+      userId: 1,
+      inAppEnabled: true,
+      inAppCategories: Object.values(PrismaNotificationType),
+      emailEnabled: false,
+      emailCategories: Object.values(PrismaNotificationType),
+      timezone: "Europe/Berlin",
+      theme: "dark",
+      language: "de",
     },
   });
 

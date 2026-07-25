@@ -70,6 +70,27 @@ Geschützte Seiten liegen in `app/(protected)`. `proxy.ts` übernimmt die frühe
 Weiterleitung zur Anmeldung; der geschützte Layout- und Datenzugriff prüft die
 Sitzung zusätzlich serverseitig.
 
+## Benachrichtigungen und E-Mail
+
+Das Notification Center speichert ungelesene, gelesene und archivierte
+Benachrichtigungen in PostgreSQL. Benutzer konfigurieren In-App- und
+E-Mail-Kategorien sowie Ruhezeiten unter `/settings`.
+
+E-Mails werden zuerst zuverlässig in `EmailDelivery` abgelegt. Ein geplanter
+Job ruft anschließend den geschützten Endpunkt auf:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $EMAIL_CRON_SECRET" \
+  http://localhost:3000/api/notifications/email
+```
+
+Der Job erzeugt außerdem idempotente Hinweise für geöffnete, bald schließende
+und geschlossene Rennanmeldungen. Für die SMTP-Zustellung werden `SMTP_URL`,
+`EMAIL_FROM` und `EMAIL_CRON_SECRET` benötigt. Ohne SMTP-Konfiguration bleibt
+die Anwendung einschließlich Production Build vollständig lauffähig; es wird
+lediglich keine Outbox verarbeitet.
+
 ## Validierung
 
 ```bash

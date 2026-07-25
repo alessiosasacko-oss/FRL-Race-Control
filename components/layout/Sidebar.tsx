@@ -117,6 +117,14 @@ export default function Sidebar({ user }: SidebarProps) {
             Profil
           </Link>
 
+          <Link
+            href="/settings"
+            className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700"
+          >
+            <Settings size={18} />
+            Einstellungen
+          </Link>
+
           {canManageAdministration ? (
             <Link
               href="/admin"

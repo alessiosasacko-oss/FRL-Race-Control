@@ -8,6 +8,7 @@ import {
 } from "@/generated/prisma/client";
 import {
   ChampionshipAdjustmentTarget,
+  NotificationType,
   ResultSession,
   ResultStatus,
 } from "@/domain";
@@ -16,6 +17,10 @@ import {
   defaultPositionRows,
   scoringPositionKey,
 } from "./scoring";
+import {
+  createNotifications,
+  leagueUserIds,
+} from "@/lib/notifications/service";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -465,5 +470,15 @@ export async function recalculateChampionship(
         teamCount: teamRows.length,
       },
     },
+  });
+
+  const recipients = await leagueUserIds(database, season.leagueId);
+  await createNotifications(database, recipients, {
+    type: NotificationType.ChampionshipUpdated,
+    title: `${season.name}: Meisterschaft aktualisiert`,
+    message:
+      "Die Fahrer- und Teamwertung wurde anhand der aktuellen Ergebnisse neu berechnet.",
+    href: `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`,
+    relatedEntity: { type: "Season", id: season.id },
   });
 }

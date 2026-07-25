@@ -11,6 +11,8 @@ import {
 } from "@/generated/prisma/client";
 import {
   ChampionshipAdjustmentTarget,
+  NotificationPriority,
+  NotificationType,
   ResultSession,
 } from "@/domain";
 import {
@@ -33,6 +35,10 @@ import {
 import { recalculateChampionship } from "./recalculation";
 import { parsePointsList } from "./scoring";
 import type { SportsActionState } from "./types";
+import {
+  createNotifications,
+  leagueUserIds,
+} from "@/lib/notifications/service";
 
 function errorState(
   message: string,
@@ -69,6 +75,8 @@ function revalidateSports(raceId?: number): void {
   revalidatePath("/admin/scoring");
   revalidatePath("/admin/adjustments");
   revalidatePath("/admin/championship");
+  revalidatePath("/dashboard");
+  revalidatePath("/notifications");
   if (raceId) revalidatePath(`/results/${raceId}`);
 }
 
@@ -284,6 +292,15 @@ export async function updateAttendanceAction(
           newState: serializable(attendance),
         },
       });
+      if (driver.userId && driver.userId !== user.id) {
+        await createNotifications(transaction, [driver.userId], {
+          type: NotificationType.Attendance,
+          title: "Rennanmeldung geändert",
+          message: `Dein Status wurde auf ${parsed.data.status === "REGISTERED" ? "angemeldet" : "abgemeldet"} gesetzt.`,
+          href: `/attendance?raceId=${race.id}`,
+          relatedEntity: { type: "RaceAttendance", id: attendance.id },
+        });
+      }
     });
   } catch {
     return databaseError();
@@ -465,6 +482,19 @@ export async function saveResultsAction(
         race.seasonId,
         user.id,
       );
+      const recipients = await leagueUserIds(
+        transaction,
+        race.season.leagueId,
+      );
+      await createNotifications(transaction, recipients, {
+        type: NotificationType.RaceResult,
+        priority: NotificationPriority.High,
+        title: `${race.name}: Neues ${parsed.data.session === ResultSession.Sprint ? "Sprint-" : "Renn"}ergebnis`,
+        message:
+          "Das vollständige Ergebnis wurde veröffentlicht und die Meisterschaft aktualisiert.",
+        href: `/results/${race.id}`,
+        relatedEntity: { type: "Race", id: race.id },
+      });
     });
   } catch {
     return databaseError();

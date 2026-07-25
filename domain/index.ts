@@ -10,6 +10,7 @@ export * from "./notification";
 export * from "./race";
 export * from "./result";
 export * from "./scoring";
+export * from "./settings";
 export * from "./season";
 export * from "./team";
 export * from "./user";
