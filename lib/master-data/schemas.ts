@@ -67,6 +67,13 @@ export const raceSchema = z.object({
   localStart: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+  attendanceDeadlineLocal: z.preprocess(
+    (value) => (value === "" || value === null ? null : value),
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
+      .nullable(),
+  ),
   timezone: timezoneSchema,
   status: raceStatusSchema.default(RaceStatus.Scheduled),
   sprint: checkbox,

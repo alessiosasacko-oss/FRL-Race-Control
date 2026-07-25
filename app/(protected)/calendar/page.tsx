@@ -135,6 +135,12 @@ export default async function CalendarPage({
                   ) : null}
                 </div>
               ) : null}
+              <Link
+                href={`/results/${race.id}`}
+                className="wizard-secondary-button mt-5 w-full sm:w-auto"
+              >
+                Ergebnisse ansehen
+              </Link>
             </article>
           ))}
         </div>

@@ -47,6 +47,40 @@ export enum RaceStatus {
   Cancelled = "CANCELLED",
 }
 
+export enum AttendanceStatus {
+  Registered = "REGISTERED",
+  Declined = "DECLINED",
+  NoResponse = "NO_RESPONSE",
+}
+
+export enum ResultSession {
+  Race = "RACE",
+  Sprint = "SPRINT",
+}
+
+export enum ResultStatus {
+  Finished = "FINISHED",
+  Dnf = "DNF",
+  Dns = "DNS",
+  Dsq = "DSQ",
+  Retired = "RETIRED",
+}
+
+export enum ChampionshipAdjustmentTarget {
+  Driver = "DRIVER",
+  Team = "TEAM",
+}
+
+export enum ChampionshipAuditAction {
+  AttendanceChanged = "ATTENDANCE_CHANGED",
+  ResultCreated = "RESULT_CREATED",
+  ResultUpdated = "RESULT_UPDATED",
+  ResultDeleted = "RESULT_DELETED",
+  ScoringChanged = "SCORING_CHANGED",
+  AdjustmentCreated = "ADJUSTMENT_CREATED",
+  ChampionshipRecalculated = "CHAMPIONSHIP_RECALCULATED",
+}
+
 export enum NotificationType {
   System = "SYSTEM",
   RaceReminder = "RACE_REMINDER",
@@ -78,6 +112,15 @@ export const ticketPrioritySchema = z.enum(TicketPriority);
 export const penaltyTypeSchema = z.enum(PenaltyType);
 export const raceSessionSchema = z.enum(RaceSession);
 export const raceStatusSchema = z.enum(RaceStatus);
+export const attendanceStatusSchema = z.enum(AttendanceStatus);
+export const resultSessionSchema = z.enum(ResultSession);
+export const resultStatusSchema = z.enum(ResultStatus);
+export const championshipAdjustmentTargetSchema = z.enum(
+  ChampionshipAdjustmentTarget,
+);
+export const championshipAuditActionSchema = z.enum(
+  ChampionshipAuditAction,
+);
 export const notificationTypeSchema = z.enum(NotificationType);
 export const evidenceTypeSchema = z.enum(EvidenceType);
 export const ticketAuditActionSchema = z.enum(TicketAuditAction);

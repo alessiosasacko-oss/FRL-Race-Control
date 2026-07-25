@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  ChampionshipAuditAction as PrismaChampionshipAuditAction,
   RaceSession as PrismaRaceSession,
   RaceStatus as PrismaRaceStatus,
 } from "@/generated/prisma/client";
@@ -9,6 +10,7 @@ import { RaceSession } from "@/domain";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { recalculateChampionship } from "@/lib/championship/recalculation";
 import {
   driverSchema,
   entityIdSchema,
@@ -54,6 +56,11 @@ function revalidateMasterData(): void {
   revalidatePath("/admin/drivers");
   revalidatePath("/admin/teams");
   revalidatePath("/calendar");
+  revalidatePath("/attendance");
+  revalidatePath("/championship");
+  revalidatePath("/results/[id]", "page");
+  revalidatePath("/admin/attendance");
+  revalidatePath("/admin/results");
   revalidatePath("/drivers");
   revalidatePath("/drivers/[id]", "page");
   revalidatePath("/teams");
@@ -62,8 +69,8 @@ function revalidateMasterData(): void {
   revalidatePath("/fia/new");
 }
 
-async function authorize(): Promise<void> {
-  await requirePermission(Permission.ManageMasterData);
+async function authorize() {
+  return requirePermission(Permission.ManageMasterData);
 }
 
 export async function updateLeagueAction(
@@ -257,6 +264,7 @@ function racePayload(formData: FormData) {
     countryCode: formData.get("countryCode"),
     round: formData.get("round"),
     localStart: formData.get("localStart"),
+    attendanceDeadlineLocal: formData.get("attendanceDeadlineLocal"),
     timezone: formData.get("timezone"),
     status: formData.get("status"),
     sprint: formData.get("sprint"),
@@ -305,12 +313,19 @@ export async function createRaceAction(
   }
 
   let scheduledAt: Date;
+  let attendanceDeadline: Date | null;
 
   try {
     scheduledAt = zonedLocalToUtc(
       parsed.data.localStart,
       parsed.data.timezone,
     );
+    attendanceDeadline = parsed.data.attendanceDeadlineLocal
+      ? zonedLocalToUtc(
+          parsed.data.attendanceDeadlineLocal,
+          parsed.data.timezone,
+        )
+      : null;
   } catch {
     return errorState(
       "Die lokale Startzeit existiert in der gewählten Zeitzone nicht.",
@@ -328,6 +343,7 @@ export async function createRaceAction(
         countryCode: parsed.data.countryCode,
         round: parsed.data.round,
         scheduledAt,
+        attendanceDeadline,
         timezone: parsed.data.timezone,
         status: parsed.data.status as PrismaRaceStatus,
         sessions: raceSessions(parsed.data.sprint),
@@ -349,7 +365,7 @@ export async function updateRaceAction(
   _previousState: MasterDataActionState,
   formData: FormData,
 ): Promise<MasterDataActionState> {
-  await authorize();
+  const user = await authorize();
   const raceId = entityIdSchema.safeParse(raceIdInput);
   const parsed = raceSchema.safeParse(racePayload(formData));
 
@@ -369,12 +385,19 @@ export async function updateRaceAction(
   }
 
   let scheduledAt: Date;
+  let attendanceDeadline: Date | null;
 
   try {
     scheduledAt = zonedLocalToUtc(
       parsed.data.localStart,
       parsed.data.timezone,
     );
+    attendanceDeadline = parsed.data.attendanceDeadlineLocal
+      ? zonedLocalToUtc(
+          parsed.data.attendanceDeadlineLocal,
+          parsed.data.timezone,
+        )
+      : null;
   } catch {
     return errorState("Ungültige lokale Startzeit.");
   }
@@ -382,22 +405,84 @@ export async function updateRaceAction(
   const prisma = getPrismaClient();
 
   try {
-    await prisma.race.update({
+    const existing = await prisma.race.findUnique({
       where: { id: raceId.data },
-      data: {
-        seasonId: parsed.data.seasonId,
-        name: parsed.data.name,
-        circuit: parsed.data.circuit,
-        countryCode: parsed.data.countryCode,
-        round: parsed.data.round,
-        scheduledAt,
-        timezone: parsed.data.timezone,
-        status: parsed.data.status as PrismaRaceStatus,
-        sessions: raceSessions(parsed.data.sprint),
-        sprint: parsed.data.sprint,
-        doublePoints: parsed.data.doublePoints,
-        mystery: parsed.data.mystery,
+      include: {
+        resultSessions: {
+          select: { session: true },
+        },
+        _count: {
+          select: {
+            attendanceEntries: true,
+            resultSessions: true,
+          },
+        },
       },
+    });
+    if (!existing) return errorState("Rennen wurde nicht gefunden.");
+    if (
+      existing.seasonId !== parsed.data.seasonId &&
+      (existing._count.attendanceEntries > 0 ||
+        existing._count.resultSessions > 0)
+    ) {
+      return errorState(
+        "Rennen mit Anmeldungen oder Ergebnissen können nicht in eine andere Saison verschoben werden.",
+      );
+    }
+    if (
+      !parsed.data.sprint &&
+      existing.resultSessions.some(
+        (session) => session.session === "SPRINT",
+      )
+    ) {
+      return errorState(
+        "Das Sprint-Flag kann nicht entfernt werden, solange ein Sprint-Ergebnis existiert.",
+      );
+    }
+
+    await prisma.$transaction(async (transaction) => {
+      await transaction.race.update({
+        where: { id: raceId.data },
+        data: {
+          seasonId: parsed.data.seasonId,
+          name: parsed.data.name,
+          circuit: parsed.data.circuit,
+          countryCode: parsed.data.countryCode,
+          round: parsed.data.round,
+          scheduledAt,
+          attendanceDeadline,
+          timezone: parsed.data.timezone,
+          status: parsed.data.status as PrismaRaceStatus,
+          sessions: raceSessions(parsed.data.sprint),
+          sprint: parsed.data.sprint,
+          doublePoints: parsed.data.doublePoints,
+          mystery: parsed.data.mystery,
+        },
+      });
+      if (existing.doublePoints !== parsed.data.doublePoints) {
+        await transaction.championshipAudit.create({
+          data: {
+            seasonId: existing.seasonId,
+            raceId: existing.id,
+            actorId: user.id,
+            action:
+              PrismaChampionshipAuditAction.SCORING_CHANGED,
+            entityType: "Race",
+            entityId: existing.id,
+            previousState: {
+              doublePoints: existing.doublePoints,
+            },
+            newState: {
+              doublePoints: parsed.data.doublePoints,
+            },
+          },
+        });
+        await recalculateChampionship(
+          transaction,
+          existing.seasonId,
+          user.id,
+        );
+      }
     });
   } catch {
     return databaseError();
@@ -420,13 +505,22 @@ export async function deleteRaceAction(
   const prisma = getPrismaClient();
 
   try {
-    const ticketCount = await prisma.fiaTicket.count({
-      where: { raceId: raceId.data },
-    });
+    const [ticketCount, attendanceCount, resultCount] =
+      await prisma.$transaction([
+        prisma.fiaTicket.count({
+          where: { raceId: raceId.data },
+        }),
+        prisma.raceAttendance.count({
+          where: { raceId: raceId.data },
+        }),
+        prisma.raceResultSession.count({
+          where: { raceId: raceId.data },
+        }),
+      ]);
 
-    if (ticketCount > 0) {
+    if (ticketCount > 0 || attendanceCount > 0 || resultCount > 0) {
       return errorState(
-        "Rennen mit FIA-Tickets können nicht gelöscht werden. Setze den Status stattdessen auf Abgesagt.",
+        "Rennen mit FIA-Tickets, Anmeldungen oder Ergebnissen können nicht gelöscht werden. Setze den Status stattdessen auf Abgesagt.",
       );
     }
 

@@ -1,14 +1,60 @@
 import {
+  AttendanceStatus,
+  ChampionshipAdjustmentTarget,
+  ChampionshipAuditAction,
   EvidenceType,
   NotificationType,
   PenaltyType,
   RaceSession,
   RaceStatus,
+  ResultSession,
+  ResultStatus,
   Role,
   TicketAuditAction,
   TicketPriority,
   TicketStatus,
 } from "./enums";
+
+export const attendanceStatusLabels: Record<AttendanceStatus, string> = {
+  [AttendanceStatus.Registered]: "Angemeldet",
+  [AttendanceStatus.Declined]: "Abgemeldet",
+  [AttendanceStatus.NoResponse]: "Keine Antwort",
+};
+
+export const resultSessionLabels: Record<ResultSession, string> = {
+  [ResultSession.Race]: "Rennen",
+  [ResultSession.Sprint]: "Sprint",
+};
+
+export const resultStatusLabels: Record<ResultStatus, string> = {
+  [ResultStatus.Finished]: "Im Ziel",
+  [ResultStatus.Dnf]: "DNF",
+  [ResultStatus.Dns]: "DNS",
+  [ResultStatus.Dsq]: "DSQ",
+  [ResultStatus.Retired]: "Ausgeschieden",
+};
+
+export const championshipAdjustmentTargetLabels: Record<
+  ChampionshipAdjustmentTarget,
+  string
+> = {
+  [ChampionshipAdjustmentTarget.Driver]: "Fahrer",
+  [ChampionshipAdjustmentTarget.Team]: "Team",
+};
+
+export const championshipAuditActionLabels: Record<
+  ChampionshipAuditAction,
+  string
+> = {
+  [ChampionshipAuditAction.AttendanceChanged]: "Rennanmeldung geändert",
+  [ChampionshipAuditAction.ResultCreated]: "Ergebnis erstellt",
+  [ChampionshipAuditAction.ResultUpdated]: "Ergebnis geändert",
+  [ChampionshipAuditAction.ResultDeleted]: "Ergebnis gelöscht",
+  [ChampionshipAuditAction.ScoringChanged]: "Punktesystem geändert",
+  [ChampionshipAuditAction.AdjustmentCreated]: "Punkteanpassung erstellt",
+  [ChampionshipAuditAction.ChampionshipRecalculated]:
+    "Meisterschaft neu berechnet",
+};
 
 export const evidenceTypeLabels: Record<EvidenceType, string> = {
   [EvidenceType.Link]: "Link",

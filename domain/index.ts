@@ -1,4 +1,5 @@
 export * from "./championship";
+export * from "./attendance";
 export * from "./common";
 export * from "./driver";
 export * from "./enums";
@@ -7,6 +8,8 @@ export * from "./labels";
 export * from "./league";
 export * from "./notification";
 export * from "./race";
+export * from "./result";
+export * from "./scoring";
 export * from "./season";
 export * from "./team";
 export * from "./user";

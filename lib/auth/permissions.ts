@@ -10,6 +10,13 @@ export enum Permission {
   ManageAdministration = "MANAGE_ADMINISTRATION",
   ViewMasterData = "VIEW_MASTER_DATA",
   ManageMasterData = "MANAGE_MASTER_DATA",
+  ViewChampionship = "VIEW_CHAMPIONSHIP",
+  ManageOwnAttendance = "MANAGE_OWN_ATTENDANCE",
+  ManageTeamAttendance = "MANAGE_TEAM_ATTENDANCE",
+  ManageAttendance = "MANAGE_ATTENDANCE",
+  ManageResults = "MANAGE_RESULTS",
+  ManageScoring = "MANAGE_SCORING",
+  ManageChampionshipAdjustments = "MANAGE_CHAMPIONSHIP_ADJUSTMENTS",
 }
 
 const allPermissions = Object.values(Permission);
@@ -25,6 +32,12 @@ export const rolePermissions: Record<Role, readonly Permission[]> = {
     Permission.ManageAdministration,
     Permission.ViewMasterData,
     Permission.ManageMasterData,
+    Permission.ViewChampionship,
+    Permission.ManageOwnAttendance,
+    Permission.ManageAttendance,
+    Permission.ManageResults,
+    Permission.ManageScoring,
+    Permission.ManageChampionshipAdjustments,
   ],
   [Role.FiaPresident]: [
     Permission.ViewRaceControl,
@@ -32,23 +45,30 @@ export const rolePermissions: Record<Role, readonly Permission[]> = {
     Permission.ReviewFiaTicket,
     Permission.DecideFiaTicket,
     Permission.ViewMasterData,
+    Permission.ViewChampionship,
   ],
   [Role.Steward]: [
     Permission.ViewRaceControl,
     Permission.SubmitFiaTicket,
     Permission.ReviewFiaTicket,
     Permission.ViewMasterData,
+    Permission.ViewChampionship,
   ],
   [Role.TeamPrincipal]: [
     Permission.ViewRaceControl,
     Permission.SubmitFiaTicket,
     Permission.ManageTeam,
     Permission.ViewMasterData,
+    Permission.ViewChampionship,
+    Permission.ManageOwnAttendance,
+    Permission.ManageTeamAttendance,
   ],
   [Role.Driver]: [
     Permission.ViewRaceControl,
     Permission.SubmitFiaTicket,
     Permission.ViewMasterData,
+    Permission.ViewChampionship,
+    Permission.ManageOwnAttendance,
   ],
 };
 

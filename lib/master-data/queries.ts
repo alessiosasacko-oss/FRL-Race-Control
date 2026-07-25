@@ -285,6 +285,13 @@ export async function getRaceItems(
       sprint: race.sprint,
       doublePoints: race.doublePoints,
       mystery: race.mystery,
+      attendanceDeadline: race.attendanceDeadline?.toISOString() ?? null,
+      attendanceDeadlineLocal: race.attendanceDeadline
+        ? formatLocalDateTimeInput(
+            race.attendanceDeadline,
+            race.timezone,
+          )
+        : "",
       season: {
         id: race.season.id,
         name: race.season.name,

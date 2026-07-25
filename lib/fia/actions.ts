@@ -24,6 +24,7 @@ import {
   requirePermission,
 } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { recalculateChampionship } from "@/lib/championship/recalculation";
 import {
   addEvidenceSchema,
   createFiaTicketSchema,
@@ -484,6 +485,7 @@ export async function publishFiaDecisionAction(
         where: { id: ticketId },
         select: {
           title: true,
+          seasonId: true,
           status: true,
           reportedByUserId: true,
           drivers: { select: { driver: { select: { userId: true } } } },
@@ -571,6 +573,14 @@ export async function publishFiaDecisionAction(
         });
       }
 
+      if (parsed.data.penaltyType === "POINTS_DEDUCTION") {
+        await recalculateChampionship(
+          transaction,
+          ticket.seasonId,
+          user.id,
+        );
+      }
+
       return decision.id;
     });
   } catch (error: unknown) {
@@ -587,6 +597,7 @@ export async function publishFiaDecisionAction(
   }
 
   revalidateTicket(ticketId);
+  revalidatePath("/championship");
   return {
     status: "success",
     message: "Entscheidung wurde veröffentlicht.",

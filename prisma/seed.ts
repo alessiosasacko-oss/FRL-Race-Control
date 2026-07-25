@@ -6,6 +6,7 @@ import {
   PrismaClient,
   RaceSession as PrismaRaceSession,
   RaceStatus as PrismaRaceStatus,
+  ResultSession as PrismaResultSession,
   Role as PrismaRole,
   TicketPriority as PrismaTicketPriority,
   TicketStatus as PrismaTicketStatus,
@@ -17,6 +18,10 @@ import { races } from "../lib/data/races";
 import { seasons } from "../lib/data/seasons";
 import { teams } from "../lib/data/teams";
 import { fiaTickets } from "../lib/data/tickets";
+import {
+  DEFAULT_RACE_POINTS,
+  DEFAULT_SPRINT_POINTS,
+} from "../lib/championship/scoring";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -138,6 +143,9 @@ async function seed(): Promise<void> {
       sprint: race.sprint,
       doublePoints: race.doublePoints,
       mystery: race.mystery,
+      attendanceDeadline: race.attendanceDeadline
+        ? new Date(race.attendanceDeadline)
+        : null,
     };
 
     await prisma.race.upsert({
@@ -156,6 +164,58 @@ async function seed(): Promise<void> {
         seasonId: season.id,
         name: `${season.name} Championship`,
       },
+    });
+
+    const scoringConfiguration =
+      await prisma.scoringConfiguration.upsert({
+        where: { seasonId: season.id },
+        update: {
+          fastestLapPoint: 1,
+          fastestLapRequiresTopPosition: 10,
+          polePositionPoint: 0,
+          dnfScoresPoints: false,
+          retiredScoresPoints: false,
+          minimumClassifiedPercentage: 90,
+          teamPointsEnabled: true,
+          substituteDriverPointsEnabled: true,
+          deductPenaltyPoints: false,
+        },
+        create: {
+          seasonId: season.id,
+          fastestLapPoint: 1,
+          fastestLapRequiresTopPosition: 10,
+          polePositionPoint: 0,
+          dnfScoresPoints: false,
+          retiredScoresPoints: false,
+          minimumClassifiedPercentage: 90,
+          teamPointsEnabled: true,
+          substituteDriverPointsEnabled: true,
+          deductPenaltyPoints: false,
+        },
+      });
+
+    await prisma.scoringPosition.deleteMany({
+      where: { scoringConfigurationId: scoringConfiguration.id },
+    });
+    await prisma.scoringPosition.createMany({
+      data: [
+        ...DEFAULT_RACE_POINTS.map(
+          (points, index) => ({
+            scoringConfigurationId: scoringConfiguration.id,
+            session: PrismaResultSession.RACE,
+            position: index + 1,
+            points,
+          }),
+        ),
+        ...DEFAULT_SPRINT_POINTS.map(
+          (points, index) => ({
+            scoringConfigurationId: scoringConfiguration.id,
+            session: PrismaResultSession.SPRINT,
+            position: index + 1,
+            points,
+          }),
+        ),
+      ],
     });
   }
 

@@ -9,9 +9,20 @@ export const driverStandingSchema = z
   .object({
     position: z.number().int().positive(),
     driverId: entityIdSchema,
-    points: z.number().nonnegative(),
+    points: z.number(),
+    racePoints: z.number().nonnegative(),
+    sprintPoints: z.number().nonnegative(),
+    bonusPoints: z.number().nonnegative(),
+    adjustments: z.number(),
     wins: z.number().int().nonnegative(),
     podiums: z.number().int().nonnegative(),
+    polePositions: z.number().int().nonnegative(),
+    fastestLaps: z.number().int().nonnegative(),
+    starts: z.number().int().nonnegative(),
+    dnfs: z.number().int().nonnegative(),
+    dsqs: z.number().int().nonnegative(),
+    bestResult: z.number().int().positive().nullable(),
+    substituteStarts: z.number().int().nonnegative(),
     penaltyPoints: z.number().nonnegative(),
   })
   .strict();
@@ -20,8 +31,15 @@ export const teamStandingSchema = z
   .object({
     position: z.number().int().positive(),
     teamId: entityIdSchema,
-    points: z.number().nonnegative(),
+    points: z.number(),
+    racePoints: z.number().nonnegative(),
+    sprintPoints: z.number().nonnegative(),
+    bonusPoints: z.number().nonnegative(),
+    adjustments: z.number(),
     wins: z.number().int().nonnegative(),
+    podiums: z.number().int().nonnegative(),
+    polePositions: z.number().int().nonnegative(),
+    fastestLaps: z.number().int().nonnegative(),
   })
   .strict();
 

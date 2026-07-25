@@ -1,13 +1,13 @@
-import AppLayout from "@/components/layout/AppLayout";
-import EmptyState from "@/components/ui/EmptyState";
+import AttendanceScreen from "@/components/championship/AttendanceScreen";
 
-export default function AttendancePage() {
-  return (
-    <AppLayout>
-      <EmptyState
-        title="Rennanmeldung"
-        description="Die Rennanmeldung wird in einer späteren Phase umgesetzt."
-      />
-    </AppLayout>
-  );
+type AttendancePageProps = {
+  searchParams: Promise<
+    Record<string, string | string[] | undefined>
+  >;
+};
+
+export default function AttendancePage({
+  searchParams,
+}: AttendancePageProps) {
+  return <AttendanceScreen searchParams={searchParams} />;
 }

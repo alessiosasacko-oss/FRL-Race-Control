@@ -101,6 +101,8 @@ export type RaceItem = {
   sprint: boolean;
   doublePoints: boolean;
   mystery: boolean;
+  attendanceDeadline: string | null;
+  attendanceDeadlineLocal: string;
   season: {
     id: number;
     name: string;

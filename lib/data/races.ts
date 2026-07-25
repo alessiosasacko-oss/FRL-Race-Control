@@ -19,6 +19,7 @@ export const races = raceSchema.array().parse([
     sprint: false,
     doublePoints: false,
     mystery: false,
+    attendanceDeadline: "2026-07-26T20:00:00+02:00",
   },
   {
     id: 2,
@@ -38,6 +39,7 @@ export const races = raceSchema.array().parse([
     sprint: false,
     doublePoints: false,
     mystery: false,
+    attendanceDeadline: "2026-08-02T20:00:00+02:00",
   },
   {
     id: 3,
@@ -57,5 +59,6 @@ export const races = raceSchema.array().parse([
     sprint: false,
     doublePoints: false,
     mystery: false,
+    attendanceDeadline: "2026-07-19T20:00:00+02:00",
   },
 ]);

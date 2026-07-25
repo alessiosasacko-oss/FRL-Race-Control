@@ -144,6 +144,15 @@ export default function RaceForm({
             />
           </label>
           <label className="master-label">
+            Anmeldeschluss
+            <input
+              type="datetime-local"
+              name="attendanceDeadlineLocal"
+              defaultValue={race?.attendanceDeadlineLocal ?? ""}
+              className="form-control mt-2"
+            />
+          </label>
+          <label className="master-label">
             Zeitzone
             <input
               name="timezone"
