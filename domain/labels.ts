@@ -10,6 +10,8 @@ import {
   RaceStatus,
   ResultSession,
   ResultStatus,
+  ResultGapMode,
+  ResultPublicationStatus,
   Role,
   TicketAuditAction,
   TicketStatus,
@@ -22,8 +24,22 @@ export const attendanceStatusLabels: Record<AttendanceStatus, string> = {
 };
 
 export const resultSessionLabels: Record<ResultSession, string> = {
+  [ResultSession.Qualifying]: "Qualifying",
   [ResultSession.Race]: "Rennen",
   [ResultSession.Sprint]: "Sprint",
+};
+
+export const resultGapModeLabels: Record<ResultGapMode, string> = {
+  [ResultGapMode.ToLeader]: "Abstand zum Führenden",
+  [ResultGapMode.ToPrevious]: "Abstand zum Vordermann",
+};
+
+export const resultPublicationStatusLabels: Record<
+  ResultPublicationStatus,
+  string
+> = {
+  [ResultPublicationStatus.Draft]: "Entwurf",
+  [ResultPublicationStatus.Published]: "Veröffentlicht",
 };
 
 export const resultStatusLabels: Record<ResultStatus, string> = {

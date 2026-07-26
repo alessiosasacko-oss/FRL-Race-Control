@@ -192,7 +192,10 @@ export async function recalculateChampionship(
         orderBy: { round: "asc" },
         include: {
           resultSessions: {
-            where: { leagueId },
+            where: {
+              leagueId,
+              publicationStatus: "PUBLISHED",
+            },
             include: {
               results: {
                 orderBy: [{ position: "asc" }, { id: "asc" }],
@@ -255,6 +258,7 @@ export async function recalculateChampionship(
   for (const race of season.races) {
     for (const resultSessionRow of race.resultSessions) {
       const session = resultSession(resultSessionRow.session);
+      if (session === ResultSession.Qualifying) continue;
       const teamRecentResults = new Map<number, number>();
       const sessionDistance = Math.max(
         0,
@@ -264,6 +268,8 @@ export async function recalculateChampionship(
       );
 
       for (const result of resultSessionRow.results) {
+        const resultPosition =
+          result.finalPosition ?? result.position;
         const driver =
           drivers.get(result.driverId) ?? accumulator(result.driverId);
         const team =
@@ -274,7 +280,7 @@ export async function recalculateChampionship(
 
         const points = calculateResultPoints(
           {
-            position: result.position,
+            position: resultPosition,
             status: resultStatus(result.status),
             fastestLap: result.fastestLap,
             polePosition: result.polePosition,
@@ -335,37 +341,37 @@ export async function recalculateChampionship(
 
         if (
           session === ResultSession.Race &&
-          result.position !== null &&
+          resultPosition !== null &&
           result.status !== ResultStatus.Dsq &&
           result.status !== ResultStatus.Dns
         ) {
-          maximumPosition = Math.max(maximumPosition, result.position);
+          maximumPosition = Math.max(maximumPosition, resultPosition);
           driver.finishCounts.set(
-            result.position,
-            (driver.finishCounts.get(result.position) ?? 0) + 1,
+            resultPosition,
+            (driver.finishCounts.get(resultPosition) ?? 0) + 1,
           );
           team.finishCounts.set(
-            result.position,
-            (team.finishCounts.get(result.position) ?? 0) + 1,
+            resultPosition,
+            (team.finishCounts.get(resultPosition) ?? 0) + 1,
           );
-          driver.recentResults.push(result.position);
+          driver.recentResults.push(resultPosition);
           teamRecentResults.set(
             team.id,
             Math.min(
               teamRecentResults.get(team.id) ??
                 Number.MAX_SAFE_INTEGER,
-              result.position,
+              resultPosition,
             ),
           );
           driver.bestResult =
             driver.bestResult === null
-              ? result.position
-              : Math.min(driver.bestResult, result.position);
-          if (result.position === 1) {
+              ? resultPosition
+              : Math.min(driver.bestResult, resultPosition);
+          if (resultPosition === 1) {
             driver.wins += 1;
             team.wins += 1;
           }
-          if (result.position <= 3) {
+          if (resultPosition <= 3) {
             driver.podiums += 1;
             team.podiums += 1;
           }

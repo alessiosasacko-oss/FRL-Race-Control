@@ -2,11 +2,17 @@ import { z } from "zod";
 import {
   AttendanceStatus,
   ChampionshipAdjustmentTarget,
+  ResultGapMode,
   ResultSession,
   attendanceStatusSchema,
+  resultGapModeSchema,
   resultSessionSchema,
   resultStatusSchema,
 } from "@/domain";
+import {
+  parseFastestLapInput,
+  parseGapInput,
+} from "./result-engine";
 
 const entityId = z.coerce.number().int().positive();
 const optionalEntityId = z.preprocess(
@@ -74,16 +80,27 @@ const resultRowSchema = z.object({
   driverId: entityId,
   representedTeamId: entityId,
   expectedDriverId: optionalEntityId,
-  position: optionalEntityId,
+  position: entityId,
   startingPosition: optionalEntityId,
   status: resultStatusSchema,
-  gapToWinnerSeconds: optionalNumber,
-  gapToPreviousSeconds: optionalNumber,
-  totalTimeSeconds: optionalNumber,
-  fastestLap: z.boolean(),
+  gapInput: z.string().trim().max(40),
+  fastestLapInput: z.string().trim().max(40),
+  legacyFastestLap: z.boolean(),
+  gapToWinnerSeconds: optionalNumber.default(null),
+  gapToPreviousSeconds: optionalNumber.default(null),
+  totalTimeSeconds: optionalNumber.default(null),
+  fastestLap: z.boolean().default(false),
   polePosition: z.boolean(),
   lapsCompleted: z.coerce.number().int().nonnegative(),
-  penaltySeconds: z.coerce.number().nonnegative(),
+  manualOverride: z.boolean(),
+  manualPenaltySeconds: z.coerce.number().nonnegative(),
+  penaltySeconds: z.coerce.number().nonnegative().default(0),
+  manualDisqualified: z.boolean(),
+  manualOverrideReason: z
+    .preprocess(
+      (value) => (value === "" || value === null ? null : value),
+      z.string().trim().max(1000).nullable(),
+    ),
   notes: z
     .preprocess(
       (value) => (value === "" || value === null ? null : value),
@@ -92,20 +109,63 @@ const resultRowSchema = z.object({
   substitute: z.boolean(),
 });
 
+const draftResultRowSchema = z.object({
+  driverId: z.union([entityId, z.null()]),
+  representedTeamId: z.union([entityId, z.null()]),
+  expectedDriverId: optionalEntityId,
+  position: entityId,
+  startingPosition: optionalEntityId,
+  status: resultStatusSchema,
+  gapInput: z.string().max(40),
+  fastestLapInput: z.string().max(40),
+  legacyFastestLap: z.boolean(),
+  polePosition: z.boolean(),
+  lapsCompleted: z.coerce.number().int().nonnegative(),
+  manualOverride: z.boolean(),
+  manualPenaltySeconds: z.coerce.number().nonnegative(),
+  manualDisqualified: z.boolean(),
+  manualOverrideReason: z
+    .preprocess(
+      (value) => (value === "" || value === null ? null : value),
+      z.string().max(1000).nullable(),
+    ),
+  notes: z
+    .preprocess(
+      (value) => (value === "" || value === null ? null : value),
+      z.string().max(5000).nullable(),
+    ),
+  substitute: z.boolean(),
+});
+
+export const resultDraftSubmissionSchema = z.object({
+  leagueId: entityId,
+  raceId: entityId,
+  session: resultSessionSchema,
+  gapMode: resultGapModeSchema,
+  intent: z.literal("DRAFT"),
+  syncFiaPenalties: z.boolean(),
+  allowArchived: z.boolean(),
+  confirmLockedEdit: z.boolean(),
+  lockAfterSave: z.boolean().default(false),
+  results: z.array(draftResultRowSchema).max(100),
+});
+
 export const resultSubmissionSchema = z
   .object({
     leagueId: entityId,
     raceId: entityId,
     session: resultSessionSchema,
+    gapMode: resultGapModeSchema,
+    intent: z.enum(["DRAFT", "VALIDATE", "PUBLISH"]),
+    syncFiaPenalties: z.boolean(),
     allowArchived: z.boolean(),
     confirmLockedEdit: z.boolean(),
-    lockAfterSave: z.boolean(),
+    lockAfterSave: z.boolean().default(false),
     results: z.array(resultRowSchema).min(1).max(100),
   })
   .superRefine((submission, context) => {
     const drivers = new Set<number>();
     const positions = new Set<number>();
-    let fastestLapCount = 0;
     let poleCount = 0;
 
     submission.results.forEach((result, index) => {
@@ -118,19 +178,45 @@ export const resultSubmissionSchema = z
       }
       drivers.add(result.driverId);
 
-      if (result.position !== null) {
-        if (positions.has(result.position)) {
-          context.addIssue({
-            code: "custom",
-            path: ["results", index, "position"],
-            message: "Zielpositionen müssen eindeutig sein.",
-          });
-        }
-        positions.add(result.position);
+      if (positions.has(result.position)) {
+        context.addIssue({
+          code: "custom",
+          path: ["results", index, "position"],
+          message: "Zielpositionen müssen eindeutig sein.",
+        });
       }
+      positions.add(result.position);
 
-      if (result.fastestLap) fastestLapCount += 1;
       if (result.polePosition) poleCount += 1;
+      if (parseGapInput(result.gapInput) === null) {
+        context.addIssue({
+          code: "custom",
+          path: ["results", index, "gapInput"],
+          message: "Bitte einen gültigen Abstand eingeben.",
+        });
+      }
+      if (
+        result.fastestLapInput &&
+        parseFastestLapInput(result.fastestLapInput) === null
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["results", index, "fastestLapInput"],
+          message: "Bitte eine gültige Rundenzeit eingeben.",
+        });
+      }
+      if (
+        result.manualOverride &&
+        (!result.manualOverrideReason ||
+          result.manualOverrideReason.length < 3)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["results", index, "manualOverrideReason"],
+          message:
+            "Eine manuelle Anpassung benötigt eine kurze Begründung.",
+        });
+      }
       if (
         result.substitute &&
         (!result.expectedDriverId ||
@@ -145,13 +231,6 @@ export const resultSubmissionSchema = z
       }
     });
 
-    if (fastestLapCount > 1) {
-      context.addIssue({
-        code: "custom",
-        path: ["results"],
-        message: "Es darf nur eine schnellste Runde geben.",
-      });
-    }
     if (poleCount > 1) {
       context.addIssue({
         code: "custom",
@@ -160,6 +239,10 @@ export const resultSubmissionSchema = z
       });
     }
   });
+
+export const resultGapModeInputSchema = z
+  .enum(ResultGapMode)
+  .catch(ResultGapMode.ToLeader);
 
 export const deleteResultSubmissionSchema = z.object({
   leagueId: entityId,

@@ -106,7 +106,7 @@ export default async function ResultPage({
                       className="border-b border-slate-800/70 last:border-b-0"
                     >
                       <td className="px-4 py-4 text-xl font-bold text-white">
-                        {result.position ?? "–"}
+                        {result.finalPosition ?? result.position ?? "–"}
                       </td>
                       <td className="px-4 py-4">
                         <Link
@@ -137,7 +137,13 @@ export default async function ResultPage({
                         )}
                       </td>
                       <td className="px-4 py-4 text-slate-400">
-                        {duration(result.gapToWinnerMs)}
+                        {result.lapsBehind > 0
+                          ? `+${result.lapsBehind} ${
+                              result.lapsBehind === 1
+                                ? "Runde"
+                                : "Runden"
+                            }`
+                          : duration(result.gapToWinnerMs)}
                       </td>
                       <td className="px-4 py-4 text-slate-400">
                         {duration(result.gapToPreviousMs)}
@@ -150,6 +156,11 @@ export default async function ResultPage({
                           {result.fastestLap ? (
                             <span className="rounded bg-purple-500/15 px-2 py-1 text-xs text-purple-200">
                               SR
+                              {result.fastestLapMs
+                                ? ` · ${duration(
+                                    result.fastestLapMs,
+                                  )}`
+                                : ""}
                             </span>
                           ) : null}
                           {result.polePosition ? (
@@ -162,9 +173,10 @@ export default async function ResultPage({
                               EF
                             </span>
                           ) : null}
-                          {result.penaltySeconds > 0 ? (
+                          {result.effectivePenaltyMs > 0 ? (
                             <span className="rounded bg-red-500/15 px-2 py-1 text-xs text-red-200">
-                              +{result.penaltySeconds}s
+                              +
+                              {result.effectivePenaltyMs / 1000}s
                             </span>
                           ) : null}
                         </div>

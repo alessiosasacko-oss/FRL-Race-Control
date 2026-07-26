@@ -31,7 +31,11 @@ export default async function ResultsAdminPage({
   const session =
     resultSessionInputSchema.catch(ResultSession.Race).parse(rawSession);
   const [data, filterOptions] = await Promise.all([
-    getResultAdminData(query.raceId, query.leagueId),
+    getResultAdminData(
+      query.raceId,
+      query.leagueId,
+      query.seasonId,
+    ),
     getMasterDataFilterOptions(),
   ]);
 
@@ -40,17 +44,17 @@ export default async function ResultsAdminPage({
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-white">
-            Rennergebnisse verwalten
+            Ergebnisse eintragen
           </h1>
           <p className="mt-2 text-slate-400">
-            Rennen und Sprint vollständig, validiert und transaktional
-            erfassen.
+            Qualifying, Sprint und Rennen in einer gemeinsamen,
+            validierten Ergebnistabelle erfassen.
           </p>
         </div>
 
         <form
           action="/admin/results"
-          className="master-card grid gap-3 md:grid-cols-[180px_1fr_220px_auto]"
+          className="master-card grid gap-3 md:grid-cols-2 xl:grid-cols-[140px_220px_1fr_190px_auto]"
         >
           <label className="master-label">
             Liga
@@ -69,6 +73,29 @@ export default async function ResultsAdminPage({
             </select>
           </label>
           <label className="master-label">
+            Saison
+            <select
+              name="seasonId"
+              defaultValue={data.selected?.race.season.id ?? ""}
+              className="form-control mt-2"
+            >
+              {filterOptions.seasons
+                .filter(
+                  (season) =>
+                    !query.leagueId ||
+                    season.participatingLeagueIds.includes(
+                      query.leagueId,
+                    ),
+                )
+                .map((season) => (
+                  <option key={season.id} value={season.id}>
+                    {season.name}
+                    {season.archived ? " · Archiv" : ""}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label className="master-label">
             Rennen
             <select
               name="raceId"
@@ -77,8 +104,7 @@ export default async function ResultsAdminPage({
             >
               {data.races.map((race) => (
                 <option key={race.id} value={race.id}>
-                  {race.season.league.code} · {race.season.name} · R
-                  {race.round} · {race.name}
+                  R{race.round} · {race.name}
                 </option>
               ))}
             </select>
@@ -90,6 +116,9 @@ export default async function ResultsAdminPage({
               defaultValue={session}
               className="form-control mt-2"
             >
+              <option value={ResultSession.Qualifying}>
+                {resultSessionLabels[ResultSession.Qualifying]}
+              </option>
               <option value={ResultSession.Race}>
                 {resultSessionLabels[ResultSession.Race]}
               </option>
@@ -118,7 +147,11 @@ export default async function ResultsAdminPage({
                 {resultSessionLabels[session]}
               </h2>
             </div>
-            <ResultsEditor data={data} session={session} />
+            <ResultsEditor
+              key={`${data.selected.race.id}:${data.selected.race.season.league.id}:${session}`}
+              data={data}
+              session={session}
+            />
           </section>
         ) : (
           <div className="master-card text-center text-slate-400">

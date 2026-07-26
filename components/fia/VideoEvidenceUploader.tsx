@@ -1,6 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import {
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   Camera,
@@ -9,6 +12,7 @@ import {
   RefreshCcw,
   Trash2,
   Upload,
+  XCircle,
 } from "lucide-react";
 import type {
   UploadedVideoMetadata,
@@ -26,6 +30,15 @@ type VideoEvidenceUploaderProps = {
 type UploadPreparation = {
   signedUrl: string;
   storagePath: string;
+};
+
+type QueuedVideo = {
+  key: string;
+  file: File;
+  label: string;
+  progress: number;
+  status: "selected" | "uploading" | "success" | "error";
+  message: string;
 };
 
 function formatBytes(bytes: number): string {
@@ -68,11 +81,15 @@ function uploadFile(
         onProgress(100);
         resolve();
       } else {
-        reject(new Error("Die Datei konnte nicht übertragen werden."));
+        reject(
+          new Error("Die Datei konnte nicht übertragen werden."),
+        );
       }
     });
     request.addEventListener("error", () =>
-      reject(new Error("Die Netzwerkverbindung wurde unterbrochen.")),
+      reject(
+        new Error("Die Netzwerkverbindung wurde unterbrochen."),
+      ),
     );
 
     const body = new FormData();
@@ -92,44 +109,111 @@ export default function VideoEvidenceUploader({
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [label, setLabel] = useState("");
-  const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<
-    "idle" | "uploading" | "success" | "error"
-  >("idle");
+  const replacementKeyRef = useRef<string | null>(null);
+  const [queue, setQueue] = useState<QueuedVideo[]>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
-  const atLimit = existingFileCount + uploads.length >= limits.maxFiles;
+  const totalCount =
+    existingFileCount + uploads.length + queue.length;
+  const atLimit = totalCount >= limits.maxFiles;
 
-  function selectFile(selectedFile: File | undefined): void {
-    if (!selectedFile) return;
-    const mimeType = selectedFile.type.toLowerCase();
+  function updateQueued(
+    key: string,
+    patch: Partial<QueuedVideo>,
+  ): void {
+    setQueue((current) =>
+      current.map((item) =>
+        item.key === key ? { ...item, ...patch } : item,
+      ),
+    );
+  }
 
+  function validateFile(file: File): string | null {
+    const mimeType = file.type.toLowerCase();
     if (!limits.allowedMimeTypes.includes(mimeType)) {
-      setStatus("error");
-      setMessage("Bitte wähle eine MP4-, MOV- oder WebM-Datei.");
+      return `${file.name}: Bitte eine MP4-, MOV- oder WebM-Datei wählen.`;
+    }
+    if (file.size > limits.maxFileSizeBytes) {
+      return `${file.name}: Das Video darf höchstens ${formatBytes(
+        limits.maxFileSizeBytes,
+      )} groß sein.`;
+    }
+    return null;
+  }
+
+  function acceptFiles(fileList: FileList | readonly File[]): void {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+    const replacementKey = replacementKeyRef.current;
+    replacementKeyRef.current = null;
+
+    if (replacementKey) {
+      const replacement = files[0];
+      const error = validateFile(replacement);
+      if (error) {
+        setMessage(error);
+        return;
+      }
+      updateQueued(replacementKey, {
+        file: replacement,
+        label: defaultLabel(replacement.name),
+        progress: 0,
+        status: "selected",
+        message: "",
+      });
+      setMessage("");
       return;
     }
-    if (selectedFile.size > limits.maxFileSizeBytes) {
-      setStatus("error");
+
+    const available =
+      limits.maxFiles -
+      existingFileCount -
+      uploads.length -
+      queue.length;
+    if (available <= 0) {
       setMessage(
-        `Das Video darf höchstens ${formatBytes(limits.maxFileSizeBytes)} groß sein.`,
+        `Es sind höchstens ${limits.maxFiles} Videos pro Ticket erlaubt.`,
       );
       return;
     }
 
-    setFile(selectedFile);
-    setLabel(defaultLabel(selectedFile.name));
-    setProgress(0);
-    setStatus("idle");
-    setMessage("");
+    const accepted: QueuedVideo[] = [];
+    const errors: string[] = [];
+    for (const file of files.slice(0, available)) {
+      const error = validateFile(file);
+      if (error) {
+        errors.push(error);
+      } else {
+        accepted.push({
+          key: crypto.randomUUID(),
+          file,
+          label: defaultLabel(file.name),
+          progress: 0,
+          status: "selected",
+          message: "",
+        });
+      }
+    }
+    if (files.length > available) {
+      errors.push(
+        `Nur ${available} weitere ${
+          available === 1 ? "Datei" : "Dateien"
+        } möglich.`,
+      );
+    }
+    setQueue((current) => [...current, ...accepted]);
+    setMessage(errors.join(" "));
   }
 
-  async function startUpload(): Promise<void> {
-    if (!file || !label.trim() || atLimit || !limits.enabled) return;
-    setStatus("uploading");
-    setMessage("");
-    setProgress(0);
+  async function uploadQueued(
+    item: QueuedVideo,
+  ): Promise<UploadedVideoMetadata | null> {
+    updateQueued(item.key, {
+      status: "uploading",
+      progress: 0,
+      message: "",
+    });
     let storagePath: string | undefined;
 
     try {
@@ -138,14 +222,16 @@ export default function VideoEvidenceUploader({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            originalFilename: file.name,
-            mimeType: file.type,
-            fileSize: file.size,
+            originalFilename: item.file.name,
+            mimeType: item.file.type,
+            fileSize: item.file.size,
           }),
         }),
       );
       storagePath = preparation.storagePath;
-      await uploadFile(preparation.signedUrl, file, setProgress);
+      await uploadFile(preparation.signedUrl, item.file, (progress) =>
+        updateQueued(item.key, { progress }),
+      );
 
       const completed = await jsonResponse<{
         upload: UploadedVideoMetadata;
@@ -159,24 +245,20 @@ export default function VideoEvidenceUploader({
             upload: {
               kind: "upload",
               storagePath: preparation.storagePath,
-              originalFilename: file.name,
-              mimeType: file.type,
-              fileSize: file.size,
-              label: label.trim(),
+              originalFilename: item.file.name,
+              mimeType: item.file.type,
+              fileSize: item.file.size,
+              label: item.label.trim(),
             },
           }),
         }),
       );
-
-      if (ticketId === undefined) {
-        onUploadsChange([...uploads, completed.upload]);
-      } else {
-        router.refresh();
-      }
-      setFile(null);
-      setLabel("");
-      setStatus("success");
-      setMessage("Video sicher hochgeladen.");
+      updateQueued(item.key, {
+        status: "success",
+        progress: 100,
+        message: "Upload erfolgreich",
+      });
+      return completed.upload;
     } catch (error: unknown) {
       if (storagePath) {
         await fetch("/api/fia/evidence/uploads", {
@@ -185,13 +267,46 @@ export default function VideoEvidenceUploader({
           body: JSON.stringify({ storagePath }),
         }).catch(() => undefined);
       }
-      setStatus("error");
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Das Video konnte nicht hochgeladen werden.",
-      );
+      updateQueued(item.key, {
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Das Video konnte nicht hochgeladen werden.",
+      });
+      return null;
     }
+  }
+
+  async function startUploads(): Promise<void> {
+    const pending = queue.filter(
+      (item) =>
+        item.status !== "success" && item.label.trim().length > 0,
+    );
+    if (pending.length === 0 || uploading) return;
+    setUploading(true);
+    setMessage("");
+    const completed: UploadedVideoMetadata[] = [];
+
+    for (const item of pending) {
+      const upload = await uploadQueued(item);
+      if (upload) completed.push(upload);
+    }
+
+    if (ticketId === undefined && completed.length > 0) {
+      onUploadsChange([...uploads, ...completed]);
+    } else if (completed.length > 0) {
+      router.refresh();
+    }
+    setQueue((current) =>
+      current.filter((item) => item.status !== "success"),
+    );
+    setUploading(false);
+    setMessage(
+      completed.length === pending.length
+        ? "Alle Videos wurden sicher hochgeladen."
+        : "Mindestens ein Video konnte nicht hochgeladen werden.",
+    );
   }
 
   async function removeUpload(storagePath: string): Promise<boolean> {
@@ -203,12 +318,15 @@ export default function VideoEvidenceUploader({
     });
     if (!response.ok) {
       const body = (await response.json()) as { error?: string };
-      setStatus("error");
-      setMessage(body.error ?? "Das Video konnte nicht entfernt werden.");
+      setMessage(
+        body.error ?? "Das Video konnte nicht entfernt werden.",
+      );
       return false;
     }
     onUploadsChange(
-      uploads.filter((upload) => upload.storagePath !== storagePath),
+      uploads.filter(
+        (upload) => upload.storagePath !== storagePath,
+      ),
     );
     return true;
   }
@@ -229,110 +347,250 @@ export default function VideoEvidenceUploader({
   }
 
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-4"
+      onPaste={(event) => {
+        const files = event.clipboardData.files;
+        if (files.length > 0) {
+          event.preventDefault();
+          acceptFiles(files);
+        }
+      }}
+    >
+      <div
+        role="button"
+        tabIndex={atLimit || uploading ? -1 : 0}
+        aria-disabled={atLimit || uploading}
+        onClick={() => {
+          if (!atLimit && !uploading) fileInputRef.current?.click();
+        }}
+        onKeyDown={(event) => {
+          if (
+            !atLimit &&
+            !uploading &&
+            (event.key === "Enter" || event.key === " ")
+          ) {
+            event.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          if (!atLimit) setDragActive(true);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+            setDragActive(false);
+          }
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragActive(false);
+          if (!atLimit && !uploading) {
+            acceptFiles(event.dataTransfer.files);
+          }
+        }}
+        className={`cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition sm:p-10 ${
+          dragActive
+            ? "border-blue-400 bg-blue-500/15"
+            : "border-slate-700 bg-slate-950/35 hover:border-blue-500/60 hover:bg-blue-500/5"
+        } ${atLimit || uploading ? "cursor-not-allowed opacity-60" : ""}`}
+      >
+        <Upload className="mx-auto text-blue-400" size={34} />
+        <p className="mt-3 font-semibold text-white">
+          Videos hier ablegen oder einfügen
+        </p>
+        <p className="mt-1 text-sm text-slate-400">
+          Drag-and-drop, Zwischenablage oder Dateiauswahl
+        </p>
+        <span className="wizard-secondary-button mt-4 inline-flex min-h-12 w-full justify-center sm:w-auto">
+          <FileVideo size={19} /> Videodatei auswählen
+        </span>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <button
           type="button"
-          disabled={atLimit || status === "uploading"}
+          disabled={atLimit || uploading}
           onClick={() => fileInputRef.current?.click()}
           className="wizard-secondary-button min-h-12 w-full justify-center"
         >
-          <FileVideo size={19} /> Video auswählen
+          <FileVideo size={19} /> Dateien auswählen
         </button>
         <button
           type="button"
-          disabled={atLimit || status === "uploading"}
+          disabled={atLimit || uploading}
           onClick={() => cameraInputRef.current?.click()}
           className="wizard-secondary-button min-h-12 w-full justify-center"
         >
-          <Camera size={19} /> Video aufnehmen
+          <Camera size={19} /> Neues Video aufnehmen
         </button>
       </div>
       <input
         ref={fileInputRef}
         type="file"
-        accept={limits.allowedMimeTypes.join(",")}
+        multiple
+        accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
         className="sr-only"
         onChange={(event) => {
-          selectFile(event.target.files?.[0]);
+          if (event.target.files) acceptFiles(event.target.files);
           event.target.value = "";
         }}
       />
       <input
         ref={cameraInputRef}
         type="file"
-        accept={limits.allowedMimeTypes.join(",")}
+        accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
         capture="environment"
         className="sr-only"
         onChange={(event) => {
-          selectFile(event.target.files?.[0]);
+          if (event.target.files) acceptFiles(event.target.files);
           event.target.value = "";
         }}
       />
 
       <p className="text-xs leading-5 text-slate-400">
-        MP4, MOV oder WebM · maximal {formatBytes(limits.maxFileSizeBytes)} ·{" "}
-        höchstens {limits.maxFiles} Dateien pro Ticket
+        MP4, MOV oder WebM · maximal{" "}
+        {formatBytes(limits.maxFileSizeBytes)} · höchstens{" "}
+        {limits.maxFiles} Dateien pro Ticket. Die normale Dateiauswahl
+        öffnet auf Mobilgeräten Galerie und Dateien; die Kamera ist
+        optional.
       </p>
 
-      {file ? (
-        <div className="space-y-4 rounded-2xl border border-blue-500/30 bg-blue-500/5 p-4">
+      {queue.map((item) => (
+        <div
+          key={item.key}
+          className={`space-y-4 rounded-2xl border p-4 ${
+            item.status === "error"
+              ? "border-red-500/35 bg-red-500/5"
+              : item.status === "success"
+                ? "border-green-500/35 bg-green-500/5"
+                : "border-blue-500/30 bg-blue-500/5"
+          }`}
+        >
           <div className="flex min-w-0 items-start gap-3">
-            <FileVideo className="mt-0.5 shrink-0 text-blue-400" size={20} />
-            <div className="min-w-0">
-              <p className="truncate font-medium text-white">{file.name}</p>
-              <p className="text-sm text-slate-400">
-                {formatBytes(file.size)}
+            {item.status === "error" ? (
+              <XCircle
+                className="mt-0.5 shrink-0 text-red-400"
+                size={21}
+              />
+            ) : item.status === "success" ? (
+              <CheckCircle2
+                className="mt-0.5 shrink-0 text-green-400"
+                size={21}
+              />
+            ) : (
+              <FileVideo
+                className="mt-0.5 shrink-0 text-blue-400"
+                size={21}
+              />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-white">
+                {item.file.name}
               </p>
+              <p className="text-sm text-slate-400">
+                {formatBytes(item.file.size)} ·{" "}
+                {item.file.type || "Unbekannter Dateityp"}
+              </p>
+              {item.message ? (
+                <p
+                  className={`mt-1 text-sm ${
+                    item.status === "error"
+                      ? "text-red-300"
+                      : "text-green-300"
+                  }`}
+                >
+                  {item.message}
+                </p>
+              ) : null}
             </div>
           </div>
           <label className="block text-sm font-medium text-slate-300">
             Bezeichnung
             <input
-              value={label}
+              value={item.label}
               maxLength={160}
-              onChange={(event) => setLabel(event.target.value)}
-              className="form-control mt-2"
+              disabled={item.status === "uploading"}
+              onChange={(event) =>
+                updateQueued(item.key, {
+                  label: event.target.value,
+                })
+              }
+              className="form-control mt-2 min-h-12"
               placeholder="Onboard-Aufnahme"
             />
           </label>
-          {status === "uploading" ? (
+          {item.status === "uploading" ||
+          item.progress > 0 ? (
             <div>
               <div className="mb-2 flex justify-between text-sm text-slate-300">
-                <span>Upload läuft…</span>
-                <span>{progress}%</span>
+                <span>
+                  {item.status === "success"
+                    ? "Upload abgeschlossen"
+                    : "Upload läuft…"}
+                </span>
+                <span>{item.progress}%</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-slate-800">
                 <div
                   className="h-full rounded-full bg-blue-500 transition-[width]"
-                  style={{ width: `${progress}%` }}
+                  style={{ width: `${item.progress}%` }}
                 />
               </div>
             </div>
           ) : null}
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="grid gap-2 sm:grid-cols-2">
             <button
               type="button"
-              disabled={status === "uploading" || !label.trim()}
-              onClick={() => void startUpload()}
-              className="wizard-primary-button min-h-12 flex-1 justify-center"
-            >
-              <Upload size={18} /> Video hochladen
-            </button>
-            <button
-              type="button"
-              disabled={status === "uploading"}
+              disabled={uploading}
               onClick={() => {
-                setFile(null);
-                setProgress(0);
-                setStatus("idle");
+                replacementKeyRef.current = item.key;
+                fileInputRef.current?.click();
               }}
               className="wizard-secondary-button min-h-12 justify-center"
             >
-              <Trash2 size={18} /> Auswahl entfernen
+              <RefreshCcw size={17} /> Datei ersetzen
+            </button>
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() =>
+                setQueue((current) =>
+                  current.filter(
+                    (candidate) => candidate.key !== item.key,
+                  ),
+                )
+              }
+              className="wizard-secondary-button min-h-12 justify-center text-red-200"
+            >
+              <Trash2 size={17} /> Auswahl entfernen
             </button>
           </div>
         </div>
+      ))}
+
+      {queue.length > 0 ? (
+        <button
+          type="button"
+          disabled={
+            uploading ||
+            queue.some((item) => !item.label.trim())
+          }
+          onClick={() => void startUploads()}
+          className="wizard-primary-button min-h-12 w-full justify-center"
+        >
+          <Upload size={18} />
+          {uploading
+            ? "Videos werden hochgeladen…"
+            : `${queue.length} ${
+                queue.length === 1 ? "Video" : "Videos"
+              } hochladen`}
+        </button>
       ) : null}
 
       {uploads.map((upload) => (
@@ -350,22 +608,27 @@ export default function VideoEvidenceUploader({
                 {upload.originalFilename}
               </p>
               <p className="text-sm text-slate-400">
-                {formatBytes(upload.fileSize)} · Upload erfolgreich
+                {formatBytes(upload.fileSize)} · {upload.mimeType} ·
+                Upload erfolgreich
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
             <button
               type="button"
-              onClick={() => void replaceUpload(upload.storagePath)}
-              className="wizard-secondary-button min-h-11 flex-1 justify-center px-3 sm:flex-none"
+              onClick={() =>
+                void replaceUpload(upload.storagePath)
+              }
+              className="wizard-secondary-button min-h-11 justify-center px-3"
             >
               <RefreshCcw size={16} /> Ersetzen
             </button>
             <button
               type="button"
-              onClick={() => void removeUpload(upload.storagePath)}
-              className="wizard-secondary-button min-h-11 flex-1 justify-center px-3 text-red-200 sm:flex-none"
+              onClick={() =>
+                void removeUpload(upload.storagePath)
+              }
+              className="wizard-secondary-button min-h-11 justify-center px-3 text-red-200"
             >
               <Trash2 size={16} /> Entfernen
             </button>
@@ -377,7 +640,9 @@ export default function VideoEvidenceUploader({
         <p
           role="status"
           className={
-            status === "error" ? "text-sm text-red-300" : "text-sm text-green-300"
+            message.includes("sicher hochgeladen")
+              ? "text-sm text-green-300"
+              : "text-sm text-amber-200"
           }
         >
           {message}

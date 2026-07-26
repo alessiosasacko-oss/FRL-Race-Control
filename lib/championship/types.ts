@@ -1,5 +1,10 @@
 import type {
   AttendanceStatus,
+  PenaltyType,
+  RaceSession,
+  ResultGapMode,
+  ResultPenaltySource,
+  ResultPublicationStatus,
   ResultSession,
   ResultStatus,
 } from "@/domain";
@@ -31,6 +36,7 @@ export type RaceOption = {
   round: number;
   scheduledAt: string;
   sprint: boolean;
+  doublePoints: boolean;
   mystery: boolean;
   attendanceDeadline: string | null;
   season: {
@@ -149,15 +155,21 @@ export type ResultRowView = {
   expectedDriverId: number | null;
   position: number | null;
   startingPosition: number | null;
+  baseStatus: ResultStatus;
   status: ResultStatus;
   gapToWinnerMs: number | null;
   gapToPreviousMs: number | null;
+  lapsBehind: number;
   totalTimeMs: number | null;
+  fastestLapMs: number | null;
   fastestLap: boolean;
   polePosition: boolean;
   lapsCompleted: number;
   classifiedPercentage: number | null;
   penaltySeconds: number;
+  effectivePenaltyMs: number;
+  adjustedTimeMs: number | null;
+  finalPosition: number | null;
   notes: string | null;
   substitute: boolean;
   racePoints: number;
@@ -176,12 +188,52 @@ export type ResultRowView = {
     color: string;
   };
   expectedDriver: { id: number; name: string } | null;
+  penaltyApplications: Array<{
+    id: number;
+    decisionId: number | null;
+    ticketId: number | null;
+    source: ResultPenaltySource;
+    penaltyType: PenaltyType;
+    penaltyMilliseconds: number;
+    disqualified: boolean;
+    reason: string | null;
+    active: boolean;
+  }>;
 };
 
 export type ResultSessionView = {
   id: number;
   session: ResultSession;
+  gapMode: ResultGapMode;
+  publicationStatus: ResultPublicationStatus;
+  fiaPenaltyVersion: string | null;
+  currentFiaPenaltyVersion: string;
+  fiaPenaltiesChanged: boolean;
+  revision: number;
   lockedAt: string | null;
+  publishedAt: string | null;
+  draftPayload: {
+    gapMode: ResultGapMode;
+    results: Array<{
+      driverId: number | null;
+      representedTeamId: number | null;
+      expectedDriverId: number | null;
+      position: number;
+      startingPosition: number | null;
+      status: ResultStatus;
+      gapInput: string;
+      fastestLapInput: string;
+      legacyFastestLap: boolean;
+      polePosition: boolean;
+      lapsCompleted: number;
+      manualOverride: boolean;
+      manualPenaltySeconds: number;
+      manualDisqualified: boolean;
+      manualOverrideReason: string | null;
+      notes: string | null;
+      substitute: boolean;
+    }>;
+  } | null;
   results: ResultRowView[];
 };
 
@@ -206,6 +258,9 @@ export type ResultAdminData = {
     discordName: string | null;
     teamId: number | null;
     teamName: string | null;
+    registered: boolean;
+    replacement: boolean;
+    expectedDriverId: number | null;
   }>;
   teams: Array<{
     id: number;
@@ -213,4 +268,29 @@ export type ResultAdminData = {
     shortName: string;
     color: string;
   }>;
+  fiaPenalties: Array<{
+    decisionId: number;
+    ticketId: number;
+    driverId: number;
+    penaltyType: PenaltyType;
+    penaltyValue: number | null;
+    reason: string;
+    updatedAt: string;
+    session: RaceSession;
+  }>;
+  scoring: {
+    fastestLapPoint: number;
+    fastestLapRequiresTopPosition: number | null;
+    polePositionPoint: number;
+    dnfScoresPoints: boolean;
+    retiredScoresPoints: boolean;
+    minimumClassifiedPercentage: number | null;
+    teamPointsEnabled: boolean;
+    substituteDriverPointsEnabled: boolean;
+    positions: Array<{
+      session: ResultSession;
+      position: number;
+      points: number;
+    }>;
+  };
 };

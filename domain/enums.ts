@@ -48,6 +48,7 @@ export enum AttendanceStatus {
 }
 
 export enum ResultSession {
+  Qualifying = "QUALIFYING",
   Race = "RACE",
   Sprint = "SPRINT",
 }
@@ -58,6 +59,21 @@ export enum ResultStatus {
   Dns = "DNS",
   Dsq = "DSQ",
   Retired = "RETIRED",
+}
+
+export enum ResultGapMode {
+  ToLeader = "TO_LEADER",
+  ToPrevious = "TO_PREVIOUS",
+}
+
+export enum ResultPublicationStatus {
+  Draft = "DRAFT",
+  Published = "PUBLISHED",
+}
+
+export enum ResultPenaltySource {
+  Fia = "FIA",
+  Manual = "MANUAL",
 }
 
 export enum ChampionshipAdjustmentTarget {
@@ -211,6 +227,11 @@ export const raceStatusSchema = z.enum(RaceStatus);
 export const attendanceStatusSchema = z.enum(AttendanceStatus);
 export const resultSessionSchema = z.enum(ResultSession);
 export const resultStatusSchema = z.enum(ResultStatus);
+export const resultGapModeSchema = z.enum(ResultGapMode);
+export const resultPublicationStatusSchema = z.enum(
+  ResultPublicationStatus,
+);
+export const resultPenaltySourceSchema = z.enum(ResultPenaltySource);
 export const championshipAdjustmentTargetSchema = z.enum(
   ChampionshipAdjustmentTarget,
 );

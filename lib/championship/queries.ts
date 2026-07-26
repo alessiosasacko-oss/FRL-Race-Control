@@ -1,11 +1,20 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import {
   AttendanceStatus,
+  PenaltyType,
+  RaceSession,
+  ResultGapMode,
+  ResultPenaltySource,
+  ResultPublicationStatus,
   ResultSession,
   ResultStatus,
 } from "@/domain";
 import { getPrismaClient } from "@/lib/db/prisma";
-import { sportsListQuerySchema } from "./schemas";
+import {
+  resultDraftSubmissionSchema,
+  sportsListQuerySchema,
+} from "./schemas";
 import {
   isMysteryTrackRevealed,
   publicRaceTrack,
@@ -20,6 +29,52 @@ import type {
   ResultRowView,
   SportsListQuery,
 } from "./types";
+import {
+  defaultPositionRows,
+} from "./scoring";
+
+const defaultScoring = {
+  fastestLapPoint: 1,
+  fastestLapRequiresTopPosition: 10,
+  polePositionPoint: 0,
+  dnfScoresPoints: false,
+  retiredScoresPoints: false,
+  minimumClassifiedPercentage: null,
+  teamPointsEnabled: true,
+  substituteDriverPointsEnabled: true,
+  positions: defaultPositionRows(),
+};
+
+function fiaSession(session: ResultSession): RaceSession {
+  if (session === ResultSession.Qualifying) return RaceSession.Qualifying;
+  if (session === ResultSession.Sprint) return RaceSession.Sprint;
+  return RaceSession.Race;
+}
+
+function penaltyVersion(
+  penalties: readonly {
+    id: number;
+    updatedAt: Date;
+    penaltyType: string;
+    penaltyValue: number | null;
+    ticket: { drivers: Array<{ driverId: number }> };
+  }[],
+): string {
+  const normalized = penalties
+    .map((penalty) => ({
+      id: penalty.id,
+      updatedAt: penalty.updatedAt.toISOString(),
+      penaltyType: penalty.penaltyType,
+      penaltyValue: penalty.penaltyValue,
+      drivers: penalty.ticket.drivers
+        .map(({ driverId }) => driverId)
+        .sort((left, right) => left - right),
+    }))
+    .sort((left, right) => left.id - right.id);
+  return createHash("sha256")
+    .update(JSON.stringify(normalized))
+    .digest("hex");
+}
 
 export function parseSportsListQuery(
   input: Record<string, string | string[] | undefined>,
@@ -66,6 +121,7 @@ function raceOption(race: {
   round: number;
   scheduledAt: Date;
   sprint: boolean;
+  doublePoints: boolean;
   mystery: boolean;
   status: string;
   attendanceDeadline: Date | null;
@@ -88,6 +144,7 @@ function raceOption(race: {
     round: race.round,
     scheduledAt: race.scheduledAt.toISOString(),
     sprint: race.sprint,
+    doublePoints: race.doublePoints,
     mystery: race.mystery,
     attendanceDeadline: race.attendanceDeadline?.toISOString() ?? null,
     season: {
@@ -512,15 +569,21 @@ function resultRow(result: {
   expectedDriverId: number | null;
   position: number | null;
   startingPosition: number | null;
+  baseStatus: string;
   status: string;
   gapToWinnerMs: number | null;
   gapToPreviousMs: number | null;
+  lapsBehind: number;
   totalTimeMs: number | null;
+  fastestLapMs: number | null;
   fastestLap: boolean;
   polePosition: boolean;
   lapsCompleted: number;
   classifiedPercentage: number | null;
   penaltySeconds: number;
+  effectivePenaltyMs: number;
+  adjustedTimeMs: number | null;
+  finalPosition: number | null;
   notes: string | null;
   substitute: boolean;
   racePoints: number;
@@ -534,16 +597,46 @@ function resultRow(result: {
     color: string;
   };
   expectedDriver: { id: number; name: string } | null;
+  penaltyApplications: Array<{
+    id: number;
+    decisionId: number | null;
+    source: string;
+    penaltyType: string;
+    penaltyMilliseconds: number;
+    disqualified: boolean;
+    reason: string | null;
+    active: boolean;
+    decision: { ticketId: number } | null;
+  }>;
 }): ResultRowView {
   return {
     ...result,
+    baseStatus: result.baseStatus as ResultStatus,
     status: result.status as ResultStatus,
+    penaltyApplications: result.penaltyApplications.map(
+      ({ decision, ...application }) => ({
+        ...application,
+        ticketId: decision?.ticketId ?? null,
+        source: application.source as ResultPenaltySource,
+        penaltyType: application.penaltyType as PenaltyType,
+      }),
+    ),
+  };
+}
+
+function resultDraftPayload(value: unknown) {
+  const parsed = resultDraftSubmissionSchema.safeParse(value);
+  if (!parsed.success) return null;
+  return {
+    gapMode: parsed.data.gapMode,
+    results: parsed.data.results,
   };
 }
 
 export async function getRaceResults(
   raceId: number,
   leagueId?: number,
+  includeDrafts = false,
 ): Promise<RaceResultsView | null> {
   const prisma = getPrismaClient();
   const resultLeagueId =
@@ -559,11 +652,27 @@ export async function getRaceResults(
     include: {
       ...raceOptionInclude,
       resultSessions: {
-        where: { leagueId: resultLeagueId },
+        where: {
+          leagueId: resultLeagueId,
+          publicationStatus: includeDrafts
+            ? undefined
+            : "PUBLISHED",
+        },
         orderBy: { session: "asc" },
         include: {
           results: {
-            orderBy: [{ position: "asc" }, { id: "asc" }],
+            orderBy: includeDrafts
+              ? [{ position: "asc" }, { id: "asc" }]
+              : [
+                  {
+                    finalPosition: {
+                      sort: "asc",
+                      nulls: "last",
+                    },
+                  },
+                  { position: "asc" },
+                  { id: "asc" },
+                ],
             include: {
               driver: {
                 select: { id: true, name: true, number: true, flag: true },
@@ -577,6 +686,35 @@ export async function getRaceResults(
                 },
               },
               expectedDriver: { select: { id: true, name: true } },
+              penaltyApplications: {
+                orderBy: { createdAt: "asc" },
+                include: {
+                  decision: { select: { ticketId: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+      tickets: {
+        where: {
+          leagueId: resultLeagueId,
+          status: "RESOLVED",
+          decision: { isNot: null },
+        },
+        select: {
+          session: true,
+          decision: {
+            select: {
+              id: true,
+              penaltyType: true,
+              penaltyValue: true,
+              updatedAt: true,
+              ticket: {
+                select: {
+                  drivers: { select: { driverId: true } },
+                },
+              },
             },
           },
         },
@@ -608,7 +746,37 @@ export async function getRaceResults(
     sessions: race.resultSessions.map((session) => ({
       id: session.id,
       session: session.session as ResultSession,
+      gapMode: session.gapMode as ResultGapMode,
+      publicationStatus:
+        session.publicationStatus as ResultPublicationStatus,
+      fiaPenaltyVersion: session.fiaPenaltyVersion,
+      currentFiaPenaltyVersion: penaltyVersion(
+        race.tickets.flatMap((ticket) =>
+          ticket.session === fiaSession(session.session as ResultSession)
+            ? ticket.decision
+              ? [ticket.decision]
+              : []
+            : [],
+        ),
+      ),
+      fiaPenaltiesChanged:
+        session.fiaPenaltyVersion !== null &&
+        session.fiaPenaltyVersion !==
+          penaltyVersion(
+            race.tickets.flatMap((ticket) =>
+              ticket.session === fiaSession(
+                session.session as ResultSession,
+              )
+                ? ticket.decision
+                  ? [ticket.decision]
+                  : []
+                : [],
+            ),
+          ),
+      revision: session.revision,
       lockedAt: session.lockedAt?.toISOString() ?? null,
+      publishedAt: session.publishedAt?.toISOString() ?? null,
+      draftPayload: resultDraftPayload(session.draftPayload),
       results: session.results.map(resultRow),
     })),
   };
@@ -617,9 +785,11 @@ export async function getRaceResults(
 export async function getResultAdminData(
   raceId?: number,
   leagueId?: number,
+  seasonId?: number,
 ): Promise<ResultAdminData> {
   const prisma = getPrismaClient();
   const racesRaw = await prisma.race.findMany({
+    where: { seasonId },
     orderBy: [{ scheduledAt: "desc" }, { round: "desc" }],
     include: raceOptionInclude,
   });
@@ -633,17 +803,36 @@ export async function getResultAdminData(
   const races = eligibleRaces.map((race) =>
     raceOption(race, leagueId),
   );
-  const selectedRaceId = raceId ?? racesRaw[0]?.id;
+  const selectedRaceId =
+    eligibleRaces.find((race) => race.id === raceId)?.id ??
+    eligibleRaces[0]?.id;
 
   if (!selectedRaceId) {
-    return { races, selected: null, drivers: [], teams: [] };
+    return {
+      races,
+      selected: null,
+      drivers: [],
+      teams: [],
+      fiaPenalties: [],
+      scoring: defaultScoring,
+    };
   }
 
   const selected = await getRaceResults(
     selectedRaceId,
     leagueId,
+    true,
   );
-  if (!selected) return { races, selected: null, drivers: [], teams: [] };
+  if (!selected) {
+    return {
+      races,
+      selected: null,
+      drivers: [],
+      teams: [],
+      fiaPenalties: [],
+      scoring: defaultScoring,
+    };
+  }
   const existingDriverIds = new Set(
     selected.sessions.flatMap((resultSession) =>
       resultSession.results.flatMap((result) => [
@@ -655,10 +844,77 @@ export async function getResultAdminData(
     ),
   );
 
+  const [attendance, fiaTickets, scoringConfiguration] =
+    await prisma.$transaction([
+      prisma.raceAttendance.findMany({
+        where: {
+          raceId: selectedRaceId,
+          status: "REGISTERED",
+          driver: {
+            leagueId: selected.race.season.league.id,
+          },
+        },
+        select: {
+          driverId: true,
+          substituteDriverId: true,
+          representedTeamId: true,
+        },
+      }),
+      prisma.fiaTicket.findMany({
+        where: {
+          raceId: selectedRaceId,
+          leagueId: selected.race.season.league.id,
+          status: "RESOLVED",
+          decision: { isNot: null },
+        },
+        orderBy: { id: "asc" },
+        select: {
+          id: true,
+          session: true,
+          drivers: { select: { driverId: true } },
+          decision: {
+            select: {
+              id: true,
+              penaltyType: true,
+              penaltyValue: true,
+              reason: true,
+              updatedAt: true,
+            },
+          },
+        },
+      }),
+      prisma.scoringConfiguration.findUnique({
+        where: {
+          leagueId_seasonId: {
+            leagueId: selected.race.season.league.id,
+            seasonId: selected.race.season.id,
+          },
+        },
+        include: {
+          positions: {
+            orderBy: [{ session: "asc" }, { position: "asc" }],
+          },
+        },
+      }),
+    ]);
+  const replacementDriverIds = attendance.flatMap((entry) =>
+    entry.substituteDriverId ? [entry.substituteDriverId] : [],
+  );
+  const attendanceByDriver = new Map(
+    attendance.map((entry) => [
+      entry.substituteDriverId ?? entry.driverId,
+      entry,
+    ]),
+  );
+
   const [driverCandidates, teams] = await prisma.$transaction([
     prisma.driver.findMany({
       where: {
-        leagueId: selected.race.season.league.id,
+        OR: [
+          { leagueId: selected.race.season.league.id },
+          { id: { in: replacementDriverIds } },
+          { id: { in: [...existingDriverIds] } },
+        ],
       },
       orderBy: { name: "asc" },
       include: {
@@ -669,7 +925,10 @@ export async function getResultAdminData(
       },
     }),
     prisma.team.findMany({
-      where: { seasonId: selected.race.season.id },
+      where: {
+        seasonId: selected.race.season.id,
+        leagueId: selected.race.season.league.id,
+      },
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -682,7 +941,9 @@ export async function getResultAdminData(
   const drivers = driverCandidates.filter(
     (driver) =>
       existingDriverIds.has(driver.id) ||
+      replacementDriverIds.includes(driver.id) ||
       (driver.active &&
+        driver.leagueId === selected.race.season.league.id &&
         driver.team?.seasonId === selected.race.season.id),
   );
 
@@ -697,8 +958,55 @@ export async function getResultAdminData(
       discordName: driver.user?.displayName ?? null,
       teamId: driver.team?.id ?? null,
       teamName: driver.team?.name ?? null,
+      registered: attendanceByDriver.has(driver.id),
+      replacement:
+        attendanceByDriver.get(driver.id)?.substituteDriverId ===
+        driver.id,
+      expectedDriverId:
+        attendanceByDriver.get(driver.id)?.substituteDriverId ===
+        driver.id
+          ? attendanceByDriver.get(driver.id)?.driverId ?? null
+          : null,
     })),
     teams,
+    fiaPenalties: fiaTickets.flatMap((ticket) =>
+      ticket.decision
+        ? ticket.drivers.map(({ driverId }) => ({
+            decisionId: ticket.decision!.id,
+            ticketId: ticket.id,
+            driverId,
+            penaltyType:
+              ticket.decision!.penaltyType as PenaltyType,
+            penaltyValue: ticket.decision!.penaltyValue,
+            reason: ticket.decision!.reason,
+            updatedAt: ticket.decision!.updatedAt.toISOString(),
+            session: ticket.session as RaceSession,
+          }))
+        : [],
+    ),
+    scoring: scoringConfiguration
+      ? {
+          fastestLapPoint: scoringConfiguration.fastestLapPoint,
+          fastestLapRequiresTopPosition:
+            scoringConfiguration.fastestLapRequiresTopPosition,
+          polePositionPoint: scoringConfiguration.polePositionPoint,
+          dnfScoresPoints: scoringConfiguration.dnfScoresPoints,
+          retiredScoresPoints:
+            scoringConfiguration.retiredScoresPoints,
+          minimumClassifiedPercentage:
+            scoringConfiguration.minimumClassifiedPercentage,
+          teamPointsEnabled: scoringConfiguration.teamPointsEnabled,
+          substituteDriverPointsEnabled:
+            scoringConfiguration.substituteDriverPointsEnabled,
+          positions: scoringConfiguration.positions.map(
+            (position) => ({
+              session: position.session as ResultSession,
+              position: position.position,
+              points: position.points,
+            }),
+          ),
+        }
+      : defaultScoring,
   };
 }
 

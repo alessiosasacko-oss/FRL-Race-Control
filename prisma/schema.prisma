@@ -55,6 +55,7 @@ enum AttendanceStatus {
 }
 
 enum ResultSession {
+  QUALIFYING
   RACE
   SPRINT
 }
@@ -65,6 +66,21 @@ enum ResultStatus {
   DNS
   DSQ
   RETIRED
+}
+
+enum ResultGapMode {
+  TO_LEADER
+  TO_PREVIOUS
+}
+
+enum ResultPublicationStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum ResultPenaltySource {
+  FIA
+  MANUAL
 }
 
 enum ChampionshipAdjustmentTarget {
@@ -211,42 +227,44 @@ enum TicketAuditAction {
 }
 
 model User {
-  id                      Int                      @id @default(autoincrement())
-  discordId               String?                  @unique @db.VarChar(32)
-  discordUsername         String?                  @db.VarChar(64)
-  discordGlobalName       String?                  @db.VarChar(160)
-  discordGuildNickname    String?                  @db.VarChar(160)
-  discordAvatarUrl        String?                  @db.Text
+  id                      Int                        @id @default(autoincrement())
+  discordId               String?                    @unique @db.VarChar(32)
+  discordUsername         String?                    @db.VarChar(64)
+  discordGlobalName       String?                    @db.VarChar(160)
+  discordGuildNickname    String?                    @db.VarChar(160)
+  discordAvatarUrl        String?                    @db.Text
   discordVerifiedAt       DateTime?
   discordSyncedAt         DateTime?
-  email                   String?                  @unique @db.VarChar(320)
+  email                   String?                    @unique @db.VarChar(320)
   emailVerified           DateTime?
-  displayName             String                   @db.VarChar(160)
-  avatarUrl               String?                  @db.Text
-  roles                   Role[]                   @default([DRIVER])
-  active                  Boolean                  @default(true)
+  displayName             String                     @db.VarChar(160)
+  avatarUrl               String?                    @db.Text
+  roles                   Role[]                     @default([DRIVER])
+  active                  Boolean                    @default(true)
   driver                  Driver?
-  reportedTickets         FiaTicket[]              @relation("TicketReporter")
+  reportedTickets         FiaTicket[]                @relation("TicketReporter")
   ticketAssignments       FiaTicketSteward[]
-  submittedEvidence       Evidence[]               @relation("EvidenceSubmitter")
+  submittedEvidence       Evidence[]                 @relation("EvidenceSubmitter")
   discussionMessages      DiscussionMessage[]
   votes                   Vote[]
   decisionMemberships     DecisionSteward[]
   ticketAuditEntries      FiaTicketAuditLog[]
-  principalTeams          Team[]                   @relation("TeamPrincipal")
-  attendanceChanges       RaceAttendance[]         @relation("AttendanceSubmitter")
+  principalTeams          Team[]                     @relation("TeamPrincipal")
+  attendanceChanges       RaceAttendance[]           @relation("AttendanceSubmitter")
   championshipAdjustments ChampionshipAdjustment[]
   championshipAudits      ChampionshipAudit[]
+  publishedResultSessions RaceResultSession[]        @relation("ResultPublisher")
+  resultPenaltyChanges    ResultPenaltyApplication[] @relation("ResultPenaltyActor")
   notifications           Notification[]
   settings                UserSettings?
   emailDeliveries         EmailDelivery[]
   createdAnnouncements    Announcement[]
-  retriedAutomationRuns   AutomationJobRun[]       @relation("AutomationRunRetryActor")
+  retriedAutomationRuns   AutomationJobRun[]         @relation("AutomationRunRetryActor")
   systemAuditEntries      SystemAuditLog[]
   accounts                Account[]
   sessions                Session[]
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
 
   @@index([active])
   @@index([displayName])
@@ -526,56 +544,97 @@ model RaceAttendance {
 }
 
 model RaceResultSession {
-  id        Int           @id @default(autoincrement())
-  raceId    Int
-  leagueId  Int
-  session   ResultSession
-  lockedAt  DateTime?
-  race      Race          @relation(fields: [raceId], references: [id], onDelete: Restrict)
-  league    League        @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  results   RaceResult[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id                Int                     @id @default(autoincrement())
+  raceId            Int
+  leagueId          Int
+  session           ResultSession
+  gapMode           ResultGapMode           @default(TO_LEADER)
+  publicationStatus ResultPublicationStatus @default(DRAFT)
+  fiaPenaltyVersion String?                 @db.VarChar(64)
+  draftPayload      Json?
+  revision          Int                     @default(1)
+  lockedAt          DateTime?
+  publishedAt       DateTime?
+  publishedByUserId Int?
+  race              Race                    @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  league            League                  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  publishedBy       User?                   @relation("ResultPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  results           RaceResult[]
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
 
   @@unique([raceId, leagueId, session])
   @@index([raceId, lockedAt])
   @@index([leagueId, raceId])
+  @@index([publicationStatus, updatedAt])
+  @@index([publishedByUserId])
 }
 
 model RaceResult {
-  id                   Int               @id @default(autoincrement())
+  id                   Int                        @id @default(autoincrement())
   resultSessionId      Int
   driverId             Int
   representedTeamId    Int
   expectedDriverId     Int?
   position             Int?
   startingPosition     Int?
+  baseStatus           ResultStatus
   status               ResultStatus
   gapToWinnerMs        Int?
   gapToPreviousMs      Int?
+  lapsBehind           Int                        @default(0)
   totalTimeMs          Int?
-  fastestLap           Boolean           @default(false)
-  polePosition         Boolean           @default(false)
-  lapsCompleted        Int               @default(0)
+  fastestLapMs         Int?
+  fastestLap           Boolean                    @default(false)
+  polePosition         Boolean                    @default(false)
+  lapsCompleted        Int                        @default(0)
   classifiedPercentage Float?
-  penaltySeconds       Float             @default(0)
-  notes                String?           @db.Text
-  substitute           Boolean           @default(false)
-  racePoints           Float             @default(0)
-  bonusPoints          Float             @default(0)
-  teamPoints           Float             @default(0)
-  resultSession        RaceResultSession @relation(fields: [resultSessionId], references: [id], onDelete: Restrict)
-  driver               Driver            @relation("ResultDriver", fields: [driverId], references: [id], onDelete: Restrict)
-  representedTeam      Team              @relation(fields: [representedTeamId], references: [id], onDelete: Restrict)
-  expectedDriver       Driver?           @relation("ExpectedResultDriver", fields: [expectedDriverId], references: [id], onDelete: Restrict)
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
+  penaltySeconds       Float                      @default(0)
+  effectivePenaltyMs   Int                        @default(0)
+  adjustedTimeMs       Int?
+  finalPosition        Int?
+  notes                String?                    @db.Text
+  substitute           Boolean                    @default(false)
+  racePoints           Float                      @default(0)
+  bonusPoints          Float                      @default(0)
+  teamPoints           Float                      @default(0)
+  resultSession        RaceResultSession          @relation(fields: [resultSessionId], references: [id], onDelete: Restrict)
+  driver               Driver                     @relation("ResultDriver", fields: [driverId], references: [id], onDelete: Restrict)
+  representedTeam      Team                       @relation(fields: [representedTeamId], references: [id], onDelete: Restrict)
+  expectedDriver       Driver?                    @relation("ExpectedResultDriver", fields: [expectedDriverId], references: [id], onDelete: Restrict)
+  penaltyApplications  ResultPenaltyApplication[]
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
 
   @@unique([resultSessionId, driverId])
   @@unique([resultSessionId, position])
   @@index([driverId, resultSessionId])
   @@index([representedTeamId, resultSessionId])
   @@index([status, position])
+  @@index([resultSessionId, finalPosition])
+}
+
+model ResultPenaltyApplication {
+  id                  Int                 @id @default(autoincrement())
+  resultId            Int
+  decisionId          Int?
+  source              ResultPenaltySource
+  penaltyType         PenaltyType
+  penaltyMilliseconds Int                 @default(0)
+  disqualified        Boolean             @default(false)
+  reason              String?             @db.VarChar(1000)
+  createdByUserId     Int?
+  active              Boolean             @default(true)
+  result              RaceResult          @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  decision            Decision?           @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  createdBy           User?               @relation("ResultPenaltyActor", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@unique([resultId, decisionId])
+  @@index([resultId, source, active])
+  @@index([decisionId])
+  @@index([createdByUserId])
 }
 
 model ScoringConfiguration {
@@ -813,16 +872,17 @@ model Vote {
 }
 
 model Decision {
-  id           Int               @id @default(autoincrement())
-  ticketId     Int               @unique
-  penaltyType  PenaltyType
-  penaltyValue Float?
-  reason       String            @db.Text
-  decidedAt    DateTime
-  ticket       FiaTicket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  stewards     DecisionSteward[]
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id                        Int                        @id @default(autoincrement())
+  ticketId                  Int                        @unique
+  penaltyType               PenaltyType
+  penaltyValue              Float?
+  reason                    String                     @db.Text
+  decidedAt                 DateTime
+  ticket                    FiaTicket                  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  stewards                  DecisionSteward[]
+  resultPenaltyApplications ResultPenaltyApplication[]
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
 
   @@index([penaltyType])
   @@index([decidedAt])

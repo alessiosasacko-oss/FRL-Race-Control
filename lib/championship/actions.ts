@@ -337,7 +337,7 @@ function milliseconds(seconds: number | null): number | null {
   return seconds === null ? null : Math.round(seconds * 1000);
 }
 
-export async function saveResultsAction(
+export async function saveLegacyResultsAction(
   _previousState: SportsActionState,
   formData: FormData,
 ): Promise<SportsActionState> {
@@ -484,6 +484,7 @@ export async function saveResultsAction(
             : null,
           position: result.position,
           startingPosition: result.startingPosition,
+          baseStatus: result.status as PrismaResultStatus,
           status: result.status as PrismaResultStatus,
           gapToWinnerMs: milliseconds(result.gapToWinnerSeconds),
           gapToPreviousMs: milliseconds(
