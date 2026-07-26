@@ -29,6 +29,7 @@ import {
   teamSchema,
 } from "./schemas";
 import { zonedLocalToUtc } from "./timezone";
+import { publicRaceTrack } from "@/lib/races/visibility";
 import type { MasterDataActionState } from "./types";
 
 function errorState(
@@ -111,9 +112,9 @@ export async function updateLeagueAction(
       const season = await prisma.season.findFirst({
         where: {
           id: parsed.data.currentSeasonId,
-          leagueId: leagueId.data,
           active: true,
           archivedAt: null,
+          participatingLeagues: { some: { id: leagueId.data } },
         },
         select: { id: true },
       });
@@ -170,33 +171,43 @@ export async function createSeasonAction(
           startsOn: new Date(`${parsed.data.startsOn}T00:00:00.000Z`),
           endsOn: new Date(`${parsed.data.endsOn}T00:00:00.000Z`),
           active: parsed.data.active,
-        },
-        include: { league: true },
-      });
-      const recipients = await leagueUserIds(
-        transaction,
-        season.leagueId,
-      );
-      await createNotifications(
-        transaction,
-        recipients,
-        {
-          type: NotificationType.NewSeason,
-          title: `Neue Saison: ${season.name}`,
-          message:
-            "Eine neue FRL-Saison wurde angelegt und ist in Kalender und Meisterschaft verfügbar.",
-          href: `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`,
-          relatedEntity: { type: "Season", id: season.id },
-          dedupeKey: `new-season:${season.id}`,
-        },
-        {
-          leagueId: season.leagueId,
-          discordContext: {
-            league: season.league.name,
-            season: season.name,
+          participatingLeagues: {
+            connect: await transaction.league.findMany({
+              where: { active: true },
+              select: { id: true },
+            }),
           },
         },
-      );
+        include: {
+          participatingLeagues: {
+            where: { active: true },
+            orderBy: { code: "asc" },
+          },
+        },
+      });
+      for (const league of season.participatingLeagues) {
+        const recipients = await leagueUserIds(transaction, league.id);
+        await createNotifications(
+          transaction,
+          recipients,
+          {
+            type: NotificationType.NewSeason,
+            title: `Neue Saison: ${season.name}`,
+            message:
+              "Eine neue FRL-Saison wurde angelegt und ist in Kalender und Meisterschaft verfügbar.",
+            href: `/championship?leagueId=${league.id}&seasonId=${season.id}`,
+            relatedEntity: { type: "Season", id: season.id },
+            dedupeKey: `new-season:${season.id}:${league.id}`,
+          },
+          {
+            leagueId: league.id,
+            discordContext: {
+              league: league.name,
+              season: season.name,
+            },
+          },
+        );
+      }
     });
   } catch {
     return databaseError();
@@ -241,6 +252,14 @@ export async function updateSeasonAction(
           endsOn: new Date(`${parsed.data.endsOn}T00:00:00.000Z`),
           active: parsed.data.active,
           archivedAt: parsed.data.active ? null : undefined,
+          participatingLeagues: parsed.data.active
+            ? {
+                connect: await transaction.league.findMany({
+                  where: { active: true },
+                  select: { id: true },
+                }),
+              }
+            : undefined,
         },
       });
 
@@ -279,24 +298,30 @@ export async function archiveSeasonAction(
       const season = await transaction.season.update({
         where: { id: seasonId.data },
         data: { active: false, archivedAt: new Date() },
-        include: { league: true },
+        include: {
+          participatingLeagues: {
+            orderBy: { code: "asc" },
+          },
+        },
       });
       await transaction.league.updateMany({
         where: { currentSeasonId: seasonId.data },
         data: { currentSeasonId: null },
       });
-      await enqueueDiscordDelivery(transaction, {
-        purpose: DiscordChannelPurpose.SeasonFinished,
-        leagueId: season.leagueId,
-        payload: {
-          title: `${season.name} beendet`,
-          description: "Die Saison wurde abgeschlossen und archiviert.",
-          href: `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`,
-          league: season.league.name,
-          season: season.name,
-        },
-        dedupeKey: `season-finished:${season.id}`,
-      });
+      for (const league of season.participatingLeagues) {
+        await enqueueDiscordDelivery(transaction, {
+          purpose: DiscordChannelPurpose.SeasonFinished,
+          leagueId: league.id,
+          payload: {
+            title: `${season.name} beendet`,
+            description: "Die Saison wurde abgeschlossen und archiviert.",
+            href: `/championship?leagueId=${league.id}&seasonId=${season.id}`,
+            league: league.name,
+            season: season.name,
+          },
+          dedupeKey: `season-finished:${season.id}:${league.id}`,
+        });
+      }
     });
   } catch {
     return databaseError();
@@ -308,7 +333,6 @@ export async function archiveSeasonAction(
 
 function racePayload(formData: FormData) {
   return {
-    leagueId: formData.get("leagueId"),
     seasonId: formData.get("seasonId"),
     name: formData.get("name"),
     circuit: formData.get("circuit"),
@@ -324,14 +348,19 @@ function racePayload(formData: FormData) {
   };
 }
 
-async function validateRaceRelations(
-  leagueId: number,
+async function validateRaceSeason(
   seasonId: number,
+  activeOnly = true,
 ): Promise<boolean> {
   const prisma = getPrismaClient();
   return Boolean(
     await prisma.season.findFirst({
-      where: { id: seasonId, leagueId },
+      where: {
+        id: seasonId,
+        active: activeOnly ? true : undefined,
+        archivedAt: activeOnly ? null : undefined,
+        participatingLeagues: { some: { active: true } },
+      },
       select: { id: true },
     }),
   );
@@ -354,13 +383,8 @@ export async function createRaceAction(
   const parsed = raceSchema.safeParse(racePayload(formData));
 
   if (!parsed.success) return validationState(parsed);
-  if (
-    !(await validateRaceRelations(
-      parsed.data.leagueId,
-      parsed.data.seasonId,
-    ))
-  ) {
-    return errorState("Die Saison gehört nicht zur gewählten Liga.");
+  if (!(await validateRaceSeason(parsed.data.seasonId))) {
+    return errorState("Die Saison ist für keinen aktiven Ligabetrieb verfügbar.");
   }
 
   let scheduledAt: Date;
@@ -384,6 +408,16 @@ export async function createRaceAction(
   }
 
   const prisma = getPrismaClient();
+  const revealReached =
+    scheduledAt.getTime() - 60 * 60 * 1000 <= Date.now();
+  const circuit =
+    parsed.data.mystery && !revealReached
+      ? null
+      : parsed.data.circuit;
+  const countryCode =
+    parsed.data.mystery && !revealReached
+      ? null
+      : parsed.data.countryCode;
 
   try {
     await prisma.$transaction(async (transaction) => {
@@ -391,8 +425,8 @@ export async function createRaceAction(
         data: {
           seasonId: parsed.data.seasonId,
           name: parsed.data.name,
-          circuit: parsed.data.circuit,
-          countryCode: parsed.data.countryCode,
+          circuit,
+          countryCode,
           round: parsed.data.round,
           scheduledAt,
           attendanceDeadline,
@@ -404,73 +438,76 @@ export async function createRaceAction(
           mystery: parsed.data.mystery,
         },
         include: {
-          season: { include: { league: true } },
+          season: {
+            include: {
+              participatingLeagues: {
+                where: { active: true },
+                orderBy: { code: "asc" },
+              },
+            },
+          },
         },
       });
-      const recipients = await leagueUserIds(
-        transaction,
-        parsed.data.leagueId,
-      );
-      await createNotifications(
-        transaction,
-        recipients,
-        {
-          type: NotificationType.NewRace,
-          title: `Neues Rennen: ${
-            race.mystery ? "Mystery Race" : race.name
-          }`,
-          message: `Runde ${race.round} wurde dem Rennkalender hinzugefügt.`,
-          href: "/calendar",
-          relatedEntity: { type: "Race", id: race.id },
-          dedupeKey: `new-race:${race.id}`,
-        },
-        {
-          leagueId: parsed.data.leagueId,
-          discordContext: {
-            league: race.season.league.name,
-            season: race.season.name,
-            race: race.mystery ? "Mystery Race" : race.name,
-            track: race.mystery ? "Wird später bekanntgegeben" : race.circuit,
-          },
-        },
-      );
-
-      if (attendanceDeadline && attendanceDeadline > new Date()) {
-        const drivers = await transaction.driver.findMany({
-          where: {
-            leagueId: parsed.data.leagueId,
-            active: true,
-            userId: { not: null },
-            team: { seasonId: parsed.data.seasonId },
-          },
-          select: { userId: true },
-        });
+      const track = publicRaceTrack(race);
+      for (const league of race.season.participatingLeagues) {
+        const recipients = await leagueUserIds(transaction, league.id);
         await createNotifications(
           transaction,
-          drivers.flatMap((driver) =>
-            driver.userId === null ? [] : [driver.userId],
-          ),
+          recipients,
           {
-            type: NotificationType.AttendanceOpen,
-            title: `Rennanmeldung für Runde ${race.round} geöffnet`,
-            message:
-              "Du kannst deine Teilnahme jetzt in FRL Race Control bestätigen.",
-            href: `/attendance?raceId=${race.id}`,
+            type: NotificationType.NewRace,
+            title: `Neues Rennen: ${track.name}`,
+            message: `Runde ${race.round} wurde dem gemeinsamen Rennkalender hinzugefügt.`,
+            href: "/calendar",
             relatedEntity: { type: "Race", id: race.id },
-            dedupeKey: `attendance-open:${race.id}`,
+            dedupeKey: `new-race:${race.id}:${league.id}`,
           },
           {
-            leagueId: parsed.data.leagueId,
+            leagueId: league.id,
             discordContext: {
-              league: race.season.league.name,
+              league: league.name,
               season: race.season.name,
-              race: race.mystery ? "Mystery Race" : race.name,
-              track: race.mystery
-                ? "Wird später bekanntgegeben"
-                : race.circuit,
+              race: track.name,
+              track: track.circuit ?? "Mystery Track",
             },
           },
         );
+
+        if (attendanceDeadline && attendanceDeadline > new Date()) {
+          const drivers = await transaction.driver.findMany({
+            where: {
+              leagueId: league.id,
+              active: true,
+              userId: { not: null },
+              team: { seasonId: parsed.data.seasonId },
+            },
+            select: { userId: true },
+          });
+          await createNotifications(
+            transaction,
+            drivers.flatMap((driver) =>
+              driver.userId === null ? [] : [driver.userId],
+            ),
+            {
+              type: NotificationType.AttendanceOpen,
+              title: `Rennanmeldung für Runde ${race.round} geöffnet`,
+              message:
+                "Du kannst deine Teilnahme jetzt in FRL Race Control bestätigen.",
+              href: `/attendance?raceId=${race.id}&leagueId=${league.id}`,
+              relatedEntity: { type: "Race", id: race.id },
+              dedupeKey: `attendance-open:${race.id}:${league.id}`,
+            },
+            {
+              leagueId: league.id,
+              discordContext: {
+                league: league.name,
+                season: race.season.name,
+                race: track.name,
+                track: track.circuit ?? "Mystery Track",
+              },
+            },
+          );
+        }
       }
     });
   } catch {
@@ -496,13 +533,8 @@ export async function updateRaceAction(
       : validationState(parsed);
   }
 
-  if (
-    !(await validateRaceRelations(
-      parsed.data.leagueId,
-      parsed.data.seasonId,
-    ))
-  ) {
-    return errorState("Die Saison gehört nicht zur gewählten Liga.");
+  if (!(await validateRaceSeason(parsed.data.seasonId, false))) {
+    return errorState("Die Saison ist für keinen Ligabetrieb verfügbar.");
   }
 
   let scheduledAt: Date;
@@ -524,11 +556,26 @@ export async function updateRaceAction(
   }
 
   const prisma = getPrismaClient();
+  const revealReached =
+    scheduledAt.getTime() - 60 * 60 * 1000 <= Date.now();
+  const circuit =
+    parsed.data.mystery && !revealReached
+      ? null
+      : parsed.data.circuit;
+  const countryCode =
+    parsed.data.mystery && !revealReached
+      ? null
+      : parsed.data.countryCode;
 
   try {
     const existing = await prisma.race.findUnique({
       where: { id: raceId.data },
       include: {
+        season: {
+          select: {
+            participatingLeagues: { select: { id: true } },
+          },
+        },
         resultSessions: {
           select: { session: true },
         },
@@ -566,9 +613,13 @@ export async function updateRaceAction(
         where: { id: raceId.data },
         data: {
           seasonId: parsed.data.seasonId,
-          name: parsed.data.name,
-          circuit: parsed.data.circuit,
-          countryCode: parsed.data.countryCode,
+          name:
+            existing.mystery &&
+            parsed.data.name === "Mystery Track"
+              ? existing.name
+              : parsed.data.name,
+          circuit,
+          countryCode,
           round: parsed.data.round,
           scheduledAt,
           attendanceDeadline,
@@ -581,28 +632,32 @@ export async function updateRaceAction(
         },
       });
       if (existing.doublePoints !== parsed.data.doublePoints) {
-        await transaction.championshipAudit.create({
-          data: {
-            seasonId: existing.seasonId,
-            raceId: existing.id,
-            actorId: user.id,
-            action:
-              PrismaChampionshipAuditAction.SCORING_CHANGED,
-            entityType: "Race",
-            entityId: existing.id,
-            previousState: {
-              doublePoints: existing.doublePoints,
+        for (const league of existing.season.participatingLeagues) {
+          await transaction.championshipAudit.create({
+            data: {
+              leagueId: league.id,
+              seasonId: existing.seasonId,
+              raceId: existing.id,
+              actorId: user.id,
+              action:
+                PrismaChampionshipAuditAction.SCORING_CHANGED,
+              entityType: "Race",
+              entityId: existing.id,
+              previousState: {
+                doublePoints: existing.doublePoints,
+              },
+              newState: {
+                doublePoints: parsed.data.doublePoints,
+              },
             },
-            newState: {
-              doublePoints: parsed.data.doublePoints,
-            },
-          },
-        });
-        await recalculateChampionship(
-          transaction,
-          existing.seasonId,
-          user.id,
-        );
+          });
+          await recalculateChampionship(
+            transaction,
+            league.id,
+            existing.seasonId,
+            user.id,
+          );
+        }
       }
     });
   } catch {
@@ -769,7 +824,10 @@ async function teamSeasonIsValid(
   const prisma = getPrismaClient();
   return Boolean(
     await prisma.season.findFirst({
-      where: { id: seasonId, leagueId },
+      where: {
+        id: seasonId,
+        participatingLeagues: { some: { id: leagueId } },
+      },
       select: { id: true },
     }),
   );

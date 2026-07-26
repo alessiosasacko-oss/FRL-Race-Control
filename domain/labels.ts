@@ -12,7 +12,6 @@ import {
   ResultStatus,
   Role,
   TicketAuditAction,
-  TicketPriority,
   TicketStatus,
 } from "./enums";
 
@@ -79,12 +78,6 @@ export const ticketStatusLabels: Record<TicketStatus, string> = {
   [TicketStatus.Resolved]: "Erledigt",
 };
 
-export const ticketPriorityLabels: Record<TicketPriority, string> = {
-  [TicketPriority.Low]: "Niedrig",
-  [TicketPriority.Normal]: "Normal",
-  [TicketPriority.High]: "Hoch",
-};
-
 export const penaltyTypeLabels: Record<PenaltyType, string> = {
   [PenaltyType.NoFurtherAction]: "Keine weitere Maßnahme",
   [PenaltyType.Warning]: "Verwarnung",
@@ -145,6 +138,7 @@ export const ticketAuditActionLabels: Record<TicketAuditAction, string> = {
   [TicketAuditAction.Created]: "Ticket erstellt",
   [TicketAuditAction.StatusChanged]: "Status geändert",
   [TicketAuditAction.EvidenceAdded]: "Beweis hinzugefügt",
+  [TicketAuditAction.EvidenceRemoved]: "Beweis entfernt",
   [TicketAuditAction.DiscussionMessageAdded]: "Kommentar hinzugefügt",
   [TicketAuditAction.VoteRecorded]: "Steward-Bewertung gespeichert",
   [TicketAuditAction.DecisionPublished]: "Entscheidung veröffentlicht",

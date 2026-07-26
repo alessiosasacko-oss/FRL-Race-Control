@@ -6,6 +6,10 @@ import {
 } from "@/domain";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { sportsListQuerySchema } from "./schemas";
+import {
+  isMysteryTrackRevealed,
+  publicRaceTrack,
+} from "@/lib/races/visibility";
 import type {
   AttendanceEntryView,
   AttendancePageData,
@@ -70,15 +74,17 @@ function raceOption(race: {
     name: string;
     archivedAt: Date | null;
     league: { id: number; code: string; name: string };
+    participatingLeagues: Array<{
+      id: number;
+      code: string;
+      name: string;
+    }>;
   };
-}, forceRevealMystery = false): RaceOption {
-  const revealMystery =
-    forceRevealMystery ||
-    !race.mystery ||
-    race.status === "COMPLETED";
+}, leagueId?: number): RaceOption {
+  const revealMystery = isMysteryTrackRevealed(race);
   return {
     id: race.id,
-    name: revealMystery ? race.name : "Mystery Race",
+    name: revealMystery ? race.name : "Mystery Track",
     round: race.round,
     scheduledAt: race.scheduledAt.toISOString(),
     sprint: race.sprint,
@@ -88,7 +94,10 @@ function raceOption(race: {
       id: race.season.id,
       name: race.season.name,
       archived: race.season.archivedAt !== null,
-      league: race.season.league,
+      league:
+        race.season.participatingLeagues.find(
+          (league) => league.id === leagueId,
+        ) ?? race.season.league,
     },
   };
 }
@@ -97,6 +106,11 @@ const raceOptionInclude = {
   season: {
     include: {
       league: { select: { id: true, code: true, name: true } },
+      participatingLeagues: {
+        where: { active: true },
+        select: { id: true, code: true, name: true },
+        orderBy: { code: "asc" },
+      },
     },
   },
 } as const;
@@ -104,19 +118,30 @@ const raceOptionInclude = {
 export async function getAttendancePageData(
   userId: number,
   query: SportsListQuery,
-  revealMystery = false,
 ): Promise<AttendancePageData> {
   const prisma = getPrismaClient();
+  const userDriver = await prisma.driver.findUnique({
+    where: { userId },
+    select: { leagueId: true },
+  });
+  const selectedLeagueId =
+    query.leagueId ?? userDriver?.leagueId;
   const racesRaw = await prisma.race.findMany({
     where: {
       seasonId: query.seasonId,
-      season: query.leagueId ? { leagueId: query.leagueId } : undefined,
+      season: selectedLeagueId
+        ? {
+            participatingLeagues: {
+              some: { id: selectedLeagueId, active: true },
+            },
+          }
+        : undefined,
     },
     orderBy: [{ scheduledAt: "asc" }, { round: "asc" }],
     include: raceOptionInclude,
   });
   const races = racesRaw.map((race) =>
-    raceOption(race, revealMystery),
+    raceOption(race, selectedLeagueId),
   );
   const requestedRace = query.raceId
     ? racesRaw.find((race) => race.id === query.raceId)
@@ -143,7 +168,9 @@ export async function getAttendancePageData(
     await prisma.$transaction([
       prisma.driver.findMany({
         where: {
-          leagueId: selectedRaceRaw.season.league.id,
+          leagueId:
+            selectedLeagueId ??
+            selectedRaceRaw.season.league.id,
           active: true,
           team: {
             seasonId: selectedRaceRaw.seasonId,
@@ -162,7 +189,12 @@ export async function getAttendancePageData(
         },
       }),
       prisma.raceAttendance.findMany({
-        where: { raceId: selectedRaceRaw.id },
+        where: {
+          raceId: selectedRaceRaw.id,
+          driver: selectedLeagueId
+            ? { leagueId: selectedLeagueId }
+            : undefined,
+        },
         include: {
           substituteDriver: {
             select: {
@@ -179,6 +211,7 @@ export async function getAttendancePageData(
       prisma.team.findMany({
         where: {
           seasonId: selectedRaceRaw.seasonId,
+          leagueId: selectedLeagueId,
           active: true,
         },
         orderBy: { name: "asc" },
@@ -252,7 +285,7 @@ export async function getAttendancePageData(
 
   return {
     races,
-    selectedRace: raceOption(selectedRaceRaw, revealMystery),
+    selectedRace: raceOption(selectedRaceRaw, selectedLeagueId),
     entries,
     teams,
     substituteDrivers: drivers.map((driver) => ({
@@ -276,7 +309,13 @@ export async function getChampionshipPageData(
       select: { id: true, code: true, name: true, currentSeasonId: true },
     }),
     prisma.season.findMany({
-      where: query.leagueId ? { leagueId: query.leagueId } : undefined,
+      where: query.leagueId
+        ? {
+            participatingLeagues: {
+              some: { id: query.leagueId },
+            },
+          }
+        : undefined,
       orderBy: [{ startsOn: "desc" }, { name: "asc" }],
       select: {
         id: true,
@@ -292,11 +331,24 @@ export async function getChampionshipPageData(
       ?.currentSeasonId ??
     leagues.find((league) => league.currentSeasonId)?.currentSeasonId ??
     seasons[0]?.id;
+  const seasonOwnerLeagueId = seasons.find(
+    (season) => season.id === preferredSeasonId,
+  )?.leagueId;
   const leagueOptions = leagues.map((league) => ({
     id: league.id,
     code: league.code,
     name: league.name,
   }));
+  const selectedLeague =
+    leagueOptions.find((league) => league.id === query.leagueId) ??
+    leagueOptions.find(
+      (league) =>
+        league.id ===
+        leagues.find(
+          (item) => item.currentSeasonId === preferredSeasonId,
+        )?.id,
+    ) ??
+    leagueOptions.find((league) => league.id === seasonOwnerLeagueId);
 
   if (!preferredSeasonId) {
     return {
@@ -313,7 +365,16 @@ export async function getChampionshipPageData(
     where: { id: preferredSeasonId },
     include: {
       league: { select: { id: true, code: true, name: true } },
-      championship: {
+      championships: {
+        where: {
+          leagueId:
+            query.leagueId ??
+            leagues.find(
+              (league) => league.currentSeasonId === preferredSeasonId,
+            )?.id ??
+            seasonOwnerLeagueId,
+        },
+        take: 1,
         include: {
           driverStandings: {
             orderBy: { position: "asc" },
@@ -354,7 +415,7 @@ export async function getChampionshipPageData(
       leagues: leagueOptions,
       seasons: seasons.map((item) => ({
         id: item.id,
-        leagueId: item.leagueId,
+        leagueId: selectedLeague?.id ?? item.leagueId,
         name: item.name,
         archived: item.archivedAt !== null,
       })),
@@ -367,7 +428,7 @@ export async function getChampionshipPageData(
 
   const search = query.q.toLocaleLowerCase("de-DE");
   const driverRows =
-    season.championship?.driverStandings.filter(
+    season.championships[0]?.driverStandings.filter(
       (standing) =>
         !search ||
         standing.driver.name
@@ -378,7 +439,7 @@ export async function getChampionshipPageData(
           .includes(search),
     ) ?? [];
   const teamRows =
-    season.championship?.teamStandings.filter(
+    season.championships[0]?.teamStandings.filter(
       (standing) =>
         !search ||
         standing.team.name
@@ -390,14 +451,14 @@ export async function getChampionshipPageData(
     leagues: leagueOptions,
     seasons: seasons.map((item) => ({
       id: item.id,
-      leagueId: item.leagueId,
+      leagueId: selectedLeague?.id ?? item.leagueId,
       name: item.name,
       archived: item.archivedAt !== null,
     })),
     selectedSeason: {
       id: season.id,
       name: season.name,
-      league: season.league,
+      league: selectedLeague ?? season.league,
     },
     drivers: driverRows.map((standing) => ({
       position: standing.position,
@@ -439,7 +500,8 @@ export async function getChampionshipPageData(
       tieBreakSummary: tieBreakSummary(standing.tieBreak),
       team: standing.team,
     })),
-    updatedAt: season.championship?.updatedAt.toISOString() ?? null,
+    updatedAt:
+      season.championships[0]?.updatedAt.toISOString() ?? null,
   };
 }
 
@@ -481,14 +543,23 @@ function resultRow(result: {
 
 export async function getRaceResults(
   raceId: number,
-  forceRevealMystery = false,
+  leagueId?: number,
 ): Promise<RaceResultsView | null> {
   const prisma = getPrismaClient();
+  const resultLeagueId =
+    leagueId ??
+    (
+      await prisma.race.findUnique({
+        where: { id: raceId },
+        select: { season: { select: { leagueId: true } } },
+      })
+    )?.season.leagueId;
   const race = await prisma.race.findUnique({
     where: { id: raceId },
     include: {
       ...raceOptionInclude,
       resultSessions: {
+        where: { leagueId: resultLeagueId },
         orderBy: { session: "asc" },
         include: {
           results: {
@@ -513,21 +584,24 @@ export async function getRaceResults(
     },
   });
 
-  if (!race) return null;
-  const revealMystery =
-    forceRevealMystery ||
-    !race.mystery ||
-    race.status === "COMPLETED";
-  const option = raceOption(race, forceRevealMystery);
+  if (
+    !race ||
+    !race.season.participatingLeagues.some(
+      (league) => league.id === resultLeagueId,
+    )
+  ) {
+    return null;
+  }
+  const track = publicRaceTrack(race);
+  const revealMystery = track.revealed;
+  const option = raceOption(race, resultLeagueId);
 
   return {
     race: {
       ...option,
-      name: revealMystery ? option.name : "Mystery Race",
-      circuit: revealMystery
-        ? race.circuit
-        : "Strecke wird später enthüllt",
-      countryCode: revealMystery ? race.countryCode : "XX",
+      name: track.name,
+      circuit: track.circuit ?? "Mystery Track",
+      countryCode: track.countryCode ?? "–",
       status: race.status,
       revealMystery,
     },
@@ -542,20 +616,33 @@ export async function getRaceResults(
 
 export async function getResultAdminData(
   raceId?: number,
+  leagueId?: number,
 ): Promise<ResultAdminData> {
   const prisma = getPrismaClient();
   const racesRaw = await prisma.race.findMany({
     orderBy: [{ scheduledAt: "desc" }, { round: "desc" }],
     include: raceOptionInclude,
   });
-  const races = racesRaw.map((race) => raceOption(race, true));
+  const eligibleRaces = leagueId
+    ? racesRaw.filter((race) =>
+        race.season.participatingLeagues.some(
+          (league) => league.id === leagueId,
+        ),
+      )
+    : racesRaw;
+  const races = eligibleRaces.map((race) =>
+    raceOption(race, leagueId),
+  );
   const selectedRaceId = raceId ?? racesRaw[0]?.id;
 
   if (!selectedRaceId) {
     return { races, selected: null, drivers: [], teams: [] };
   }
 
-  const selected = await getRaceResults(selectedRaceId, true);
+  const selected = await getRaceResults(
+    selectedRaceId,
+    leagueId,
+  );
   if (!selected) return { races, selected: null, drivers: [], teams: [] };
   const existingDriverIds = new Set(
     selected.sessions.flatMap((resultSession) =>
@@ -615,13 +702,27 @@ export async function getResultAdminData(
   };
 }
 
-export async function getScoringAdminData(seasonId?: number) {
+export async function getScoringAdminData(
+  seasonId?: number,
+  leagueId?: number,
+) {
   const prisma = getPrismaClient();
   const seasons = await prisma.season.findMany({
+    where: leagueId
+      ? {
+          participatingLeagues: {
+            some: { id: leagueId },
+          },
+        }
+      : undefined,
     orderBy: [{ startsOn: "desc" }, { name: "asc" }],
     include: {
       league: { select: { id: true, code: true, name: true } },
-      scoringConfiguration: {
+      participatingLeagues: {
+        select: { id: true, code: true, name: true },
+        orderBy: { code: "asc" },
+      },
+      scoringConfigurations: {
         include: {
           positions: {
             orderBy: [{ session: "asc" }, { position: "asc" }],
@@ -635,14 +736,63 @@ export async function getScoringAdminData(seasonId?: number) {
     seasons[0] ??
     null;
 
-  return { seasons, selected };
+  return {
+    seasons: seasons.map((season) => {
+      const league =
+        season.participatingLeagues.find(
+          (item) => item.id === leagueId,
+        ) ?? season.league;
+      return {
+        ...season,
+        league,
+        scoringConfiguration:
+          season.scoringConfigurations.find(
+            (configuration) =>
+              configuration.leagueId === league.id,
+          ) ?? null,
+      };
+    }),
+    selected: selected
+      ? {
+          ...selected,
+          league:
+            selected.participatingLeagues.find(
+              (item) => item.id === leagueId,
+            ) ?? selected.league,
+          scoringConfiguration:
+            selected.scoringConfigurations.find(
+              (configuration) =>
+                configuration.leagueId ===
+                (selected.participatingLeagues.find(
+                  (item) => item.id === leagueId,
+                )?.id ?? selected.leagueId),
+            ) ?? null,
+        }
+      : null,
+  };
 }
 
-export async function getAdjustmentAdminData(seasonId?: number) {
+export async function getAdjustmentAdminData(
+  seasonId?: number,
+  leagueId?: number,
+) {
   const prisma = getPrismaClient();
   const seasons = await prisma.season.findMany({
+    where: leagueId
+      ? {
+          participatingLeagues: {
+            some: { id: leagueId },
+          },
+        }
+      : undefined,
     orderBy: [{ startsOn: "desc" }, { name: "asc" }],
-    include: { league: { select: { id: true, code: true } } },
+    include: {
+      league: { select: { id: true, code: true } },
+      participatingLeagues: {
+        select: { id: true, code: true },
+        orderBy: { code: "asc" },
+      },
+    },
   });
   const selectedSeasonId =
     seasons.find((season) => season.id === seasonId)?.id ??
@@ -652,6 +802,7 @@ export async function getAdjustmentAdminData(seasonId?: number) {
     return {
       seasons,
       selectedSeasonId: null,
+      selectedLeagueId: null,
       drivers: [],
       teams: [],
       races: [],
@@ -663,49 +814,94 @@ export async function getAdjustmentAdminData(seasonId?: number) {
   const selectedSeason = seasons.find(
     (season) => season.id === selectedSeasonId,
   );
+  const selectedLeague =
+    selectedSeason?.participatingLeagues.find(
+      (item) => item.id === leagueId,
+    ) ?? selectedSeason?.league;
   const [drivers, teams, races, tickets, adjustments] =
     await prisma.$transaction([
       prisma.driver.findMany({
-        where: { leagueId: selectedSeason?.leagueId },
+        where: { leagueId: selectedLeague?.id },
         orderBy: { name: "asc" },
         select: { id: true, name: true, number: true },
       }),
       prisma.team.findMany({
-        where: { seasonId: selectedSeasonId },
+        where: {
+          seasonId: selectedSeasonId,
+          leagueId: selectedLeague?.id,
+        },
         orderBy: { name: "asc" },
         select: { id: true, name: true },
       }),
       prisma.race.findMany({
         where: { seasonId: selectedSeasonId },
         orderBy: { round: "asc" },
-        select: { id: true, name: true, round: true },
+        select: {
+          id: true,
+          name: true,
+          circuit: true,
+          countryCode: true,
+          mystery: true,
+          scheduledAt: true,
+          round: true,
+        },
       }),
       prisma.fiaTicket.findMany({
-        where: { seasonId: selectedSeasonId },
+        where: {
+          seasonId: selectedSeasonId,
+          leagueId: selectedLeague?.id,
+        },
         orderBy: { createdAt: "desc" },
         select: { id: true, title: true },
       }),
       prisma.championshipAdjustment.findMany({
-        where: { seasonId: selectedSeasonId },
+        where: {
+          seasonId: selectedSeasonId,
+          leagueId: selectedLeague?.id,
+        },
         orderBy: { createdAt: "desc" },
         include: {
           driver: { select: { name: true } },
           team: { select: { name: true } },
           actor: { select: { displayName: true } },
-          race: { select: { name: true } },
+          race: {
+            select: {
+              name: true,
+              circuit: true,
+              countryCode: true,
+              mystery: true,
+              scheduledAt: true,
+            },
+          },
           fiaTicket: { select: { id: true, title: true } },
         },
       }),
     ]);
 
   return {
-    seasons,
+    seasons: seasons.map((season) => ({
+      ...season,
+      league:
+        season.participatingLeagues.find(
+          (item) => item.id === leagueId,
+        ) ?? season.league,
+    })),
     selectedSeasonId,
+    selectedLeagueId: selectedLeague?.id ?? null,
     drivers,
     teams,
-    races,
+    races: races.map((race) => ({
+      id: race.id,
+      name: publicRaceTrack(race).name,
+      round: race.round,
+    })),
     tickets,
-    adjustments,
+    adjustments: adjustments.map((adjustment) => ({
+      ...adjustment,
+      race: adjustment.race
+        ? { name: publicRaceTrack(adjustment.race).name }
+        : null,
+    })),
   };
 }
 
@@ -714,17 +910,29 @@ export async function getChampionshipValidationOverview() {
   const seasons = await prisma.season.findMany({
     orderBy: [{ startsOn: "desc" }, { name: "asc" }],
     include: {
-      league: { select: { code: true } },
-      scoringConfiguration: { select: { id: true } },
+      league: { select: { id: true, code: true } },
+      participatingLeagues: {
+        select: { id: true, code: true },
+        orderBy: { code: "asc" },
+      },
+      scoringConfigurations: {
+        select: { id: true, leagueId: true },
+      },
       races: {
         include: {
           resultSessions: {
-            select: { id: true, session: true, lockedAt: true },
+            select: {
+              id: true,
+              leagueId: true,
+              session: true,
+              lockedAt: true,
+            },
           },
         },
       },
-      championship: {
+      championships: {
         select: {
+          leagueId: true,
           updatedAt: true,
           _count: {
             select: { driverStandings: true, teamStandings: true },
@@ -734,33 +942,45 @@ export async function getChampionshipValidationOverview() {
     },
   });
 
-  return seasons.map((season) => {
-    const missingSprintResults = season.races.filter(
-      (race) =>
-        race.sprint &&
-        !race.resultSessions.some(
-          (session) => session.session === ResultSession.Sprint,
-        ),
-    ).length;
-    const missingRaceResults = season.races.filter(
-      (race) =>
-        race.status === "COMPLETED" &&
-        !race.resultSessions.some(
-          (session) => session.session === ResultSession.Race,
-        ),
-    ).length;
+  return seasons.flatMap((season) =>
+    season.participatingLeagues.map((league) => {
+      const missingSprintResults = season.races.filter(
+        (race) =>
+          race.sprint &&
+          !race.resultSessions.some(
+            (session) =>
+              session.leagueId === league.id &&
+              session.session === ResultSession.Sprint,
+          ),
+      ).length;
+      const missingRaceResults = season.races.filter(
+        (race) =>
+          race.status === "COMPLETED" &&
+          !race.resultSessions.some(
+            (session) =>
+              session.leagueId === league.id &&
+              session.session === ResultSession.Race,
+          ),
+      ).length;
+      const championship = season.championships.find(
+        (item) => item.leagueId === league.id,
+      );
 
-    return {
-      id: season.id,
-      label: `${season.league.code} · ${season.name}`,
-      hasScoring: Boolean(season.scoringConfiguration),
-      missingRaceResults,
-      missingSprintResults,
-      driverStandings:
-        season.championship?._count.driverStandings ?? 0,
-      teamStandings: season.championship?._count.teamStandings ?? 0,
-      recalculatedAt:
-        season.championship?.updatedAt.toISOString() ?? null,
-    };
-  });
+      return {
+        id: season.id,
+        leagueId: league.id,
+        label: `${league.code} · ${season.name}`,
+        hasScoring: season.scoringConfigurations.some(
+          (configuration) => configuration.leagueId === league.id,
+        ),
+        missingRaceResults,
+        missingSprintResults,
+        driverStandings:
+          championship?._count.driverStandings ?? 0,
+        teamStandings: championship?._count.teamStandings ?? 0,
+        recalculatedAt:
+          championship?.updatedAt.toISOString() ?? null,
+      };
+    }),
+  );
 }

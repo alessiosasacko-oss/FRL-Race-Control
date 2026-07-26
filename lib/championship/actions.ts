@@ -27,6 +27,7 @@ import {
 } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { recordWebhookEvent } from "@/lib/integrations/events";
+import { publicRaceTrack } from "@/lib/races/visibility";
 import {
   attendanceUpdateSchema,
   championshipAdjustmentInputSchema,
@@ -106,7 +107,12 @@ export async function updateAttendanceAction(
   const race = await prisma.race.findUnique({
     where: { id: parsed.data.raceId },
     include: {
-      season: { select: { id: true, leagueId: true } },
+      season: {
+        select: {
+          id: true,
+          participatingLeagues: { select: { id: true } },
+        },
+      },
     },
   });
   const driver = await prisma.driver.findUnique({
@@ -125,7 +131,9 @@ export async function updateAttendanceAction(
   if (
     !race ||
     !driver ||
-    driver.leagueId !== race.season.leagueId ||
+    !race.season.participatingLeagues.some(
+      (league) => league.id === driver.leagueId,
+    ) ||
     driver.team?.seasonId !== race.seasonId
   ) {
     return errorState("Rennen oder Fahrer wurde nicht gefunden.");
@@ -199,7 +207,7 @@ export async function updateAttendanceAction(
         prisma.driver.findFirst({
           where: {
             id: parsed.data.substituteDriverId,
-            leagueId: race.season.leagueId,
+            leagueId: driver.leagueId,
             active: true,
             team: {
               seasonId: race.seasonId,
@@ -212,7 +220,7 @@ export async function updateAttendanceAction(
               where: {
                 id: parsed.data.representedTeamId,
                 seasonId: race.seasonId,
-                leagueId: race.season.leagueId,
+                leagueId: driver.leagueId,
               },
               select: { id: true },
             })
@@ -353,9 +361,16 @@ export async function saveResultsAction(
   const race = await prisma.race.findUnique({
     where: { id: parsed.data.raceId },
     include: {
-      season: { include: { league: true } },
+      season: {
+        include: {
+          participatingLeagues: {
+            where: { id: parsed.data.leagueId, active: true },
+          },
+        },
+      },
       resultSessions: {
         where: {
+          leagueId: parsed.data.leagueId,
           session: parsed.data.session as PrismaResultSession,
         },
         include: { results: true },
@@ -363,7 +378,13 @@ export async function saveResultsAction(
     },
   });
 
-  if (!race) return errorState("Rennen wurde nicht gefunden.");
+  if (
+    !race ||
+    race.season.participatingLeagues.length === 0
+  ) {
+    return errorState("Rennen wurde für diese Liga nicht gefunden.");
+  }
+  const league = race.season.participatingLeagues[0];
   if (
     parsed.data.session === ResultSession.Sprint &&
     !race.sprint
@@ -410,7 +431,7 @@ export async function saveResultsAction(
 
   if (
     drivers.length !== driverIds.size ||
-    drivers.some((driver) => driver.leagueId !== race.season.leagueId)
+    drivers.some((driver) => driver.leagueId !== parsed.data.leagueId)
   ) {
     return errorState("Alle Fahrer müssen zur Liga des Rennens gehören.");
   }
@@ -418,7 +439,7 @@ export async function saveResultsAction(
     teams.length !== teamIds.size ||
     teams.some(
       (team) =>
-        team.leagueId !== race.season.leagueId ||
+        team.leagueId !== parsed.data.leagueId ||
         team.seasonId !== race.seasonId,
     )
   ) {
@@ -431,8 +452,9 @@ export async function saveResultsAction(
     await prisma.$transaction(async (transaction) => {
       const session = await transaction.raceResultSession.upsert({
         where: {
-          raceId_session: {
+          raceId_leagueId_session: {
             raceId: race.id,
+            leagueId: parsed.data.leagueId,
             session: parsed.data.session as PrismaResultSession,
           },
         },
@@ -443,6 +465,7 @@ export async function saveResultsAction(
         },
         create: {
           raceId: race.id,
+          leagueId: parsed.data.leagueId,
           session: parsed.data.session as PrismaResultSession,
           lockedAt: parsed.data.lockAfterSave ? new Date() : null,
         },
@@ -478,6 +501,7 @@ export async function saveResultsAction(
       });
       await transaction.championshipAudit.create({
         data: {
+          leagueId: parsed.data.leagueId,
           seasonId: race.seasonId,
           raceId: race.id,
           actorId: user.id,
@@ -496,9 +520,10 @@ export async function saveResultsAction(
         await recordWebhookEvent(transaction, {
           type: WebhookEventType.RaceFinished,
           source: "results-action",
-          dedupeKey: `race-finished:${race.id}:${session.updatedAt.getTime()}`,
+          dedupeKey: `race-finished:${race.id}:${parsed.data.leagueId}:${session.updatedAt.getTime()}`,
           payload: {
             raceId: race.id,
+            leagueId: parsed.data.leagueId,
             seasonId: race.seasonId,
             resultSessionId: session.id,
             resultCount: parsed.data.results.length,
@@ -507,37 +532,39 @@ export async function saveResultsAction(
       }
       await recalculateChampionship(
         transaction,
+        parsed.data.leagueId,
         race.seasonId,
         user.id,
       );
       const recipients = await leagueUserIds(
         transaction,
-        race.season.leagueId,
+        parsed.data.leagueId,
       );
+      const track = publicRaceTrack(race);
       await createNotifications(
         transaction,
         recipients,
         {
           type: NotificationType.RaceResult,
           priority: NotificationPriority.High,
-          title: `${race.name}: Neues ${parsed.data.session === ResultSession.Sprint ? "Sprint-" : "Renn"}ergebnis`,
+          title: `${track.name}: Neues ${parsed.data.session === ResultSession.Sprint ? "Sprint-" : "Renn"}ergebnis`,
           message:
             "Das vollständige Ergebnis wurde veröffentlicht und die Meisterschaft aktualisiert.",
           href: `/results/${race.id}`,
           relatedEntity: { type: "Race", id: race.id },
-          dedupeKey: `race-result:${race.id}:${parsed.data.session}:${session.updatedAt.getTime()}`,
+          dedupeKey: `race-result:${race.id}:${parsed.data.leagueId}:${parsed.data.session}:${session.updatedAt.getTime()}`,
         },
         {
           discordPurpose:
             parsed.data.session === ResultSession.Sprint
               ? DiscordChannelPurpose.SprintResults
               : DiscordChannelPurpose.RaceResults,
-          leagueId: race.season.leagueId,
+          leagueId: parsed.data.leagueId,
           discordContext: {
-            league: race.season.league.name,
+            league: league.name,
             season: race.season.name,
-            race: race.name,
-            track: race.mystery ? "Mystery Race" : race.circuit,
+            race: track.name,
+            track: track.circuit ?? "Mystery Track",
           },
         },
       );
@@ -552,6 +579,7 @@ export async function saveResultsAction(
 
 export async function deleteResultsAction(
   raceIdInput: number,
+  leagueIdInput: number,
   sessionInput: ResultSession,
   previousState: SportsActionState,
   formData: FormData,
@@ -560,6 +588,7 @@ export async function deleteResultsAction(
   const user = await requirePermission(Permission.ManageResults);
   const parsed = deleteResultSubmissionSchema.safeParse({
     raceId: raceIdInput,
+    leagueId: leagueIdInput,
     session: sessionInput,
     confirmLockedEdit: formData.get("confirmLockedEdit") === "on",
   });
@@ -568,8 +597,9 @@ export async function deleteResultsAction(
   const prisma = getPrismaClient();
   const session = await prisma.raceResultSession.findUnique({
     where: {
-      raceId_session: {
+      raceId_leagueId_session: {
         raceId: parsed.data.raceId,
+        leagueId: parsed.data.leagueId,
         session: parsed.data.session as PrismaResultSession,
       },
     },
@@ -595,6 +625,7 @@ export async function deleteResultsAction(
       });
       await transaction.championshipAudit.create({
         data: {
+          leagueId: parsed.data.leagueId,
           seasonId: session.race.seasonId,
           raceId: session.raceId,
           actorId: user.id,
@@ -606,6 +637,7 @@ export async function deleteResultsAction(
       });
       await recalculateChampionship(
         transaction,
+        parsed.data.leagueId,
         session.race.seasonId,
         user.id,
       );
@@ -624,6 +656,7 @@ export async function saveScoringConfigurationAction(
 ): Promise<SportsActionState> {
   const user = await requirePermission(Permission.ManageScoring);
   const parsed = scoringConfigurationInputSchema.safeParse({
+    leagueId: formData.get("leagueId"),
     seasonId: formData.get("seasonId"),
     racePoints: formData.get("racePoints"),
     sprintPoints: formData.get("sprintPoints"),
@@ -663,7 +696,12 @@ export async function saveScoringConfigurationAction(
 
   const prisma = getPrismaClient();
   const existing = await prisma.scoringConfiguration.findUnique({
-    where: { seasonId: parsed.data.seasonId },
+    where: {
+      leagueId_seasonId: {
+        leagueId: parsed.data.leagueId,
+        seasonId: parsed.data.seasonId,
+      },
+    },
     include: { positions: true },
   });
 
@@ -671,7 +709,12 @@ export async function saveScoringConfigurationAction(
     await prisma.$transaction(async (transaction) => {
       const configuration =
         await transaction.scoringConfiguration.upsert({
-          where: { seasonId: parsed.data.seasonId },
+          where: {
+            leagueId_seasonId: {
+              leagueId: parsed.data.leagueId,
+              seasonId: parsed.data.seasonId,
+            },
+          },
           update: {
             fastestLapPoint: parsed.data.fastestLapPoint,
             fastestLapRequiresTopPosition:
@@ -687,6 +730,7 @@ export async function saveScoringConfigurationAction(
             deductPenaltyPoints: parsed.data.deductPenaltyPoints,
           },
           create: {
+            leagueId: parsed.data.leagueId,
             seasonId: parsed.data.seasonId,
             fastestLapPoint: parsed.data.fastestLapPoint,
             fastestLapRequiresTopPosition:
@@ -723,6 +767,7 @@ export async function saveScoringConfigurationAction(
       });
       await transaction.championshipAudit.create({
         data: {
+          leagueId: parsed.data.leagueId,
           seasonId: parsed.data.seasonId,
           actorId: user.id,
           action: PrismaAuditAction.SCORING_CHANGED,
@@ -740,6 +785,7 @@ export async function saveScoringConfigurationAction(
       });
       await recalculateChampionship(
         transaction,
+        parsed.data.leagueId,
         parsed.data.seasonId,
         user.id,
       );
@@ -762,6 +808,7 @@ export async function createChampionshipAdjustmentAction(
     Permission.ManageChampionshipAdjustments,
   );
   const parsed = championshipAdjustmentInputSchema.safeParse({
+    leagueId: formData.get("leagueId"),
     seasonId: formData.get("seasonId"),
     target: formData.get("target"),
     driverId: formData.get("driverId"),
@@ -778,7 +825,13 @@ export async function createChampionshipAdjustmentAction(
     await prisma.$transaction([
       prisma.season.findUnique({
         where: { id: parsed.data.seasonId },
-        select: { id: true, leagueId: true },
+        select: {
+          id: true,
+          participatingLeagues: {
+            where: { id: parsed.data.leagueId },
+            select: { id: true },
+          },
+        },
       }),
       parsed.data.driverId
         ? prisma.driver.findUnique({
@@ -792,11 +845,11 @@ export async function createChampionshipAdjustmentAction(
       parsed.data.teamId
         ? prisma.team.findUnique({
             where: { id: parsed.data.teamId },
-            select: { id: true, seasonId: true },
+            select: { id: true, seasonId: true, leagueId: true },
           })
         : prisma.team.findFirst({
             where: { id: 0 },
-            select: { id: true, seasonId: true },
+            select: { id: true, seasonId: true, leagueId: true },
           }),
       parsed.data.raceId
         ? prisma.race.findUnique({
@@ -810,31 +863,42 @@ export async function createChampionshipAdjustmentAction(
       parsed.data.fiaTicketId
         ? prisma.fiaTicket.findUnique({
             where: { id: parsed.data.fiaTicketId },
-            select: { seasonId: true },
+            select: { seasonId: true, leagueId: true },
           })
         : prisma.fiaTicket.findFirst({
             where: { id: 0 },
-            select: { seasonId: true },
+            select: { seasonId: true, leagueId: true },
           }),
     ]);
 
-  if (!season) return errorState("Saison wurde nicht gefunden.");
+  if (
+    !season ||
+    season.participatingLeagues.length === 0
+  ) {
+    return errorState("Saison wurde für diese Liga nicht gefunden.");
+  }
   if (
     parsed.data.target === ChampionshipAdjustmentTarget.Driver &&
-    (!driver || driver.leagueId !== season.leagueId)
+    (!driver || driver.leagueId !== parsed.data.leagueId)
   ) {
     return errorState("Der Fahrer gehört nicht zur Saisonliga.");
   }
   if (
     parsed.data.target === ChampionshipAdjustmentTarget.Team &&
-    (!team || team.seasonId !== season.id)
+    (!team ||
+      team.seasonId !== season.id ||
+      team.leagueId !== parsed.data.leagueId)
   ) {
     return errorState("Das Team gehört nicht zur Saison.");
   }
   if (race && race.seasonId !== season.id) {
     return errorState("Das Rennen gehört nicht zur Saison.");
   }
-  if (ticket && ticket.seasonId !== season.id) {
+  if (
+    ticket &&
+    (ticket.seasonId !== season.id ||
+      ticket.leagueId !== parsed.data.leagueId)
+  ) {
     return errorState("Das FIA-Ticket gehört nicht zur Saison.");
   }
 
@@ -843,6 +907,7 @@ export async function createChampionshipAdjustmentAction(
       const adjustment =
         await transaction.championshipAdjustment.create({
           data: {
+            leagueId: parsed.data.leagueId,
             seasonId: season.id,
             target: parsed.data.target as PrismaAdjustmentTarget,
             driverId:
@@ -862,6 +927,7 @@ export async function createChampionshipAdjustmentAction(
         });
       await transaction.championshipAudit.create({
         data: {
+          leagueId: parsed.data.leagueId,
           seasonId: season.id,
           actorId: user.id,
           action: PrismaAuditAction.ADJUSTMENT_CREATED,
@@ -872,6 +938,7 @@ export async function createChampionshipAdjustmentAction(
       });
       await recalculateChampionship(
         transaction,
+        parsed.data.leagueId,
         season.id,
         user.id,
       );
@@ -892,6 +959,7 @@ export async function recalculateChampionshipAction(
 ): Promise<SportsActionState> {
   const user = await requirePermission(Permission.ManageScoring);
   const parsed = recalculationInputSchema.safeParse({
+    leagueId: formData.get("leagueId"),
     seasonId: formData.get("seasonId"),
   });
   if (!parsed.success) return validationState(parsed);
@@ -901,6 +969,7 @@ export async function recalculateChampionshipAction(
     await prisma.$transaction(async (transaction) => {
       await recalculateChampionship(
         transaction,
+        parsed.data.leagueId,
         parsed.data.seasonId,
         user.id,
       );

@@ -15,9 +15,12 @@ const allRacesQuery = {
 export default async function RaceAdminPage() {
   await requirePermission(Permission.ManageMasterData);
   const [races, options] = await Promise.all([
-    getRaceItems(allRacesQuery, true),
+    getRaceItems(allRacesQuery),
     getMasterDataOptions(),
   ]);
+  const activeSeasons = options.seasons.filter(
+    (season) => season.active && !season.archived,
+  );
 
   return (
     <AppLayout>
@@ -34,7 +37,7 @@ export default async function RaceAdminPage() {
           <h2 className="mb-5 text-xl font-semibold text-white">
             Neues Rennen
           </h2>
-          <RaceForm leagues={options.leagues} seasons={options.seasons} />
+          <RaceForm seasons={activeSeasons} />
         </section>
         <div className="space-y-4">
           {races.map((race) => (
@@ -43,7 +46,7 @@ export default async function RaceAdminPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-wider text-blue-400">
-                      {race.season.league.code} · Runde {race.round}
+                      {race.season.name} · Runde {race.round}
                     </p>
                     <h2 className="mt-1 text-lg font-semibold text-white">
                       {race.name}
@@ -59,7 +62,6 @@ export default async function RaceAdminPage() {
               </summary>
               <div className="mt-5 border-t border-slate-800 pt-5">
                 <RaceForm
-                  leagues={options.leagues}
                   seasons={options.seasons}
                   race={race}
                 />

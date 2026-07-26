@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { publicRaceTrack } from "@/lib/races/visibility";
 import type { GlobalSearchResult } from "./types";
 
 const globalSearchSchema = z.string().trim().min(2).max(100);
@@ -55,7 +56,11 @@ export async function globalSearch(
                 {
                   OR: [
                     { mystery: false },
-                    { status: "COMPLETED" },
+                    {
+                      scheduledAt: {
+                        lte: new Date(Date.now() + 60 * 60 * 1000),
+                      },
+                    },
                   ],
                 },
                 {
@@ -124,11 +129,11 @@ export async function globalSearch(
       href: `/teams/${team.id}`,
     })),
     ...races.map((race) => {
-      const revealed = !race.mystery || race.status === "COMPLETED";
+      const track = publicRaceTrack(race);
       return {
         id: `race-${race.id}`,
         kind: "race" as const,
-        title: revealed ? race.name : "Mystery Race",
+        title: track.name,
         subtitle: `${race.season.league.code} · ${race.season.name} · Runde ${race.round}`,
         href: `/results/${race.id}`,
       };

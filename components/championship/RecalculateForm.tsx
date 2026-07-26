@@ -7,8 +7,10 @@ import ActionMessage from "./ActionMessage";
 
 export default function RecalculateForm({
   seasonId,
+  leagueId,
 }: {
   seasonId: number;
+  leagueId: number;
 }) {
   const [state, action, pending] = useActionState(
     recalculateChampionshipAction,
@@ -21,6 +23,7 @@ export default function RecalculateForm({
       className="flex flex-col gap-2 sm:items-end"
     >
       <input type="hidden" name="seasonId" value={seasonId} />
+      <input type="hidden" name="leagueId" value={leagueId} />
       <button
         disabled={pending}
         className="wizard-secondary-button"

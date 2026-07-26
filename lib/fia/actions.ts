@@ -7,7 +7,6 @@ import {
   RaceSession as PrismaRaceSession,
   Role as PrismaRole,
   TicketAuditAction as PrismaTicketAuditAction,
-  TicketPriority as PrismaTicketPriority,
   TicketStatus as PrismaTicketStatus,
   EvidenceType as PrismaEvidenceType,
 } from "@/generated/prisma/client";
@@ -30,6 +29,7 @@ import { getPrismaClient } from "@/lib/db/prisma";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import { recalculateChampionship } from "@/lib/championship/recalculation";
 import { createNotifications } from "@/lib/notifications/service";
+import { publicRaceTrack } from "@/lib/races/visibility";
 import {
   addEvidenceSchema,
   createFiaTicketSchema,
@@ -39,6 +39,12 @@ import {
   voteSchema,
 } from "@/lib/fia/schemas";
 import type { FiaActionState } from "@/lib/fia/types";
+import { getVideoUploadLimits } from "@/lib/storage/evidence-config";
+import { verifyStoredVideo } from "@/lib/storage/evidence-storage";
+import type {
+  TicketEvidenceInput,
+  UploadedVideoMetadata,
+} from "@/lib/storage/evidence-types";
 
 function validationFailure(
   message: string,
@@ -57,16 +63,15 @@ function mutationFailure(): FiaActionState {
   );
 }
 
-function parseEvidence(formData: FormData) {
-  const types = formData.getAll("evidenceType");
-  const urls = formData.getAll("evidenceUrl");
-  const labels = formData.getAll("evidenceLabel");
+function parseEvidence(formData: FormData): unknown {
+  const value = formData.get("evidence");
+  if (typeof value !== "string" || value === "") return [];
 
-  return urls.map((url, index) => ({
-    type: types[index],
-    url,
-    label: labels[index],
-  }));
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 function revalidateTicket(ticketId: number): void {
@@ -83,14 +88,11 @@ export async function createFiaTicketAction(
   const user = await requirePermission(Permission.SubmitFiaTicket);
   const parsed = createFiaTicketSchema.safeParse({
     leagueId: formData.get("leagueId"),
-    seasonId: formData.get("seasonId"),
     raceId: formData.get("raceId"),
     title: formData.get("title"),
     description: formData.get("description"),
     session: formData.get("session"),
     lap: formData.get("lap"),
-    corner: formData.get("corner"),
-    priority: formData.get("priority"),
     driverIds: formData.getAll("driverId"),
     evidence: parseEvidence(formData),
   });
@@ -102,6 +104,58 @@ export async function createFiaTicketAction(
     );
   }
 
+  const uploadedEvidence = parsed.data.evidence.filter(
+    (evidence): evidence is Extract<TicketEvidenceInput, { kind: "upload" }> =>
+      evidence.kind === "upload",
+  );
+  const uploadLimits = getVideoUploadLimits();
+
+  if (uploadedEvidence.length > uploadLimits.maxFiles) {
+    return validationFailure(
+      `Pro Ticket sind höchstens ${uploadLimits.maxFiles} Video-Dateien erlaubt.`,
+    );
+  }
+
+  let verifiedUploads: UploadedVideoMetadata[];
+  try {
+    verifiedUploads = await Promise.all(
+      uploadedEvidence.map((evidence) =>
+        verifyStoredVideo(user.id, evidence),
+      ),
+    );
+  } catch {
+    return validationFailure(
+      "Mindestens ein Video konnte nicht sicher geprüft werden. Entferne es und lade es erneut hoch.",
+    );
+  }
+
+  const verifiedUploadsByPath = new Map(
+    verifiedUploads.map((evidence) => [evidence.storagePath, evidence]),
+  );
+  const evidenceCreateData = parsed.data.evidence.map((evidence) => {
+    if (evidence.kind === "external") {
+      return {
+        submittedByUserId: user.id,
+        type: PrismaEvidenceType.LINK,
+        url: evidence.url,
+        label: evidence.label,
+      };
+    }
+
+    const verified = verifiedUploadsByPath.get(evidence.storagePath);
+    if (!verified) throw new Error("INVALID_UPLOAD");
+    return {
+      submittedByUserId: user.id,
+      type: PrismaEvidenceType.VIDEO,
+      url: null,
+      label: evidence.label,
+      storagePath: verified.storagePath,
+      originalFilename: verified.originalFilename,
+      mimeType: verified.mimeType,
+      fileSize: verified.fileSize,
+      createdAt: new Date(verified.uploadedAt),
+    };
+  });
   const prisma = getPrismaClient();
   let ticketId: number;
 
@@ -110,10 +164,13 @@ export async function createFiaTicketAction(
       const race = await transaction.race.findFirst({
         where: {
           id: parsed.data.raceId,
-          seasonId: parsed.data.seasonId,
-          season: { leagueId: parsed.data.leagueId },
+          season: {
+            participatingLeagues: {
+              some: { id: parsed.data.leagueId, active: true },
+            },
+          },
         },
-        select: { id: true, sessions: true },
+        select: { id: true, seasonId: true, sessions: true },
       });
 
       if (
@@ -140,25 +197,18 @@ export async function createFiaTicketAction(
       const ticket = await transaction.fiaTicket.create({
         data: {
           leagueId: parsed.data.leagueId,
-          seasonId: parsed.data.seasonId,
+          seasonId: race.seasonId,
           raceId: parsed.data.raceId,
           reportedByUserId: user.id,
           title: parsed.data.title,
           description: parsed.data.description,
           session: parsed.data.session as PrismaRaceSession,
           lap: parsed.data.lap ?? null,
-          corner: parsed.data.corner ?? null,
-          priority: parsed.data.priority as PrismaTicketPriority,
           drivers: {
             create: parsed.data.driverIds.map((driverId) => ({ driverId })),
           },
           evidence: {
-            create: parsed.data.evidence.map((evidence) => ({
-              submittedByUserId: user.id,
-              type: evidence.type as PrismaEvidenceType,
-              url: evidence.url,
-              label: evidence.label,
-            })),
+            create: evidenceCreateData,
           },
         },
         select: {
@@ -171,18 +221,26 @@ export async function createFiaTicketAction(
         },
       });
 
-      await transaction.fiaTicketAuditLog.create({
-        data: {
-          ticketId: ticket.id,
-          actorId: user.id,
-          action: PrismaTicketAuditAction.CREATED,
-          fromStatus: null,
-          toStatus: PrismaTicketStatus.OPEN,
-          details:
-            parsed.data.evidence.length > 0
-              ? `Ticket mit ${parsed.data.evidence.length} Beweisnachweis(en) erstellt`
-              : "Ticket erstellt",
-        },
+      await transaction.fiaTicketAuditLog.createMany({
+        data: [
+          {
+            ticketId: ticket.id,
+            actorId: user.id,
+            action: PrismaTicketAuditAction.CREATED,
+            fromStatus: null,
+            toStatus: PrismaTicketStatus.OPEN,
+            details:
+              parsed.data.evidence.length > 0
+                ? `Ticket mit ${parsed.data.evidence.length} Beweisnachweis(en) erstellt`
+                : "Ticket erstellt",
+          },
+          ...verifiedUploads.map((evidence) => ({
+            ticketId: ticket.id,
+            actorId: user.id,
+            action: PrismaTicketAuditAction.EVIDENCE_ADDED,
+            details: `Video hochgeladen: ${evidence.originalFilename}`,
+          })),
+        ],
       });
 
       const raceControlUsers = await transaction.user.findMany({
@@ -208,10 +266,7 @@ export async function createFiaTicketAction(
       recipients.delete(user.id);
       await createNotifications(transaction, [...recipients], {
         type: NotificationType.FiaTicket,
-        priority:
-          parsed.data.priority === "HIGH"
-            ? NotificationPriority.High
-            : NotificationPriority.Normal,
+        priority: NotificationPriority.Normal,
         title: `Neues FIA-Ticket #${ticket.id}`,
         message: parsed.data.title,
         href: `/fia/${ticket.id}`,
@@ -224,7 +279,7 @@ export async function createFiaTicketAction(
   } catch (error: unknown) {
     if (error instanceof Error && error.message === "INVALID_RACE") {
       return validationFailure(
-        "Das gewählte Rennen gehört nicht zur Liga und Saison oder unterstützt die Session nicht.",
+        "Das gewählte Rennen gehört nicht zur Liga oder unterstützt die Session nicht.",
       );
     }
 
@@ -287,7 +342,7 @@ export async function addFiaEvidenceAction(
   const user = await requirePermission(Permission.SubmitFiaTicket);
   const ticketIdResult = ticketIdSchema.safeParse(ticketIdInput);
   const parsed = addEvidenceSchema.safeParse({
-    type: formData.get("type"),
+    kind: "external",
     url: formData.get("url"),
     label: formData.get("label"),
   });
@@ -335,7 +390,7 @@ export async function addFiaEvidenceAction(
         data: {
           ticketId,
           submittedByUserId: user.id,
-          type: parsed.data.type as PrismaEvidenceType,
+          type: PrismaEvidenceType.LINK,
           url: parsed.data.url,
           label: parsed.data.label,
         },
@@ -534,15 +589,23 @@ export async function publishFiaDecisionAction(
           title: true,
           seasonId: true,
           leagueId: true,
+          league: { select: { name: true } },
           status: true,
           reportedByUserId: true,
           season: {
             select: {
               name: true,
-              league: { select: { name: true } },
             },
           },
-          race: { select: { name: true, circuit: true, mystery: true } },
+          race: {
+            select: {
+              name: true,
+              circuit: true,
+              countryCode: true,
+              mystery: true,
+              scheduledAt: true,
+            },
+          },
           drivers: { select: { driver: { select: { userId: true } } } },
           stewardAssignments: { select: { userId: true } },
           votes: { select: { voterId: true } },
@@ -615,6 +678,7 @@ export async function publishFiaDecisionAction(
         recipientIds.add(userId),
       );
       recipientIds.delete(user.id);
+      const track = publicRaceTrack(ticket.race);
 
       await createNotifications(
         transaction,
@@ -631,12 +695,10 @@ export async function publishFiaDecisionAction(
         {
           leagueId: ticket.leagueId,
           discordContext: {
-            league: ticket.season.league.name,
+            league: ticket.league.name,
             season: ticket.season.name,
-            race: ticket.race.name,
-            track: ticket.race.mystery
-              ? "Mystery Race"
-              : ticket.race.circuit,
+            race: track.name,
+            track: track.circuit ?? "Mystery Track",
           },
         },
       );
@@ -673,12 +735,10 @@ export async function publishFiaDecisionAction(
           {
             leagueId: ticket.leagueId,
             discordContext: {
-              league: ticket.season.league.name,
+              league: ticket.league.name,
               season: ticket.season.name,
-              race: ticket.race.name,
-              track: ticket.race.mystery
-                ? "Mystery Race"
-                : ticket.race.circuit,
+              race: track.name,
+              track: track.circuit ?? "Mystery Track",
             },
           },
         );
@@ -687,6 +747,7 @@ export async function publishFiaDecisionAction(
       if (parsed.data.penaltyType === "POINTS_DEDUCTION") {
         await recalculateChampionship(
           transaction,
+          ticket.leagueId,
           ticket.seasonId,
           user.id,
         );

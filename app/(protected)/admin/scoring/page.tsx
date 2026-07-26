@@ -4,6 +4,7 @@ import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getScoringAdminData } from "@/lib/championship/queries";
 import { entityIdSchema } from "@/lib/master-data/schemas";
+import { getMasterDataFilterOptions } from "@/lib/master-data/queries";
 
 type ScoringAdminPageProps = {
   searchParams: Promise<
@@ -15,13 +16,22 @@ export default async function ScoringAdminPage({
   searchParams,
 }: ScoringAdminPageProps) {
   await requirePermission(Permission.ManageScoring);
-  const raw = (await searchParams).seasonId;
+  const params = await searchParams;
+  const raw = params.seasonId;
+  const rawLeagueId = params.leagueId;
   const parsedSeasonId = entityIdSchema.safeParse(
     Array.isArray(raw) ? raw[0] : raw,
   );
-  const data = await getScoringAdminData(
-    parsedSeasonId.success ? parsedSeasonId.data : undefined,
+  const parsedLeagueId = entityIdSchema.safeParse(
+    Array.isArray(rawLeagueId) ? rawLeagueId[0] : rawLeagueId,
   );
+  const [data, filterOptions] = await Promise.all([
+    getScoringAdminData(
+      parsedSeasonId.success ? parsedSeasonId.data : undefined,
+      parsedLeagueId.success ? parsedLeagueId.data : undefined,
+    ),
+    getMasterDataFilterOptions(),
+  ]);
 
   return (
     <AppLayout>
@@ -37,8 +47,22 @@ export default async function ScoringAdminPage({
         </div>
         <form
           action="/admin/scoring"
-          className="master-card flex flex-col gap-3 sm:flex-row sm:items-end"
+          className="master-card grid gap-3 sm:grid-cols-[180px_1fr_auto] sm:items-end"
         >
+          <label className="master-label">
+            Liga
+            <select
+              name="leagueId"
+              defaultValue={data.selected?.league.id ?? ""}
+              className="form-control mt-2"
+            >
+              {filterOptions.leagues.map((league) => (
+                <option key={league.id} value={league.id}>
+                  {league.code}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="master-label flex-1">
             Saison
             <select

@@ -81,7 +81,7 @@ export default async function ChampionshipAdminPage() {
                 season.missingSprintResults === 0;
               return (
                 <article
-                  key={season.id}
+                  key={`${season.id}-${season.leagueId}`}
                   className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4 lg:flex-row lg:items-center lg:justify-between"
                 >
                   <div className="flex gap-3">
@@ -117,7 +117,10 @@ export default async function ChampionshipAdminPage() {
                       </p>
                     </div>
                   </div>
-                  <RecalculateForm seasonId={season.id} />
+                  <RecalculateForm
+                    seasonId={season.id}
+                    leagueId={season.leagueId}
+                  />
                 </article>
               );
             })}

@@ -122,6 +122,7 @@ export default function ResultsEditor({
   const deleteAction = deleteResultsAction.bind(
     null,
     data.selected?.race.id ?? 0,
+    data.selected?.race.season.league.id ?? 0,
     session,
   );
   const [deleteState, deleteFormAction, deletePending] =
@@ -158,6 +159,7 @@ export default function ResultsEditor({
   const hasDuplicatePosition =
     new Set(selectedPositions).size !== selectedPositions.length;
   const submission = {
+    leagueId: data.selected?.race.season.league.id ?? 0,
     raceId: data.selected?.race.id ?? 0,
     session,
     allowArchived,

@@ -3,7 +3,6 @@
 import {
   CheckCircle2,
   ClipboardList,
-  Flag,
   FileSearch,
   Shield,
 } from "lucide-react";
@@ -15,11 +14,10 @@ type StepSidebarProps = {
 };
 
 const steps = [
-  { id: 1, title: "Allgemein", icon: Shield },
-  { id: 2, title: "Fahrer", icon: Flag },
-  { id: 3, title: "Vorfall", icon: ClipboardList },
-  { id: 4, title: "Beweise", icon: FileSearch },
-  { id: 5, title: "Übersicht", icon: CheckCircle2 },
+  { id: 1, title: "Rennen & Fahrer", icon: Shield },
+  { id: 2, title: "Vorfall", icon: ClipboardList },
+  { id: 3, title: "Beweise", icon: FileSearch },
+  { id: 4, title: "Übersicht", icon: CheckCircle2 },
 ];
 
 export default function StepSidebar({
@@ -37,7 +35,7 @@ export default function StepSidebar({
         Erstelle eine neue Untersuchung.
       </p>
 
-      <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:mt-10 lg:grid-cols-1">
+      <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:mt-10 lg:grid-cols-1">
         {steps.map((step) => {
           const Icon = step.icon;
           const active = currentStep === step.id;
@@ -73,7 +71,7 @@ export default function StepSidebar({
               </div>
               <div>
                 <p className="text-sm font-semibold">{step.title}</p>
-                <p className="text-xs opacity-70">Schritt {step.id} von 5</p>
+                <p className="text-xs opacity-70">Schritt {step.id} von 4</p>
               </div>
             </button>
           );

@@ -61,9 +61,7 @@ export default function ListFilters({
             <option value="">Alle Saisons</option>
             {seasons.map((season) => (
               <option key={season.id} value={season.id}>
-                {leagues.find((league) => league.id === season.leagueId)
-                  ?.code ?? "–"}{" "}
-                · {season.name}
+                {season.name}
               </option>
             ))}
           </select>

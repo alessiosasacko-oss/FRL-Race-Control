@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  fiaRaceSessions,
   raceSessionLabels,
   type RaceSession,
 } from "@/domain";
@@ -18,11 +19,8 @@ export default function GeneralStep({
   options,
   setData,
 }: GeneralStepProps) {
-  const seasons = options.seasons.filter(
-    (season) => season.leagueId === Number(data.leagueId),
-  );
   const races = options.races.filter(
-    (race) => race.seasonId === Number(data.seasonId),
+    (race) => race.leagueId === Number(data.leagueId),
   );
   const selectedRace = races.find(
     (race) => race.id === Number(data.raceId),
@@ -35,7 +33,8 @@ export default function GeneralStep({
           Allgemeine Informationen
         </h2>
         <p className="mt-2 text-slate-400">
-          Wähle Liga, Saison, Rennen und Session aus.
+          Wähle Liga, Rennen und Session aus. Die Saison wird automatisch
+          aus dem Rennen übernommen.
         </p>
       </div>
 
@@ -48,12 +47,11 @@ export default function GeneralStep({
               setData((previous) => ({
                 ...previous,
                 leagueId: event.target.value,
-                seasonId: "",
                 raceId: "",
                 driverIds: [],
               }))
             }
-            className="form-control mt-2"
+            className="form-control mt-2 min-h-12"
           >
             <option value="">Liga auswählen</option>
             {options.leagues.map((league) => (
@@ -65,54 +63,37 @@ export default function GeneralStep({
         </label>
 
         <label className="block text-sm font-medium text-slate-300">
-          Saison
+          Grand Prix
           <select
-            value={data.seasonId}
+            value={data.raceId}
             disabled={!data.leagueId}
-            onChange={(event) =>
+            onChange={(event) => {
+              const race = options.races.find(
+                (item) => item.id === Number(event.target.value),
+              );
+              const allowedSessions = race?.sessions.filter((session) =>
+                fiaRaceSessions.includes(
+                  session as (typeof fiaRaceSessions)[number],
+                ),
+              );
               setData((previous) => ({
                 ...previous,
-                seasonId: event.target.value,
-                raceId: "",
-              }))
-            }
-            className="form-control mt-2 disabled:opacity-50"
+                raceId: event.target.value,
+                session: allowedSessions?.at(-1) ?? previous.session,
+              }));
+            }}
+            className="form-control mt-2 min-h-12 disabled:opacity-50"
           >
-            <option value="">Saison auswählen</option>
-            {seasons.map((season) => (
-              <option key={season.id} value={season.id}>
-                {season.name}
+            <option value="">Grand Prix auswählen</option>
+            {races.map((race) => (
+              <option key={race.id} value={race.id}>
+                {race.name}
+                {race.circuit ? ` · ${race.circuit}` : ""}
               </option>
             ))}
           </select>
         </label>
       </div>
-
-      <label className="block text-sm font-medium text-slate-300">
-        Grand Prix
-        <select
-          value={data.raceId}
-          disabled={!data.seasonId}
-          onChange={(event) => {
-            const race = options.races.find(
-              (item) => item.id === Number(event.target.value),
-            );
-            setData((previous) => ({
-              ...previous,
-              raceId: event.target.value,
-              session: race?.sessions.at(-1) ?? previous.session,
-            }));
-          }}
-          className="form-control mt-2 disabled:opacity-50"
-        >
-          <option value="">Grand Prix auswählen</option>
-          {races.map((race) => (
-            <option key={race.id} value={race.id}>
-              {race.name} · {race.circuit}
-            </option>
-          ))}
-        </select>
-      </label>
 
       <label className="block text-sm font-medium text-slate-300">
         Session
@@ -125,13 +106,19 @@ export default function GeneralStep({
               session: event.target.value as RaceSession,
             }))
           }
-          className="form-control mt-2 disabled:opacity-50"
+          className="form-control mt-2 min-h-12 disabled:opacity-50"
         >
-          {(selectedRace?.sessions ?? []).map((session) => (
+          {(selectedRace?.sessions ?? [])
+            .filter((session) =>
+              fiaRaceSessions.includes(
+                session as (typeof fiaRaceSessions)[number],
+              ),
+            )
+            .map((session) => (
             <option key={session} value={session}>
               {raceSessionLabels[session]}
             </option>
-          ))}
+            ))}
         </select>
       </label>
     </div>

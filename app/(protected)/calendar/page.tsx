@@ -74,14 +74,16 @@ export default async function CalendarPage({
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
-                    {race.season.league.code} · {race.season.name} · Runde{" "}
+                    FRL · {race.season.name} · Runde{" "}
                     {race.round}
                   </p>
                   <h2 className="mt-2 text-2xl font-bold text-white">
                     {race.mystery ? <EyeOff className="mr-2 inline" size={20} /> : null}
                     {race.name}
                   </h2>
-                  <p className="mt-2 text-slate-400">{race.circuit}</p>
+                  <p className="mt-2 text-slate-400">
+                    {race.circuit ?? "Mystery Track"}
+                  </p>
                 </div>
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -111,10 +113,12 @@ export default async function CalendarPage({
                   }).format(new Date(race.scheduledAt))}{" "}
                   · {race.timezone}
                 </p>
-                <p className="flex items-center gap-2">
-                  <Flag size={17} className="text-blue-400" />
-                  {race.countryCode}
-                </p>
+                {race.countryCode ? (
+                  <p className="flex items-center gap-2">
+                    <Flag size={17} className="text-blue-400" />
+                    {race.countryCode}
+                  </p>
+                ) : null}
                 <p className="flex items-center gap-2">
                   <Gauge size={17} className="text-blue-400" />
                   {race.sprint ? "Sprint-Wochenende" : "Standard-Wochenende"}
@@ -130,13 +134,17 @@ export default async function CalendarPage({
                   ) : null}
                   {race.mystery ? (
                     <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-200">
-                      Mystery Race
+                      Mystery Track
                     </span>
                   ) : null}
                 </div>
               ) : null}
               <Link
-                href={`/results/${race.id}`}
+                href={`/results/${race.id}${
+                  query.leagueId
+                    ? `?leagueId=${query.leagueId}`
+                    : ""
+                }`}
                 className="wizard-secondary-button mt-5 w-full sm:w-auto"
               >
                 Ergebnisse ansehen

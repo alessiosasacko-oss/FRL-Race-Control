@@ -121,10 +121,11 @@ function resultSession(value: string): ResultSession {
 
 export async function ensureScoringConfiguration(
   database: DatabaseClient,
+  leagueId: number,
   seasonId: number,
 ) {
   const existing = await database.scoringConfiguration.findUnique({
-    where: { seasonId },
+    where: { leagueId_seasonId: { leagueId, seasonId } },
     include: { positions: true },
   });
 
@@ -132,6 +133,7 @@ export async function ensureScoringConfiguration(
 
   return database.scoringConfiguration.create({
     data: {
+      leagueId,
       seasonId,
       fastestLapPoint: 1,
       fastestLapRequiresTopPosition: 10,
@@ -156,15 +158,25 @@ export async function ensureScoringConfiguration(
 
 export async function recalculateChampionship(
   database: DatabaseClient,
+  leagueId: number,
   seasonId: number,
   actorId: number | null,
 ): Promise<void> {
-  const scoring = await ensureScoringConfiguration(database, seasonId);
+  const scoring = await ensureScoringConfiguration(
+    database,
+    leagueId,
+    seasonId,
+  );
   const season = await database.season.findUnique({
     where: { id: seasonId },
     include: {
-      championship: { select: { id: true, updatedAt: true } },
-      league: {
+      championships: {
+        where: { leagueId },
+        take: 1,
+        select: { id: true, updatedAt: true },
+      },
+      participatingLeagues: {
+        where: { id: leagueId },
         include: {
           drivers: {
             where: {
@@ -175,11 +187,12 @@ export async function recalculateChampionship(
           },
         },
       },
-      teams: { select: { id: true } },
+      teams: { where: { leagueId }, select: { id: true } },
       races: {
         orderBy: { round: "asc" },
         include: {
           resultSessions: {
+            where: { leagueId },
             include: {
               results: {
                 orderBy: [{ position: "asc" }, { id: "asc" }],
@@ -188,9 +201,10 @@ export async function recalculateChampionship(
           },
         },
       },
-      championshipAdjustments: true,
+      championshipAdjustments: { where: { leagueId } },
       tickets: {
         where: {
+          leagueId,
           decision: {
             is: { penaltyType: PrismaPenaltyType.POINTS_DEDUCTION },
           },
@@ -203,12 +217,16 @@ export async function recalculateChampionship(
     },
   });
 
-  if (!season) throw new Error("SEASON_NOT_FOUND");
+  if (!season || season.participatingLeagues.length === 0) {
+    throw new Error("SEASON_NOT_FOUND");
+  }
+  const league = season.participatingLeagues[0];
 
   const championship =
-    season.championship ??
+    season.championships[0] ??
     (await database.championship.create({
       data: {
+        leagueId,
         seasonId,
         name: `${season.name} Championship`,
       },
@@ -224,7 +242,7 @@ export async function recalculateChampionship(
     ]),
   );
   const drivers = new Map<number, StandingAccumulator>(
-    season.league.drivers.map((driver) => [
+    league.drivers.map((driver) => [
       driver.id,
       accumulator(driver.id),
     ]),
@@ -464,6 +482,7 @@ export async function recalculateChampionship(
 
   await database.championshipAudit.create({
     data: {
+      leagueId,
       seasonId,
       actorId,
       action: PrismaAuditAction.CHAMPIONSHIP_RECALCULATED,
@@ -476,15 +495,15 @@ export async function recalculateChampionship(
     },
   });
 
-  const recipients = await leagueUserIds(database, season.leagueId);
+  const recipients = await leagueUserIds(database, leagueId);
   await createNotifications(database, recipients, {
     type: NotificationType.ChampionshipUpdated,
     title: `${season.name}: Meisterschaft aktualisiert`,
     message:
       "Die Fahrer- und Teamwertung wurde anhand der aktuellen Ergebnisse neu berechnet.",
-    href: `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`,
+    href: `/championship?leagueId=${leagueId}&seasonId=${season.id}`,
     relatedEntity: { type: "Season", id: season.id },
-    dedupeKey: `championship-updated:${season.id}:${championship.updatedAt?.getTime?.() ?? Date.now()}`,
+    dedupeKey: `championship-updated:${leagueId}:${season.id}:${championship.updatedAt?.getTime?.() ?? Date.now()}`,
   });
 
   const [driverTop, teamTop] = await Promise.all([
@@ -501,15 +520,15 @@ export async function recalculateChampionship(
       include: { team: { select: { name: true } } },
     }),
   ]);
-  const href = `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`;
+  const href = `/championship?leagueId=${leagueId}&seasonId=${season.id}`;
   await enqueueDiscordDelivery(database, {
     purpose: DiscordChannelPurpose.DriverStandings,
-    leagueId: season.leagueId,
+    leagueId,
     payload: {
       title: `${season.name}: Fahrerwertung`,
       description: "Aktueller Stand nach der Neuberechnung.",
       href,
-      league: season.league.name,
+      league: league.name,
       season: season.name,
       fields: driverTop.map((standing) => ({
         name: `${standing.position}. ${standing.driver.name}`,
@@ -517,16 +536,16 @@ export async function recalculateChampionship(
         inline: false,
       })),
     },
-    dedupeKey: `driver-standings:${season.id}:${championship.updatedAt.getTime()}`,
+    dedupeKey: `driver-standings:${leagueId}:${season.id}:${championship.updatedAt.getTime()}`,
   });
   await enqueueDiscordDelivery(database, {
     purpose: DiscordChannelPurpose.TeamStandings,
-    leagueId: season.leagueId,
+    leagueId,
     payload: {
       title: `${season.name}: Teamwertung`,
       description: "Aktueller Stand nach der Neuberechnung.",
       href,
-      league: season.league.name,
+      league: league.name,
       season: season.name,
       fields: teamTop.map((standing) => ({
         name: `${standing.position}. ${standing.team.name}`,
@@ -534,16 +553,16 @@ export async function recalculateChampionship(
         inline: false,
       })),
     },
-    dedupeKey: `team-standings:${season.id}:${championship.updatedAt.getTime()}`,
+    dedupeKey: `team-standings:${leagueId}:${season.id}:${championship.updatedAt.getTime()}`,
   });
   await recordWebhookEvent(database, {
     type: WebhookEventType.ChampionshipRecalculated,
     source: "championship-recalculation",
-    dedupeKey: `championship-recalculated:${season.id}:${championship.updatedAt.getTime()}`,
+    dedupeKey: `championship-recalculated:${leagueId}:${season.id}:${championship.updatedAt.getTime()}`,
     payload: {
       championshipId: championship.id,
       seasonId: season.id,
-      leagueId: season.leagueId,
+      leagueId,
       driverCount: driverRows.length,
       teamCount: teamRows.length,
     },

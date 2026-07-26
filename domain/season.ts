@@ -9,6 +9,7 @@ export const seasonSchema = z
   .object({
     id: entityIdSchema,
     leagueId: entityIdSchema,
+    participatingLeagueIds: z.array(entityIdSchema).min(1),
     name: titleSchema,
     startsOn: isoDateSchema,
     endsOn: isoDateSchema,

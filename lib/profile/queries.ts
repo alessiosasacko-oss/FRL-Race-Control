@@ -60,7 +60,11 @@ export async function getProfileData(
       }),
       prisma.race.count({
         where: {
-          season: { leagueId: user.driver.leagueId },
+          season: {
+            participatingLeagues: {
+              some: { id: user.driver.leagueId },
+            },
+          },
           scheduledAt: { lte: new Date() },
           status: { not: "CANCELLED" },
         },

@@ -92,10 +92,7 @@ export default function TeamForm({ options, team }: TeamFormProps) {
           >
             {options.seasons.map((season) => (
               <option key={season.id} value={season.id}>
-                {options.leagues.find(
-                  (league) => league.id === season.leagueId,
-                )?.code ?? "–"}{" "}
-                · {season.name}
+                {season.name}
               </option>
             ))}
           </select>

@@ -6,12 +6,11 @@ import {
   RotateCcw,
 } from "lucide-react";
 import {
-  TicketPriority,
+  fiaRaceSessions,
   TicketStatus,
-  ticketPriorityLabels,
   ticketStatusLabels,
 } from "@/domain";
-import { RaceSession, raceSessionLabels } from "@/domain";
+import { raceSessionLabels } from "@/domain";
 import type {
   FiaListFilterOptions,
   FiaTicketListParams,
@@ -113,15 +112,9 @@ export default function TicketToolbar({
               <option key={status} value={status}>{ticketStatusLabels[status]}</option>
             ))}
           </select>
-          <select name="priority" defaultValue={query.priority ?? ""} className="filter-select">
-            <option value="">Alle Prioritäten</option>
-            {Object.values(TicketPriority).map((priority) => (
-              <option key={priority} value={priority}>{ticketPriorityLabels[priority]}</option>
-            ))}
-          </select>
           <select name="session" defaultValue={query.session ?? ""} className="filter-select">
             <option value="">Alle Sessions</option>
-            {Object.values(RaceSession).map((session) => (
+            {fiaRaceSessions.map((session) => (
               <option key={session} value={session}>{raceSessionLabels[session]}</option>
             ))}
           </select>

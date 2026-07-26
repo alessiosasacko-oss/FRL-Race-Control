@@ -11,6 +11,7 @@ import {
 import { getPrismaClient } from "@/lib/db/prisma";
 import { listQuerySchema } from "./schemas";
 import { formatLocalDateTimeInput } from "./timezone";
+import { publicRaceTrack } from "@/lib/races/visibility";
 import type {
   DriverDetail,
   DriverItem,
@@ -53,6 +54,7 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
         name: true,
         active: true,
         archivedAt: true,
+        participatingLeagues: { select: { id: true } },
       },
     }),
     prisma.team.findMany({
@@ -111,6 +113,9 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
     seasons: seasons.map((season) => ({
       id: season.id,
       leagueId: season.leagueId,
+      participatingLeagueIds: season.participatingLeagues.map(
+        (league) => league.id,
+      ),
       name: season.name,
       active: season.active,
       archived: season.archivedAt !== null,
@@ -134,6 +139,7 @@ export async function getMasterDataFilterOptions(): Promise<MasterDataFilterOpti
         name: true,
         active: true,
         archivedAt: true,
+        participatingLeagues: { select: { id: true } },
       },
     }),
   ]);
@@ -143,6 +149,9 @@ export async function getMasterDataFilterOptions(): Promise<MasterDataFilterOpti
     seasons: seasons.map((season) => ({
       id: season.id,
       leagueId: season.leagueId,
+      participatingLeagueIds: season.participatingLeagues.map(
+        (league) => league.id,
+      ),
       name: season.name,
       active: season.active,
       archived: season.archivedAt !== null,
@@ -163,6 +172,7 @@ export async function getLeagueAdminItems(): Promise<LeagueAdminItem[]> {
           name: true,
           active: true,
           archivedAt: true,
+          participatingLeagues: { select: { id: true } },
         },
       },
       _count: {
@@ -181,6 +191,9 @@ export async function getLeagueAdminItems(): Promise<LeagueAdminItem[]> {
     seasons: league.seasons.map((season) => ({
       id: season.id,
       leagueId: season.leagueId,
+      participatingLeagueIds: season.participatingLeagues.map(
+        (league) => league.id,
+      ),
       name: season.name,
       active: season.active,
       archived: season.archivedAt !== null,
@@ -199,6 +212,10 @@ export async function getSeasonAdminItems(): Promise<SeasonAdminItem[]> {
     orderBy: [{ startsOn: "desc" }, { name: "asc" }],
     include: {
       league: { select: { id: true, code: true, name: true } },
+      participatingLeagues: {
+        select: { id: true, code: true, name: true },
+        orderBy: { code: "asc" },
+      },
       _count: { select: { races: true, teams: true } },
     },
   });
@@ -212,6 +229,7 @@ export async function getSeasonAdminItems(): Promise<SeasonAdminItem[]> {
     active: season.active,
     archived: season.archivedAt !== null,
     league: season.league,
+    participatingLeagues: season.participatingLeagues,
     counts: {
       races: season._count.races,
       teams: season._count.teams,
@@ -229,23 +247,47 @@ function activeWhere(
 
 export async function getRaceItems(
   query: MasterDataListQuery,
-  revealMystery = false,
 ): Promise<RaceItem[]> {
   const prisma = getPrismaClient();
   const where: Prisma.RaceWhereInput = {
     seasonId: query.seasonId,
     season: query.leagueId
-      ? { leagueId: query.leagueId }
+      ? {
+          participatingLeagues: {
+            some: { id: query.leagueId, active: true },
+          },
+        }
       : undefined,
     status: query.status as PrismaRaceStatus | undefined,
     OR: query.q
       ? [
           { name: { contains: query.q, mode: "insensitive" } },
-          { circuit: { contains: query.q, mode: "insensitive" } },
+          {
+            AND: [
+              {
+                OR: [
+                  { mystery: false },
+                  {
+                    scheduledAt: {
+                      lte: new Date(Date.now() + 60 * 60 * 1000),
+                    },
+                  },
+                ],
+              },
+              {
+                circuit: {
+                  contains: query.q,
+                  mode: "insensitive",
+                },
+              },
+            ],
+          },
           {
             season: {
-              league: {
-                name: { contains: query.q, mode: "insensitive" },
+              participatingLeagues: {
+                some: {
+                  name: { contains: query.q, mode: "insensitive" },
+                },
               },
             },
           },
@@ -258,7 +300,10 @@ export async function getRaceItems(
     include: {
       season: {
         include: {
-          league: { select: { id: true, code: true, name: true } },
+          participatingLeagues: {
+            select: { id: true, code: true, name: true },
+            orderBy: { code: "asc" },
+          },
         },
       },
       _count: { select: { tickets: true } },
@@ -266,13 +311,13 @@ export async function getRaceItems(
   });
 
   return races.map((race) => {
-    const hidden = race.mystery && !revealMystery;
+    const track = publicRaceTrack(race);
     return {
       id: race.id,
       seasonId: race.seasonId,
-      name: hidden ? "Mystery Race" : race.name,
-      circuit: hidden ? "Strecke wird später enthüllt" : race.circuit,
-      countryCode: hidden ? "XX" : race.countryCode,
+      name: track.name,
+      circuit: track.circuit,
+      countryCode: track.countryCode,
       round: race.round,
       scheduledAt: race.scheduledAt.toISOString(),
       localStart: formatLocalDateTimeInput(
@@ -285,6 +330,7 @@ export async function getRaceItems(
       sprint: race.sprint,
       doublePoints: race.doublePoints,
       mystery: race.mystery,
+      trackRevealed: track.revealed,
       attendanceDeadline: race.attendanceDeadline?.toISOString() ?? null,
       attendanceDeadlineLocal: race.attendanceDeadline
         ? formatLocalDateTimeInput(
@@ -295,7 +341,7 @@ export async function getRaceItems(
       season: {
         id: race.season.id,
         name: race.season.name,
-        league: race.season.league,
+        leagues: race.season.participatingLeagues,
       },
       ticketCount: race._count.tickets,
     };

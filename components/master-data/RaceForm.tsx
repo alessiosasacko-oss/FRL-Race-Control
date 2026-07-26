@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId } from "react";
+import { useActionState, useId, useState } from "react";
 import {
   RaceStatus,
   raceStatusLabels,
@@ -12,7 +12,6 @@ import {
 } from "@/lib/master-data/actions";
 import {
   initialMasterDataActionState,
-  type LeagueOption,
   type RaceItem,
   type SeasonOption,
 } from "@/lib/master-data/types";
@@ -30,17 +29,24 @@ const commonTimezones = [
 ];
 
 type RaceFormProps = {
-  leagues: LeagueOption[];
   seasons: SeasonOption[];
   race?: RaceItem;
 };
 
 export default function RaceForm({
-  leagues,
   seasons,
   race,
 }: RaceFormProps) {
   const timezoneListId = useId();
+  const [mystery, setMystery] = useState(race?.mystery ?? false);
+  const [mysteryJustEnabled, setMysteryJustEnabled] = useState(false);
+  const [circuit, setCircuit] = useState(race?.circuit ?? "");
+  const [countryCode, setCountryCode] = useState(
+    race?.countryCode ?? "DE",
+  );
+  const revealReached = race?.trackRevealed ?? false;
+  const hideTrackFields =
+    mystery && (!revealReached || mysteryJustEnabled);
   const saveAction = race
     ? updateRaceAction.bind(null, race.id)
     : createRaceAction;
@@ -59,20 +65,6 @@ export default function RaceForm({
       <form action={formAction} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="master-label">
-            Liga
-            <select
-              name="leagueId"
-              defaultValue={race?.season.league.id ?? leagues[0]?.id}
-              className="form-control mt-2"
-            >
-              {leagues.map((league) => (
-                <option key={league.id} value={league.id}>
-                  {league.code} · {league.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="master-label">
             Saison
             <select
               name="seasonId"
@@ -81,9 +73,7 @@ export default function RaceForm({
             >
               {seasons.map((season) => (
                 <option key={season.id} value={season.id}>
-                  {leagues.find((league) => league.id === season.leagueId)
-                    ?.code ?? "–"}{" "}
-                  · {season.name}
+                  {season.name}
                 </option>
               ))}
             </select>
@@ -99,28 +89,36 @@ export default function RaceForm({
               className="form-control mt-2"
             />
           </label>
-          <label className="master-label">
-            Strecke
-            <input
-              name="circuit"
-              defaultValue={race?.circuit ?? ""}
-              required
-              maxLength={160}
-              placeholder="Circuit de Spa-Francorchamps"
-              className="form-control mt-2"
-            />
-          </label>
-          <label className="master-label">
-            Ländercode
-            <input
-              name="countryCode"
-              defaultValue={race?.countryCode ?? "DE"}
-              required
-              minLength={2}
-              maxLength={2}
-              className="form-control mt-2 uppercase"
-            />
-          </label>
+          {!hideTrackFields ? (
+            <>
+              <label className="master-label">
+                Strecke
+                <input
+                  name="circuit"
+                  value={circuit}
+                  onChange={(event) => setCircuit(event.target.value)}
+                  required
+                  maxLength={160}
+                  placeholder="Circuit de Spa-Francorchamps"
+                  className="form-control mt-2"
+                />
+              </label>
+              <label className="master-label">
+                Ländercode
+                <input
+                  name="countryCode"
+                  value={countryCode}
+                  onChange={(event) =>
+                    setCountryCode(event.target.value.toUpperCase())
+                  }
+                  required
+                  minLength={2}
+                  maxLength={2}
+                  className="form-control mt-2 uppercase"
+                />
+              </label>
+            </>
+          ) : null}
           <label className="master-label">
             Runde
             <input
@@ -189,7 +187,24 @@ export default function RaceForm({
             label="Doppelte Punkte"
             checked={race?.doublePoints}
           />
-          <Check name="mystery" label="Mystery Race" checked={race?.mystery} />
+          <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-900 p-4 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              name="mystery"
+              checked={mystery}
+              onChange={(event) => {
+                const enabled = event.target.checked;
+                setMystery(enabled);
+                setMysteryJustEnabled(enabled);
+                if (enabled) {
+                  setCircuit("");
+                  setCountryCode("");
+                }
+              }}
+              className="h-4 w-4 accent-blue-600"
+            />
+            Mystery Track
+          </label>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <ActionMessage state={state} />

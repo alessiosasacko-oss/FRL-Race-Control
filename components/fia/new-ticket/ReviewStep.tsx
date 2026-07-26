@@ -1,8 +1,4 @@
-import {
-  evidenceTypeLabels,
-  raceSessionLabels,
-  ticketPriorityLabels,
-} from "@/domain";
+import { raceSessionLabels } from "@/domain";
 import type { TicketWizardOptions } from "@/lib/fia/types";
 import type { TicketWizardDraft } from "./wizard-types";
 
@@ -14,9 +10,6 @@ type ReviewStepProps = {
 export default function ReviewStep({ data, options }: ReviewStepProps) {
   const league = options.leagues.find(
     (item) => item.id === Number(data.leagueId),
-  );
-  const season = options.seasons.find(
-    (item) => item.id === Number(data.seasonId),
   );
   const race = options.races.find(
     (item) => item.id === Number(data.raceId),
@@ -36,7 +29,10 @@ export default function ReviewStep({ data, options }: ReviewStepProps) {
 
       <dl className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5 sm:grid-cols-2">
         <ReviewItem label="Liga" value={league?.name ?? "–"} />
-        <ReviewItem label="Saison" value={season?.name ?? "–"} />
+        <ReviewItem
+          label="Saison"
+          value={race?.seasonName ?? "Wird aus dem Rennen übernommen"}
+        />
         <ReviewItem label="Rennen" value={race?.name ?? "–"} />
         <ReviewItem
           label="Session"
@@ -44,19 +40,8 @@ export default function ReviewStep({ data, options }: ReviewStepProps) {
         />
         <ReviewItem label="Titel" value={data.title} />
         <ReviewItem
-          label="Ort"
-          value={
-            [
-              data.lap ? `Runde ${data.lap}` : "",
-              data.corner,
-            ]
-              .filter(Boolean)
-              .join(" · ") || "Nicht angegeben"
-          }
-        />
-        <ReviewItem
-          label="Priorität"
-          value={ticketPriorityLabels[data.priority]}
+          label="Runde"
+          value={data.lap ? `Runde ${data.lap}` : "Nicht angegeben"}
         />
         <ReviewItem
           label="Fahrer"
@@ -79,8 +64,15 @@ export default function ReviewStep({ data, options }: ReviewStepProps) {
         </h3>
         <ul className="mt-3 space-y-2 text-sm text-slate-300">
           {data.evidence.map((evidence) => (
-            <li key={evidence.key}>
-              {evidenceTypeLabels[evidence.type]} · {evidence.label}
+            <li
+              key={
+                evidence.kind === "upload"
+                  ? evidence.storagePath
+                  : evidence.key
+              }
+            >
+              {evidence.kind === "upload" ? "Video" : "Link"} ·{" "}
+              {evidence.label}
             </li>
           ))}
           {data.evidence.length === 0 ? <li>Keine Beweise</li> : null}

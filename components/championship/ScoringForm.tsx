@@ -18,6 +18,7 @@ import ActionMessage from "./ActionMessage";
 type ScoringFormProps = {
   season: {
     id: number;
+    league: { id: number };
     scoringConfiguration: {
       fastestLapPoint: number;
       fastestLapRequiresTopPosition: number | null;
@@ -66,6 +67,7 @@ export default function ScoringForm({ season }: ScoringFormProps) {
     <div className="space-y-5">
       <form action={action} className="space-y-5">
         <input type="hidden" name="seasonId" value={season.id} />
+        <input type="hidden" name="leagueId" value={season.league.id} />
         <div className="grid gap-4 md:grid-cols-2">
           <label className="master-label md:col-span-2">
             Rennpunkte nach Position
@@ -158,6 +160,7 @@ export default function ScoringForm({ season }: ScoringFormProps) {
         className="flex flex-col gap-3 border-t border-slate-800 pt-5 sm:flex-row sm:items-center sm:justify-between"
       >
         <input type="hidden" name="seasonId" value={season.id} />
+        <input type="hidden" name="leagueId" value={season.league.id} />
         <ActionMessage state={recalcState} />
         <button
           disabled={recalculating}

@@ -9,7 +9,6 @@ import {
   RaceStatus as PrismaRaceStatus,
   ResultSession as PrismaResultSession,
   Role as PrismaRole,
-  TicketPriority as PrismaTicketPriority,
   TicketStatus as PrismaTicketStatus,
   TicketAuditAction as PrismaTicketAuditAction,
 } from "../generated/prisma/client";
@@ -97,6 +96,9 @@ async function seed(): Promise<void> {
       archivedAt: season.archivedAt
         ? new Date(season.archivedAt)
         : null,
+      participatingLeagues: {
+        connect: season.participatingLeagueIds.map((id) => ({ id })),
+      },
     };
 
     await prisma.season.upsert({
@@ -179,19 +181,24 @@ async function seed(): Promise<void> {
   }
 
   for (const season of seasons) {
-    await prisma.championship.upsert({
-      where: { seasonId: season.id },
-      update: { name: `${season.name} Championship` },
-      create: {
-        id: season.id,
-        seasonId: season.id,
-        name: `${season.name} Championship`,
-      },
-    });
+    for (const leagueId of season.participatingLeagueIds) {
+      await prisma.championship.upsert({
+        where: {
+          leagueId_seasonId: { leagueId, seasonId: season.id },
+        },
+        update: { name: `${season.name} Championship` },
+        create: {
+          leagueId,
+          seasonId: season.id,
+          name: `${season.name} Championship`,
+        },
+      });
 
-    const scoringConfiguration =
-      await prisma.scoringConfiguration.upsert({
-        where: { seasonId: season.id },
+      const scoringConfiguration =
+        await prisma.scoringConfiguration.upsert({
+          where: {
+            leagueId_seasonId: { leagueId, seasonId: season.id },
+          },
         update: {
           fastestLapPoint: 1,
           fastestLapRequiresTopPosition: 10,
@@ -204,6 +211,7 @@ async function seed(): Promise<void> {
           deductPenaltyPoints: false,
         },
         create: {
+          leagueId,
           seasonId: season.id,
           fastestLapPoint: 1,
           fastestLapRequiresTopPosition: 10,
@@ -215,13 +223,13 @@ async function seed(): Promise<void> {
           substituteDriverPointsEnabled: true,
           deductPenaltyPoints: false,
         },
-      });
+        });
 
-    await prisma.scoringPosition.deleteMany({
-      where: { scoringConfigurationId: scoringConfiguration.id },
-    });
-    await prisma.scoringPosition.createMany({
-      data: [
+      await prisma.scoringPosition.deleteMany({
+        where: { scoringConfigurationId: scoringConfiguration.id },
+      });
+      await prisma.scoringPosition.createMany({
+        data: [
         ...DEFAULT_RACE_POINTS.map(
           (points, index) => ({
             scoringConfigurationId: scoringConfiguration.id,
@@ -238,8 +246,9 @@ async function seed(): Promise<void> {
             points,
           }),
         ),
-      ],
-    });
+        ],
+      });
+    }
   }
 
   for (const ticket of fiaTickets) {
@@ -252,9 +261,7 @@ async function seed(): Promise<void> {
       description: ticket.description,
       session: ticket.session as PrismaRaceSession,
       lap: ticket.lap,
-      corner: ticket.corner,
       status: ticket.status as PrismaTicketStatus,
-      priority: ticket.priority as PrismaTicketPriority,
       createdAt: new Date(ticket.createdAt),
       updatedAt: new Date(ticket.updatedAt),
     };
@@ -296,6 +303,10 @@ async function seed(): Promise<void> {
         type: evidence.type as PrismaEvidenceType,
         url: evidence.url,
         label: evidence.label,
+        storagePath: evidence.storagePath,
+        originalFilename: evidence.originalFilename,
+        mimeType: evidence.mimeType,
+        fileSize: evidence.fileSize,
         createdAt: new Date(evidence.createdAt),
       };
 

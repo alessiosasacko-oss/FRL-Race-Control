@@ -3,9 +3,12 @@ import type {
   PenaltyType,
   RaceSession,
   TicketAuditAction,
-  TicketPriority,
   TicketStatus,
 } from "@/domain";
+import type {
+  TicketEvidenceInput,
+  VideoUploadLimits,
+} from "@/lib/storage/evidence-types";
 
 export type FiaActionState = {
   status: "idle" | "success" | "error";
@@ -24,7 +27,6 @@ export type FiaTicketListParams = {
   seasonId?: number;
   raceId?: number;
   status?: TicketStatus;
-  priority?: TicketPriority;
   session?: RaceSession;
   page: number;
   pageSize: number;
@@ -58,10 +60,8 @@ export type FiaTicketListItem = {
   title: string;
   description: string;
   status: TicketStatus;
-  priority: TicketPriority;
   session: RaceSession;
   lap: number | null;
-  corner: string | null;
   createdAt: string;
   updatedAt: string;
   race: {
@@ -96,15 +96,17 @@ export type FiaListFilterOptions = {
 
 export type TicketWizardOptions = {
   leagues: Array<{ id: number; name: string; code: string }>;
-  seasons: Array<{ id: number; leagueId: number; name: string }>;
   races: Array<{
     id: number;
+    leagueId: number;
     seasonId: number;
+    seasonName: string;
     name: string;
-    circuit: string;
+    circuit: string | null;
     sessions: RaceSession[];
   }>;
   drivers: FiaDriverSummary[];
+  uploadLimits: VideoUploadLimits;
 };
 
 export type FiaTicketDetail = {
@@ -112,15 +114,18 @@ export type FiaTicketDetail = {
   title: string;
   description: string;
   status: TicketStatus;
-  priority: TicketPriority;
   session: RaceSession;
   lap: number | null;
-  corner: string | null;
   createdAt: string;
   updatedAt: string;
   league: { id: number; name: string; code: string };
   season: { id: number; name: string };
-  race: { id: number; name: string; circuit: string; round: number };
+  race: {
+    id: number;
+    name: string;
+    circuit: string | null;
+    round: number;
+  };
   reportedBy: {
     id: number;
     displayName: string;
@@ -130,8 +135,13 @@ export type FiaTicketDetail = {
   evidence: Array<{
     id: number;
     type: EvidenceType;
-    url: string;
+    url: string | null;
+    viewUrl: string | null;
     label: string;
+    storagePath: string | null;
+    originalFilename: string | null;
+    mimeType: string | null;
+    fileSize: number | null;
     createdAt: string;
     submittedBy: { id: number; displayName: string } | null;
   }>;
@@ -167,3 +177,5 @@ export type FiaTicketDetail = {
     actor: { id: number; displayName: string } | null;
   }>;
 };
+
+export type { TicketEvidenceInput };

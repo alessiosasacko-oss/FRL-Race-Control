@@ -1,8 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  raceSessionLabels,
-  ticketPriorityLabels,
-} from "@/domain";
+import { raceSessionLabels } from "@/domain";
 import type { FiaTicketDetail } from "@/lib/fia/types";
 
 type GeneralInfoCardProps = {
@@ -28,11 +25,6 @@ export default function GeneralInfoCard({
         <Info title="Rennen" value={ticket.race.name} />
         <Info title="Session" value={raceSessionLabels[ticket.session]} />
         <Info title="Runde" value={ticket.lap ?? "–"} />
-        <Info title="Kurve" value={ticket.corner ?? "–"} />
-        <Info
-          title="Priorität"
-          value={ticketPriorityLabels[ticket.priority]}
-        />
         <Info
           title="Gemeldet von"
           value={ticket.reportedBy?.displayName ?? "System"}

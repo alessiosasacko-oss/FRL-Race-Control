@@ -11,6 +11,7 @@ import {
   parseSportsListQuery,
 } from "@/lib/championship/queries";
 import { resultSessionInputSchema } from "@/lib/championship/schemas";
+import { getMasterDataFilterOptions } from "@/lib/master-data/queries";
 
 type ResultsAdminPageProps = {
   searchParams: Promise<
@@ -29,7 +30,10 @@ export default async function ResultsAdminPage({
     : rawParams.session;
   const session =
     resultSessionInputSchema.catch(ResultSession.Race).parse(rawSession);
-  const data = await getResultAdminData(query.raceId);
+  const [data, filterOptions] = await Promise.all([
+    getResultAdminData(query.raceId, query.leagueId),
+    getMasterDataFilterOptions(),
+  ]);
 
   return (
     <AppLayout>
@@ -46,8 +50,24 @@ export default async function ResultsAdminPage({
 
         <form
           action="/admin/results"
-          className="master-card grid gap-3 md:grid-cols-[1fr_220px_auto]"
+          className="master-card grid gap-3 md:grid-cols-[180px_1fr_220px_auto]"
         >
+          <label className="master-label">
+            Liga
+            <select
+              name="leagueId"
+              defaultValue={
+                data.selected?.race.season.league.id ?? ""
+              }
+              className="form-control mt-2"
+            >
+              {filterOptions.leagues.map((league) => (
+                <option key={league.id} value={league.id}>
+                  {league.code}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="master-label">
             Rennen
             <select

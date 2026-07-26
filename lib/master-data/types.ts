@@ -20,6 +20,7 @@ export type LeagueOption = {
 export type SeasonOption = {
   id: number;
   leagueId: number;
+  participatingLeagueIds: number[];
   name: string;
   active: boolean;
   archived: boolean;
@@ -83,6 +84,7 @@ export type SeasonAdminItem = {
   active: boolean;
   archived: boolean;
   league: LeagueOption;
+  participatingLeagues: LeagueOption[];
   counts: { races: number; teams: number };
 };
 
@@ -90,8 +92,8 @@ export type RaceItem = {
   id: number;
   seasonId: number;
   name: string;
-  circuit: string;
-  countryCode: string;
+  circuit: string | null;
+  countryCode: string | null;
   round: number;
   scheduledAt: string;
   localStart: string;
@@ -101,12 +103,13 @@ export type RaceItem = {
   sprint: boolean;
   doublePoints: boolean;
   mystery: boolean;
+  trackRevealed: boolean;
   attendanceDeadline: string | null;
   attendanceDeadlineLocal: string;
   season: {
     id: number;
     name: string;
-    league: LeagueOption;
+    leagues: LeagueOption[];
   };
   ticketCount: number;
 };

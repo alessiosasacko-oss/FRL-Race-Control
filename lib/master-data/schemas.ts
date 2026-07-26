@@ -57,29 +57,51 @@ export const timezoneSchema = z
     }
   }, "Ungültige IANA-Zeitzone.");
 
-export const raceSchema = z.object({
-  leagueId: entityId,
-  seasonId: entityId,
-  name,
-  circuit: name,
-  countryCode: countryCodeSchema,
-  round: z.coerce.number().int().positive().max(999),
-  localStart: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
-  attendanceDeadlineLocal: z.preprocess(
-    (value) => (value === "" || value === null ? null : value),
-    z
+export const raceSchema = z
+  .object({
+    seasonId: entityId,
+    name,
+    circuit: z.preprocess(
+      (value) => (value === "" || value === null ? null : value),
+      name.nullable(),
+    ),
+    countryCode: z.preprocess(
+      (value) => (value === "" || value === null ? null : value),
+      countryCodeSchema.nullable(),
+    ),
+    round: z.coerce.number().int().positive().max(999),
+    localStart: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
-      .nullable(),
-  ),
-  timezone: timezoneSchema,
-  status: raceStatusSchema.default(RaceStatus.Scheduled),
-  sprint: checkbox,
-  doublePoints: checkbox,
-  mystery: checkbox,
-});
+      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+    attendanceDeadlineLocal: z.preprocess(
+      (value) => (value === "" || value === null ? null : value),
+      z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
+        .nullable(),
+    ),
+    timezone: timezoneSchema,
+    status: raceStatusSchema.default(RaceStatus.Scheduled),
+    sprint: checkbox,
+    doublePoints: checkbox,
+    mystery: checkbox,
+  })
+  .superRefine((race, context) => {
+    if (!race.mystery && !race.circuit) {
+      context.addIssue({
+        code: "custom",
+        path: ["circuit"],
+        message: "Bitte eine Strecke angeben.",
+      });
+    }
+    if (!race.mystery && !race.countryCode) {
+      context.addIssue({
+        code: "custom",
+        path: ["countryCode"],
+        message: "Bitte einen Ländercode angeben.",
+      });
+    }
+  });
 
 export const driverSchema = z.object({
   name,

@@ -17,7 +17,6 @@ function pageHref(query: FiaTicketListParams, page: number): string {
   if (query.seasonId) params.set("seasonId", String(query.seasonId));
   if (query.raceId) params.set("raceId", String(query.raceId));
   if (query.status) params.set("status", query.status);
-  if (query.priority) params.set("priority", query.priority);
   if (query.session) params.set("session", query.session);
   params.set("sort", query.sort);
   params.set("direction", query.direction);

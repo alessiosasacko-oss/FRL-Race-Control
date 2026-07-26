@@ -32,8 +32,9 @@ Der Seed ist wiederholbar und verwendet die bestehenden Fixture-Daten für
 Ligen, Saisons, Teams, Fahrer, Rennen und FIA-Tickets. Das FIA-Race-Control-
 Modul liest und schreibt seine Tickets, Beweismetadaten, Diskussionen,
 Bewertungen, Entscheidungen, Audit-Einträge und Benachrichtigungen direkt über
-Prisma. Binärdateien werden noch nicht gespeichert; Beweise verweisen auf eine
-URL und speichern Typ sowie Bezeichnung.
+Prisma. Externe Beweislinks bleiben möglich. Hochgeladene Videos werden in
+einem privaten Supabase-Storage-Bucket gespeichert; PostgreSQL enthält nur die
+zugehörigen Metadaten.
 
 Weitere Datenbankbefehle:
 
@@ -69,6 +70,39 @@ mehreren Rollen zugeordnet werden.
 Geschützte Seiten liegen in `app/(protected)`. `proxy.ts` übernimmt die frühe
 Weiterleitung zur Anmeldung; der geschützte Layout- und Datenzugriff prüft die
 Sitzung zusätzlich serverseitig.
+
+## Private FIA-Video-Beweise mit Supabase Storage
+
+1. Im Supabase-Dashboard einen Bucket mit dem Namen aus
+   `SUPABASE_STORAGE_BUCKET` anlegen, beispielsweise `fia-evidence`.
+2. Den Bucket **privat** belassen. Als Bucket-Limits mindestens dieselben
+   erlaubten MIME-Typen und dieselbe maximale Dateigröße wie in der
+   Anwendung konfigurieren.
+3. `SUPABASE_URL` und `SUPABASE_SERVICE_ROLE_KEY` ausschließlich in der
+   Server-Umgebung setzen. Der Service-Role-Key darf niemals eine
+   `NEXT_PUBLIC_`-Variable sein oder an den Browser übertragen werden.
+4. Die konfigurierbaren Anwendungsgrenzen setzen:
+
+```dotenv
+SUPABASE_STORAGE_BUCKET="fia-evidence"
+FIA_EVIDENCE_MAX_FILE_SIZE_MB="100"
+FIA_EVIDENCE_MAX_FILES="3"
+FIA_EVIDENCE_ALLOWED_MIME_TYPES="video/mp4,video/quicktime,video/webm"
+FIA_EVIDENCE_SIGNED_URL_TTL_SECONDS="300"
+```
+
+Der Server authentifiziert und autorisiert jeden Upload, erstellt anschließend
+eine kurzlebige signierte Upload-URL und prüft nach der Übertragung Dateigröße,
+gespeicherten MIME-Typ und Binärsignatur. Ansichten laufen ebenfalls über eine
+autorisierte App-Route, die nur kurzlebige signierte Download-URLs ausstellt.
+Es gibt keine öffentlichen Objekt-URLs und keine direkte Browser-Verwendung
+des Service-Role-Keys.
+
+Abgebrochene, noch keinem Ticket zugeordnete Uploads werden über die App wieder
+entfernt. Das Löschen eines Beweises oder des zugehörigen Tickets erzeugt
+transaktional einen dauerhaften Storage-Cleanup-Auftrag. Die App versucht ihn
+direkt auszuführen; der tägliche Bereinigungsjob wiederholt fehlgeschlagene
+Löschungen.
 
 ## Benachrichtigungen und E-Mail
 

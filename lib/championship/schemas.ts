@@ -94,6 +94,7 @@ const resultRowSchema = z.object({
 
 export const resultSubmissionSchema = z
   .object({
+    leagueId: entityId,
     raceId: entityId,
     session: resultSessionSchema,
     allowArchived: z.boolean(),
@@ -161,12 +162,14 @@ export const resultSubmissionSchema = z
   });
 
 export const deleteResultSubmissionSchema = z.object({
+  leagueId: entityId,
   raceId: entityId,
   session: resultSessionSchema,
   confirmLockedEdit: z.boolean(),
 });
 
 export const scoringConfigurationInputSchema = z.object({
+  leagueId: entityId,
   seasonId: entityId,
   racePoints: z.string().trim().min(1).max(500),
   sprintPoints: z.string().trim().max(500),
@@ -187,6 +190,7 @@ export const scoringConfigurationInputSchema = z.object({
 export const championshipAdjustmentInputSchema = z
   .object({
     seasonId: entityId,
+    leagueId: entityId,
     target: z.enum(ChampionshipAdjustmentTarget),
     driverId: optionalEntityId,
     teamId: optionalEntityId,
@@ -219,6 +223,7 @@ export const championshipAdjustmentInputSchema = z
   });
 
 export const recalculationInputSchema = z.object({
+  leagueId: entityId,
   seasonId: entityId,
 });
 

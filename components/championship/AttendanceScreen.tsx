@@ -53,7 +53,6 @@ export default async function AttendanceScreen({
   const data = await getAttendancePageData(
     user.id,
     query,
-    adminMode,
   );
   const canManageAll = hasPermission(
     user.roles,

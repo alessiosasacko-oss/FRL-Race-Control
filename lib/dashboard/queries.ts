@@ -6,6 +6,7 @@ import {
 } from "@/domain";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { getRecentNotifications } from "@/lib/notifications/queries";
+import { publicRaceTrack } from "@/lib/races/visibility";
 import type { DashboardData } from "./types";
 
 export async function getDashboardData(
@@ -35,6 +36,7 @@ export async function getDashboardData(
     },
   });
   if (!user) throw new Error("USER_NOT_FOUND");
+  let leagueId = user.driver?.league.id ?? null;
 
   let seasonId =
     user.driver?.team?.seasonId ??
@@ -44,9 +46,10 @@ export async function getDashboardData(
     const league = await prisma.league.findFirst({
       where: { active: true, currentSeasonId: { not: null } },
       orderBy: { code: "asc" },
-      select: { currentSeasonId: true },
+      select: { id: true, currentSeasonId: true },
     });
     seasonId = league?.currentSeasonId ?? null;
+    leagueId = league?.id ?? null;
   }
 
   const nextRace = await prisma.race.findFirst({
@@ -89,9 +92,11 @@ export async function getDashboardData(
           select: { status: true, changedAt: true },
         })
       : null,
-    seasonId
+    seasonId && leagueId
       ? prisma.championship.findUnique({
-          where: { seasonId },
+          where: {
+            leagueId_seasonId: { leagueId, seasonId },
+          },
           include: {
             driverStandings: {
               orderBy: { position: "asc" },
@@ -119,6 +124,7 @@ export async function getDashboardData(
           where: {
             driverId,
             resultSession: {
+              leagueId: leagueId ?? undefined,
               session: "RACE",
               race: { seasonId },
             },
@@ -192,7 +198,10 @@ export async function getDashboardData(
       ? await prisma.driverStanding.findFirst({
           where: {
             driverId,
-            championship: { seasonId },
+            championship: {
+              seasonId,
+              leagueId: leagueId ?? undefined,
+            },
           },
         })
       : null;
@@ -201,14 +210,22 @@ export async function getDashboardData(
       ? await prisma.teamStanding.findFirst({
           where: {
             teamId,
-            championship: { seasonId },
+            championship: {
+              seasonId,
+              leagueId: leagueId ?? undefined,
+            },
           },
         })
       : null;
   const driverLeader =
     seasonId
       ? await prisma.driverStanding.findFirst({
-          where: { championship: { seasonId } },
+          where: {
+            championship: {
+              seasonId,
+              leagueId: leagueId ?? undefined,
+            },
+          },
           orderBy: { position: "asc" },
           select: { points: true },
         })
@@ -216,13 +233,17 @@ export async function getDashboardData(
   const teamLeader =
     seasonId
       ? await prisma.teamStanding.findFirst({
-          where: { championship: { seasonId } },
+          where: {
+            championship: {
+              seasonId,
+              leagueId: leagueId ?? undefined,
+            },
+          },
           orderBy: { position: "asc" },
           select: { points: true },
         })
       : null;
-  const revealMystery =
-    nextRace && (!nextRace.mystery || nextRace.status === "COMPLETED");
+  const publicTrack = nextRace ? publicRaceTrack(nextRace) : null;
   const deadlinePassed = Boolean(
     nextRace?.attendanceDeadline &&
       nextRace.attendanceDeadline <= new Date(),
@@ -259,10 +280,8 @@ export async function getDashboardData(
     nextRace: nextRace
       ? {
           id: nextRace.id,
-          name: revealMystery ? nextRace.name : "Mystery Race",
-          circuit: revealMystery
-            ? nextRace.circuit
-            : "Strecke wird später enthüllt",
+          name: publicTrack?.name ?? "Mystery Track",
+          circuit: publicTrack?.circuit ?? "Mystery Track",
           round: nextRace.round,
           scheduledAt: nextRace.scheduledAt.toISOString(),
           timezone: nextRace.timezone,

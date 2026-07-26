@@ -4,17 +4,17 @@ import {
   PenaltyType,
   RaceSession,
   TicketAuditAction,
-  TicketPriority,
   TicketStatus,
 } from "@/domain";
 import {
   Prisma,
-  TicketPriority as PrismaTicketPriority,
   TicketStatus as PrismaTicketStatus,
   RaceSession as PrismaRaceSession,
 } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { fiaTicketListParamsSchema } from "@/lib/fia/schemas";
+import { getVideoUploadLimits } from "@/lib/storage/evidence-config";
+import { publicRaceTrack } from "@/lib/races/visibility";
 import type {
   FiaListFilterOptions,
   FiaTicketDetail,
@@ -40,8 +40,25 @@ function buildTicketWhere(
     ? [
         { title: { contains: query.q, mode: "insensitive" } },
         { description: { contains: query.q, mode: "insensitive" } },
-        { corner: { contains: query.q, mode: "insensitive" } },
-        { race: { name: { contains: query.q, mode: "insensitive" } } },
+        {
+          race: {
+            AND: [
+              {
+                OR: [
+                  { mystery: false },
+                  {
+                    scheduledAt: {
+                      lte: new Date(Date.now() + 60 * 60 * 1000),
+                    },
+                  },
+                ],
+              },
+              {
+                name: { contains: query.q, mode: "insensitive" },
+              },
+            ],
+          },
+        },
         { league: { name: { contains: query.q, mode: "insensitive" } } },
         {
           drivers: {
@@ -82,7 +99,6 @@ function buildTicketWhere(
     seasonId: query.seasonId,
     raceId: query.raceId,
     status: query.status as PrismaTicketStatus | undefined,
-    priority: query.priority as PrismaTicketPriority | undefined,
     session: query.session as PrismaRaceSession | undefined,
     OR: searchConditions.length > 0 ? searchConditions : undefined,
   };
@@ -122,13 +138,20 @@ export async function getFiaTicketList(
       title: true,
       description: true,
       status: true,
-      priority: true,
       session: true,
       lap: true,
-      corner: true,
       createdAt: true,
       updatedAt: true,
-      race: { select: { id: true, name: true } },
+      race: {
+        select: {
+          id: true,
+          name: true,
+          circuit: true,
+          countryCode: true,
+          mystery: true,
+          scheduledAt: true,
+        },
+      },
       league: { select: { id: true, code: true } },
       drivers: {
         orderBy: { driver: { number: "asc" } },
@@ -162,26 +185,27 @@ export async function getFiaTicketList(
     },
   });
 
-  const items: FiaTicketListItem[] = rows.map((ticket) => ({
-    id: ticket.id,
-    title: ticket.title,
-    description: ticket.description,
-    status: ticket.status as TicketStatus,
-    priority: ticket.priority as TicketPriority,
-    session: ticket.session as RaceSession,
-    lap: ticket.lap,
-    corner: ticket.corner,
-    createdAt: ticket.createdAt.toISOString(),
-    updatedAt: ticket.updatedAt.toISOString(),
-    race: ticket.race,
-    league: ticket.league,
-    drivers: ticket.drivers.map(({ driver }) => driver),
-    counts: {
-      evidence: ticket._count.evidence,
-      discussionMessages: ticket._count.discussionMessages,
-      votes: ticket._count.votes,
-    },
-  }));
+  const items: FiaTicketListItem[] = rows.map((ticket) => {
+    const track = publicRaceTrack(ticket.race);
+    return {
+      id: ticket.id,
+      title: ticket.title,
+      description: ticket.description,
+      status: ticket.status as TicketStatus,
+      session: ticket.session as RaceSession,
+      lap: ticket.lap,
+      createdAt: ticket.createdAt.toISOString(),
+      updatedAt: ticket.updatedAt.toISOString(),
+      race: { id: ticket.race.id, name: track.name },
+      league: ticket.league,
+      drivers: ticket.drivers.map(({ driver }) => driver),
+      counts: {
+        evidence: ticket._count.evidence,
+        discussionMessages: ticket._count.discussionMessages,
+        votes: ticket._count.votes,
+      },
+    };
+  });
 
   return {
     items,
@@ -217,29 +241,12 @@ export async function getFiaListFilterOptions(): Promise<FiaListFilterOptions> {
     }),
     prisma.season.findMany({
       orderBy: [{ startsOn: "desc" }, { name: "asc" }],
-      select: { id: true, leagueId: true, name: true },
-    }),
-    prisma.race.findMany({
-      orderBy: [{ scheduledAt: "desc" }, { name: "asc" }],
-      select: { id: true, seasonId: true, name: true },
-    }),
-  ]);
-
-  return { leagues, seasons, races };
-}
-
-export async function getTicketWizardOptions(): Promise<TicketWizardOptions> {
-  const prisma = getPrismaClient();
-  const [leagues, seasons, races, drivers] = await prisma.$transaction([
-    prisma.league.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, code: true },
-    }),
-    prisma.season.findMany({
-      where: { active: true },
-      orderBy: [{ startsOn: "desc" }, { name: "asc" }],
-      select: { id: true, leagueId: true, name: true },
+      select: {
+        id: true,
+        leagueId: true,
+        name: true,
+        participatingLeagues: { select: { id: true } },
+      },
     }),
     prisma.race.findMany({
       orderBy: [{ scheduledAt: "desc" }, { name: "asc" }],
@@ -248,6 +255,61 @@ export async function getTicketWizardOptions(): Promise<TicketWizardOptions> {
         seasonId: true,
         name: true,
         circuit: true,
+        countryCode: true,
+        mystery: true,
+        scheduledAt: true,
+      },
+    }),
+  ]);
+
+  return {
+    leagues,
+    seasons: seasons.map((season) => ({
+      id: season.id,
+      leagueId: season.leagueId,
+      name: season.name,
+    })),
+    races: races.map((race) => ({
+      id: race.id,
+      seasonId: race.seasonId,
+      name: publicRaceTrack(race).name,
+    })),
+  };
+}
+
+export async function getTicketWizardOptions(): Promise<TicketWizardOptions> {
+  const prisma = getPrismaClient();
+  const [leagues, races, drivers] = await prisma.$transaction([
+    prisma.league.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, code: true },
+    }),
+    prisma.race.findMany({
+      where: {
+        season: {
+          active: true,
+          participatingLeagues: { some: { active: true } },
+        },
+      },
+      orderBy: [{ scheduledAt: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        seasonId: true,
+        season: {
+          select: {
+            name: true,
+            participatingLeagues: {
+              where: { active: true },
+              select: { id: true },
+            },
+          },
+        },
+        name: true,
+        circuit: true,
+        countryCode: true,
+        mystery: true,
+        scheduledAt: true,
         sessions: true,
       },
     }),
@@ -274,12 +336,20 @@ export async function getTicketWizardOptions(): Promise<TicketWizardOptions> {
 
   return {
     leagues,
-    seasons,
-    races: races.map((race) => ({
-      ...race,
-      sessions: race.sessions as RaceSession[],
-    })),
+    races: races.flatMap((race) => {
+      const track = publicRaceTrack(race);
+      return race.season.participatingLeagues.map((league) => ({
+        id: race.id,
+        leagueId: league.id,
+        seasonId: race.seasonId,
+        seasonName: race.season.name,
+        name: track.name,
+        circuit: track.circuit,
+        sessions: race.sessions as RaceSession[],
+      }));
+    }),
     drivers,
+    uploadLimits: getVideoUploadLimits(),
   };
 }
 
@@ -293,7 +363,15 @@ export async function getFiaTicketById(
       league: { select: { id: true, name: true, code: true } },
       season: { select: { id: true, name: true } },
       race: {
-        select: { id: true, name: true, circuit: true, round: true },
+        select: {
+          id: true,
+          name: true,
+          circuit: true,
+          countryCode: true,
+          mystery: true,
+          scheduledAt: true,
+          round: true,
+        },
       },
       reportedBy: {
         select: { id: true, displayName: true, avatarUrl: true },
@@ -361,27 +439,39 @@ export async function getFiaTicketById(
     return null;
   }
 
+  const track = publicRaceTrack(ticket.race);
+
   return {
     id: ticket.id,
     title: ticket.title,
     description: ticket.description,
     status: ticket.status as TicketStatus,
-    priority: ticket.priority as TicketPriority,
     session: ticket.session as RaceSession,
     lap: ticket.lap,
-    corner: ticket.corner,
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
     league: ticket.league,
     season: ticket.season,
-    race: ticket.race,
+    race: {
+      id: ticket.race.id,
+      name: track.name,
+      circuit: track.circuit,
+      round: ticket.race.round,
+    },
     reportedBy: ticket.reportedBy,
     drivers: ticket.drivers.map(({ driver }) => driver),
     evidence: ticket.evidence.map((evidence) => ({
       id: evidence.id,
       type: evidence.type as EvidenceType,
       url: evidence.url,
+      viewUrl: evidence.storagePath
+        ? `/api/fia/evidence/${evidence.id}`
+        : evidence.url,
       label: evidence.label,
+      storagePath: evidence.storagePath,
+      originalFilename: evidence.originalFilename,
+      mimeType: evidence.mimeType,
+      fileSize: evidence.fileSize,
       createdAt: evidence.createdAt.toISOString(),
       submittedBy: evidence.submittedBy,
     })),

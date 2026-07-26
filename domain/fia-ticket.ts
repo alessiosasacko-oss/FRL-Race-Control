@@ -8,22 +8,44 @@ import {
 import {
   evidenceTypeSchema,
   penaltyTypeSchema,
+  RaceSession,
   raceSessionSchema,
   ticketAuditActionSchema,
-  ticketPrioritySchema,
   ticketStatusSchema,
 } from "./enums";
+
+export const fiaRaceSessions = [
+  RaceSession.Qualifying,
+  RaceSession.Sprint,
+  RaceSession.Race,
+] as const;
+
+export const fiaRaceSessionSchema = z.enum(fiaRaceSessions);
 
 export const ticketEvidenceSchema = z
   .object({
     id: entityIdSchema,
     type: evidenceTypeSchema,
-    url: z.url(),
+    url: z.url().nullable(),
     label: titleSchema,
+    storagePath: z.string().trim().min(1).max(500).nullable(),
+    originalFilename: z.string().trim().min(1).max(255).nullable(),
+    mimeType: z.string().trim().min(1).max(120).nullable(),
+    fileSize: z.number().int().positive().nullable(),
     submittedByUserId: entityIdSchema.nullable(),
     createdAt: isoDateTimeSchema,
   })
-  .strict();
+  .strict()
+  .refine(
+    (evidence) =>
+      (evidence.url !== null && evidence.storagePath === null) ||
+      (evidence.url === null &&
+        evidence.storagePath !== null &&
+        evidence.originalFilename !== null &&
+        evidence.mimeType !== null &&
+        evidence.fileSize !== null),
+    "Evidence must be either an external URL or a complete stored file.",
+  );
 
 export const ticketDecisionSchema = z
   .object({
@@ -57,9 +79,7 @@ export const fiaTicketSchema = z
     raceId: entityIdSchema,
     session: raceSessionSchema,
     lap: z.number().int().positive().nullable(),
-    corner: z.string().trim().min(1).max(80).nullable(),
     status: ticketStatusSchema,
-    priority: ticketPrioritySchema,
     reportedByUserId: entityIdSchema.nullable(),
     involvedDriverIds: z.array(entityIdSchema).min(1),
     assignedStewardIds: z.array(entityIdSchema),

@@ -5,6 +5,7 @@ import {
 } from "@/domain";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { createNotifications } from "./service";
+import { publicRaceTrack } from "@/lib/races/visibility";
 
 export async function generateAttendanceNotifications(): Promise<void> {
   const prisma = getPrismaClient();
@@ -23,7 +24,7 @@ export async function generateAttendanceNotifications(): Promise<void> {
     include: {
       season: {
         include: {
-          league: {
+          participatingLeagues: {
             include: {
               drivers: {
                 where: {
@@ -41,90 +42,78 @@ export async function generateAttendanceNotifications(): Promise<void> {
 
   await prisma.$transaction(async (transaction) => {
     for (const race of races) {
-      const recipients = race.season.league.drivers
-        .filter((driver) => driver.team?.seasonId === race.seasonId)
-        .flatMap((driver) =>
-          driver.userId === null ? [] : [driver.userId],
-        );
-      if (recipients.length === 0 || !race.attendanceDeadline) continue;
+      const track = publicRaceTrack(race, now);
+      for (const league of race.season.participatingLeagues) {
+        const recipients = league.drivers
+          .filter((driver) => driver.team?.seasonId === race.seasonId)
+          .flatMap((driver) =>
+            driver.userId === null ? [] : [driver.userId],
+          );
+        if (recipients.length === 0 || !race.attendanceDeadline) continue;
 
-      const base = {
-        href: `/attendance?raceId=${race.id}`,
-        relatedEntity: { type: "Race", id: race.id },
-      };
-      if (race.attendanceDeadline > now) {
-        await createNotifications(
-          transaction,
-          recipients,
-          {
-            ...base,
-            type: NotificationType.AttendanceOpen,
-            title: `Rennanmeldung für Runde ${race.round} geöffnet`,
-            message: `Du kannst deine Teilnahme bis ${new Intl.DateTimeFormat(
-              "de-DE",
-              { dateStyle: "medium", timeStyle: "short" },
-            ).format(race.attendanceDeadline)} bestätigen.`,
-            dedupeKey: `attendance-open:${race.id}`,
+        const base = {
+          href: `/attendance?raceId=${race.id}&leagueId=${league.id}`,
+          relatedEntity: { type: "Race", id: race.id },
+        };
+        const context = {
+          leagueId: league.id,
+          discordContext: {
+            league: league.name,
+            season: race.season.name,
+            race: track.name,
+            track: track.circuit ?? "Mystery Track",
           },
-          {
-            leagueId: race.season.leagueId,
-            discordContext: {
-              league: race.season.league.name,
-              season: race.season.name,
-              race: race.mystery ? "Mystery Race" : race.name,
-              track: race.mystery ? "Noch geheim" : race.circuit,
+        };
+        if (race.attendanceDeadline > now) {
+          await createNotifications(
+            transaction,
+            recipients,
+            {
+              ...base,
+              type: NotificationType.AttendanceOpen,
+              title: `Rennanmeldung für Runde ${race.round} geöffnet`,
+              message: `Du kannst deine Teilnahme bis ${new Intl.DateTimeFormat(
+                "de-DE",
+                { dateStyle: "medium", timeStyle: "short" },
+              ).format(race.attendanceDeadline)} bestätigen.`,
+              dedupeKey: `attendance-open:${race.id}:${league.id}`,
             },
-          },
-        );
-      }
+            context,
+          );
+        }
 
-      if (
-        race.attendanceDeadline > now &&
-        race.attendanceDeadline <= inTwentyFourHours
-      ) {
-        await createNotifications(
-          transaction,
-          recipients,
-          {
-            ...base,
-            type: NotificationType.AttendanceClosingSoon,
-            priority: NotificationPriority.High,
-            title: `Anmeldeschluss für Runde ${race.round} naht`,
-            message: "Die Rennanmeldung schließt in weniger als 24 Stunden.",
-            dedupeKey: `attendance-closing:${race.id}`,
-          },
-          {
-            leagueId: race.season.leagueId,
-            discordContext: {
-              league: race.season.league.name,
-              season: race.season.name,
-              race: race.mystery ? "Mystery Race" : race.name,
-              track: race.mystery ? "Noch geheim" : race.circuit,
+        if (
+          race.attendanceDeadline > now &&
+          race.attendanceDeadline <= inTwentyFourHours
+        ) {
+          await createNotifications(
+            transaction,
+            recipients,
+            {
+              ...base,
+              type: NotificationType.AttendanceClosingSoon,
+              priority: NotificationPriority.High,
+              title: `Anmeldeschluss für Runde ${race.round} naht`,
+              message: "Die Rennanmeldung schließt in weniger als 24 Stunden.",
+              dedupeKey: `attendance-closing:${race.id}:${league.id}`,
             },
-          },
-        );
-      }
-      if (race.attendanceDeadline <= now) {
-        await createNotifications(
-          transaction,
-          recipients,
-          {
-            ...base,
-            type: NotificationType.AttendanceClosed,
-            title: `Rennanmeldung für Runde ${race.round} geschlossen`,
-            message: "Der reguläre Anmeldezeitraum ist beendet.",
-            dedupeKey: `attendance-closed:${race.id}`,
-          },
-          {
-            leagueId: race.season.leagueId,
-            discordContext: {
-              league: race.season.league.name,
-              season: race.season.name,
-              race: race.mystery ? "Mystery Race" : race.name,
-              track: race.mystery ? "Noch geheim" : race.circuit,
+            context,
+          );
+        }
+        if (race.attendanceDeadline <= now) {
+          await createNotifications(
+            transaction,
+            recipients,
+            {
+              ...base,
+              type: NotificationType.AttendanceClosed,
+              title: `Rennanmeldung für Runde ${race.round} geschlossen`,
+              message: "Der reguläre Anmeldezeitraum ist beendet.",
+              dedupeKey: `attendance-closed:${race.id}:${league.id}`,
             },
-          },
-        );
+            context,
+          );
+        }
       }
     }
   });

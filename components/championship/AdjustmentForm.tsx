@@ -11,6 +11,7 @@ import ActionMessage from "./ActionMessage";
 
 type AdjustmentFormProps = {
   seasonId: number;
+  leagueId: number;
   drivers: Array<{ id: number; name: string; number: number }>;
   teams: Array<{ id: number; name: string }>;
   races: Array<{ id: number; name: string; round: number }>;
@@ -19,6 +20,7 @@ type AdjustmentFormProps = {
 
 export default function AdjustmentForm({
   seasonId,
+  leagueId,
   drivers,
   teams,
   races,
@@ -35,6 +37,7 @@ export default function AdjustmentForm({
   return (
     <form action={action} className="space-y-5">
       <input type="hidden" name="seasonId" value={seasonId} />
+      <input type="hidden" name="leagueId" value={leagueId} />
       <div className="grid gap-4 md:grid-cols-2">
         <label className="master-label">
           Ziel

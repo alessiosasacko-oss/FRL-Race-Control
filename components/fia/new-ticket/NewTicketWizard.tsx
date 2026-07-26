@@ -3,10 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
-import {
-  RaceSession,
-  TicketPriority,
-} from "@/domain";
+import { RaceSession } from "@/domain";
 import { createFiaTicketAction } from "@/lib/fia/actions";
 import {
   initialFiaActionState,
@@ -20,23 +17,24 @@ import ReviewStep from "./ReviewStep";
 import StepSidebar from "./StepSidebar";
 import type { TicketWizardDraft } from "./wizard-types";
 
-const lastStep = 5;
+const lastStep = 4;
 
 function canContinue(step: number, data: TicketWizardDraft): boolean {
   switch (step) {
     case 1:
-      return Boolean(data.leagueId && data.seasonId && data.raceId);
+      return Boolean(
+        data.leagueId && data.raceId && data.driverIds.length > 0,
+      );
     case 2:
-      return data.driverIds.length > 0;
-    case 3:
       return (
         data.title.trim().length >= 3 &&
         data.description.trim().length >= 10
       );
-    case 4:
+    case 3:
       return data.evidence.every(
         (evidence) =>
-          evidence.label.trim() !== "" && evidence.url.trim() !== "",
+          evidence.kind === "upload" ||
+          (evidence.label.trim() !== "" && evidence.url.trim() !== ""),
       );
     default:
       return true;
@@ -58,15 +56,12 @@ export default function NewTicketWizard({
   );
   const [data, setData] = useState<TicketWizardDraft>({
     leagueId: "",
-    seasonId: "",
     raceId: "",
     session: RaceSession.Race,
     driverIds: [],
     title: "",
     description: "",
     lap: "",
-    corner: "",
-    priority: TicketPriority.Normal,
     evidence: [],
   });
 
@@ -89,18 +84,22 @@ export default function NewTicketWizard({
         <div className="min-w-0 flex-1">
           <div className="min-h-[34rem] p-5 sm:p-8">
             {step === 1 ? (
-              <GeneralStep data={data} options={options} setData={setData} />
+              <div className="space-y-10">
+                <GeneralStep data={data} options={options} setData={setData} />
+                <DriversStep data={data} options={options} setData={setData} />
+              </div>
             ) : null}
             {step === 2 ? (
-              <DriversStep data={data} options={options} setData={setData} />
-            ) : null}
-            {step === 3 ? (
               <IncidentStep data={data} setData={setData} />
             ) : null}
-            {step === 4 ? (
-              <EvidenceStep data={data} setData={setData} />
+            {step === 3 ? (
+              <EvidenceStep
+                data={data}
+                options={options}
+                setData={setData}
+              />
             ) : null}
-            {step === 5 ? (
+            {step === 4 ? (
               <ReviewStep data={data} options={options} />
             ) : null}
           </div>
@@ -108,14 +107,17 @@ export default function NewTicketWizard({
           <div className="flex flex-col-reverse gap-3 border-t border-slate-800 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
             <div>
               {step === 1 ? (
-                <Link href="/fia" className="wizard-secondary-button">
+                <Link
+                  href="/fia"
+                  className="wizard-secondary-button w-full justify-center sm:w-auto"
+                >
                   Abbrechen
                 </Link>
               ) : (
                 <button
                   type="button"
                   onClick={() => setStep((current) => current - 1)}
-                  className="wizard-secondary-button"
+                  className="wizard-secondary-button w-full justify-center sm:w-auto"
                 >
                   <ArrowLeft size={18} /> Zurück
                 </button>
@@ -127,14 +129,13 @@ export default function NewTicketWizard({
                 type="button"
                 onClick={goForward}
                 disabled={!canContinue(step, data)}
-                className="wizard-primary-button"
+                className="wizard-primary-button w-full justify-center sm:w-auto"
               >
                 Weiter <ArrowRight size={18} />
               </button>
             ) : (
               <form action={formAction}>
                 <input type="hidden" name="leagueId" value={data.leagueId} />
-                <input type="hidden" name="seasonId" value={data.seasonId} />
                 <input type="hidden" name="raceId" value={data.raceId} />
                 <input type="hidden" name="session" value={data.session} />
                 <input type="hidden" name="title" value={data.title} />
@@ -144,11 +145,10 @@ export default function NewTicketWizard({
                   value={data.description}
                 />
                 <input type="hidden" name="lap" value={data.lap} />
-                <input type="hidden" name="corner" value={data.corner} />
                 <input
                   type="hidden"
-                  name="priority"
-                  value={data.priority}
+                  name="evidence"
+                  value={JSON.stringify(data.evidence)}
                 />
                 {data.driverIds.map((driverId) => (
                   <input
@@ -157,25 +157,6 @@ export default function NewTicketWizard({
                     name="driverId"
                     value={driverId}
                   />
-                ))}
-                {data.evidence.map((evidence) => (
-                  <span key={evidence.key}>
-                    <input
-                      type="hidden"
-                      name="evidenceType"
-                      value={evidence.type}
-                    />
-                    <input
-                      type="hidden"
-                      name="evidenceUrl"
-                      value={evidence.url}
-                    />
-                    <input
-                      type="hidden"
-                      name="evidenceLabel"
-                      value={evidence.label}
-                    />
-                  </span>
                 ))}
                 <button
                   type="submit"

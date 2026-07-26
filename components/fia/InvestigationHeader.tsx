@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { FiaTicketDetail } from "@/lib/fia/types";
-import PriorityBadge from "./PriorityBadge";
 import StatusBadge from "./StatusBadge";
 
 type InvestigationHeaderProps = {
@@ -32,7 +31,6 @@ export default function InvestigationHeader({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <PriorityBadge priority={ticket.priority} />
           <StatusBadge status={ticket.status} />
         </div>
       </div>

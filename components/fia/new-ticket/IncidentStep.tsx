@@ -1,11 +1,7 @@
 "use client";
 
-import { AlertTriangle, ClipboardList } from "lucide-react";
-import {
-  RaceSession,
-  TicketPriority,
-  ticketPriorityLabels,
-} from "@/domain";
+import { ClipboardList } from "lucide-react";
+import { RaceSession } from "@/domain";
 import type { TicketWizardDraft } from "./wizard-types";
 
 type IncidentStepProps = {
@@ -45,65 +41,23 @@ export default function IncidentStep({
         />
       </label>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <label className="block text-sm font-medium text-slate-300">
-          Runde
-          <input
-            type="number"
-            min={1}
-            max={999}
-            value={data.lap}
-            onChange={(event) =>
-              setData((previous) => ({
-                ...previous,
-                lap: event.target.value,
-              }))
-            }
-            placeholder={data.session === RaceSession.Race ? "12" : "Optional"}
-            className="form-control mt-2"
-          />
-        </label>
-        <label className="block text-sm font-medium text-slate-300">
-          Kurve / Abschnitt
-          <input
-            value={data.corner}
-            onChange={(event) =>
-              setData((previous) => ({
-                ...previous,
-                corner: event.target.value,
-              }))
-            }
-            maxLength={80}
-            placeholder="Turn 4"
-            className="form-control mt-2"
-          />
-        </label>
-      </div>
-
-      <fieldset>
-        <legend className="mb-3 text-sm font-medium text-slate-300">
-          Priorität
-        </legend>
-        <div className="flex flex-wrap gap-3">
-          {Object.values(TicketPriority).map((priority) => (
-            <button
-              key={priority}
-              type="button"
-              onClick={() =>
-                setData((previous) => ({ ...previous, priority }))
-              }
-              className={`flex items-center gap-2 rounded-xl border px-5 py-3 font-medium transition ${
-                data.priority === priority
-                  ? "border-blue-500 bg-blue-600 text-white"
-                  : "border-slate-700 bg-slate-900 text-slate-300 hover:border-blue-500"
-              }`}
-            >
-              <AlertTriangle size={16} />
-              {ticketPriorityLabels[priority]}
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      <label className="block text-sm font-medium text-slate-300">
+        Runde
+        <input
+          type="number"
+          min={1}
+          max={999}
+          value={data.lap}
+          onChange={(event) =>
+            setData((previous) => ({
+              ...previous,
+              lap: event.target.value,
+            }))
+          }
+          placeholder={data.session === RaceSession.Race ? "12" : "Optional"}
+          className="form-control mt-2 min-h-12"
+        />
+      </label>
 
       <label className="block text-sm font-medium text-slate-300">
         Beschreibung

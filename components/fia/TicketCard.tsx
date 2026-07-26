@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   Flag,
-  MapPin,
   Clock3,
   MessageSquare,
   Paperclip,
@@ -10,7 +9,6 @@ import {
 } from "lucide-react";
 import { raceSessionLabels } from "@/domain";
 import type { FiaTicketListItem } from "@/lib/fia/types";
-import PriorityBadge from "./PriorityBadge";
 import StatusBadge from "./StatusBadge";
 
 type Props = {
@@ -82,16 +80,9 @@ export default function TicketCard({ ticket }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
-            <MapPin size={16} />
-            {ticket.corner ?? "Keine Kurve angegeben"}
-          </div>
-
-          <div className="flex items-center gap-2">
             <Clock3 size={16} />
             {updatedAt}
           </div>
-
-          <PriorityBadge priority={ticket.priority} />
 
           <div className="ml-auto flex items-center gap-3 text-xs text-slate-500">
             <span className="flex items-center gap-1">

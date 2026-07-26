@@ -20,6 +20,7 @@ import {
 } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { TicketStatus } from "@/domain";
+import { getVideoUploadLimits } from "@/lib/storage/evidence-config";
 
 type Props = {
   params: Promise<{
@@ -53,6 +54,7 @@ export default async function InvestigationPage({ params }: Props) {
   const isRelated =
     ticket.reportedBy?.id === user.id ||
     ticket.drivers.some((driver) => driver.userId === user.id);
+  const canViewEvidence = canReview || isRelated;
   const canAddEvidence =
     ticket.status !== TicketStatus.Resolved && (canReview || isRelated);
 
@@ -65,11 +67,19 @@ export default async function InvestigationPage({ params }: Props) {
           <div className="space-y-6 xl:col-span-2">
             <DescriptionCard ticket={ticket} />
             <DriversCard ticket={ticket} />
-            <EvidenceCard
-              ticketId={ticket.id}
-              evidence={ticket.evidence}
-              canAddEvidence={canAddEvidence}
-            />
+            {canViewEvidence ? (
+              <EvidenceCard
+                ticketId={ticket.id}
+                evidence={ticket.evidence}
+                canAddEvidence={canAddEvidence}
+                uploadLimits={getVideoUploadLimits()}
+              />
+            ) : (
+              <section className="rounded-2xl border border-slate-800 bg-[#151B24] p-6 text-sm text-slate-400">
+                Beweise sind nur für beteiligte Fahrer und das Race-Control-Team
+                sichtbar.
+              </section>
+            )}
             {canReview ? (
               <>
                 <DiscussionCard

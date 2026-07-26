@@ -15,12 +15,6 @@ export enum TicketStatus {
   Resolved = "RESOLVED",
 }
 
-export enum TicketPriority {
-  Low = "LOW",
-  Normal = "NORMAL",
-  High = "HIGH",
-}
-
 export enum PenaltyType {
   NoFurtherAction = "NO_FURTHER_ACTION",
   Warning = "WARNING",
@@ -203,6 +197,7 @@ export enum TicketAuditAction {
   Created = "CREATED",
   StatusChanged = "STATUS_CHANGED",
   EvidenceAdded = "EVIDENCE_ADDED",
+  EvidenceRemoved = "EVIDENCE_REMOVED",
   DiscussionMessageAdded = "DISCUSSION_MESSAGE_ADDED",
   VoteRecorded = "VOTE_RECORDED",
   DecisionPublished = "DECISION_PUBLISHED",
@@ -210,7 +205,6 @@ export enum TicketAuditAction {
 
 export const roleSchema = z.enum(Role);
 export const ticketStatusSchema = z.enum(TicketStatus);
-export const ticketPrioritySchema = z.enum(TicketPriority);
 export const penaltyTypeSchema = z.enum(PenaltyType);
 export const raceSessionSchema = z.enum(RaceSession);
 export const raceStatusSchema = z.enum(RaceStatus);

@@ -20,6 +20,8 @@ import {
 } from "@/lib/notifications/service";
 import { generateAttendanceNotifications } from "@/lib/notifications/scheduler";
 import { logger } from "@/lib/observability/logger";
+import { processEvidenceStorageCleanupQueue } from "@/lib/storage/evidence-cleanup";
+import { publicRaceTrack } from "@/lib/races/visibility";
 
 type JobDefinition = {
   type: AutomationJobType;
@@ -69,34 +71,44 @@ async function upcomingRaceReminders() {
       scheduledAt: { gt: now, lte: until },
     },
     include: {
-      season: { include: { league: true } },
+      season: {
+        include: {
+          participatingLeagues: {
+            where: { active: true },
+            orderBy: { code: "asc" },
+          },
+        },
+      },
     },
   });
 
   for (const race of races) {
-    const recipients = await leagueUserIds(prisma, race.season.leagueId);
-    await createNotifications(
-      prisma,
-      recipients,
-      {
-        type: NotificationType.RaceReminder,
-        priority: NotificationPriority.High,
-        title: `${race.season.league.name}: Rennwochenende`,
-        message: `${race.name} auf ${race.circuit} startet am ${new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: race.timezone }).format(race.scheduledAt)}.`,
-        href: `/calendar?raceId=${race.id}`,
-        relatedEntity: { type: "Race", id: race.id },
-        dedupeKey: `race-weekend:${race.id}`,
-      },
-      {
-        leagueId: race.season.leagueId,
-        discordContext: {
-          league: race.season.league.name,
-          season: race.season.name,
-          race: race.name,
-          track: race.mystery ? "Mystery Race" : race.circuit,
+    const track = publicRaceTrack(race, now);
+    for (const league of race.season.participatingLeagues) {
+      const recipients = await leagueUserIds(prisma, league.id);
+      await createNotifications(
+        prisma,
+        recipients,
+        {
+          type: NotificationType.RaceReminder,
+          priority: NotificationPriority.High,
+          title: `${league.name}: Rennwochenende`,
+          message: `${track.name}${track.circuit ? ` auf ${track.circuit}` : ""} startet am ${new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: race.timezone }).format(race.scheduledAt)}.`,
+          href: `/calendar?raceId=${race.id}&leagueId=${league.id}`,
+          relatedEntity: { type: "Race", id: race.id },
+          dedupeKey: `race-weekend:${race.id}:${league.id}`,
         },
-      },
-    );
+        {
+          leagueId: league.id,
+          discordContext: {
+            league: league.name,
+            season: race.season.name,
+            race: track.name,
+            track: track.circuit ?? "Mystery Track",
+          },
+        },
+      );
+    }
   }
   return { races: races.length };
 }
@@ -142,56 +154,63 @@ async function cleanupNotifications() {
       where: { status: "PROCESSED", processedAt: { lt: eventCutoff } },
     }),
   ]);
+  const evidenceStorage = await processEvidenceStorageCleanupQueue();
   return {
     deletedNotifications: notifications.count,
     deletedWebhookEvents: webhooks.count,
+    deletedEvidenceFiles: evidenceStorage.processed,
+    failedEvidenceFileDeletions: evidenceStorage.failed,
   };
 }
 
 async function publishMysteryRaces() {
   const prisma = getPrismaClient();
-  const cutoff = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  const cutoff = new Date(Date.now() + 60 * 60 * 1000);
   const races = await prisma.race.findMany({
     where: {
       mystery: true,
       status: "SCHEDULED",
       scheduledAt: { lte: cutoff },
+      circuit: { not: null },
+      countryCode: { not: null },
     },
-    include: { season: { include: { league: true } } },
+    include: {
+      season: {
+        include: {
+          participatingLeagues: {
+            where: { active: true },
+            orderBy: { code: "asc" },
+          },
+        },
+      },
+    },
   });
   for (const race of races) {
-    await prisma.$transaction(async (transaction) => {
-      await transaction.race.update({
-        where: { id: race.id },
-        data: { mystery: false },
-      });
-      const recipients = await leagueUserIds(
-        transaction,
-        race.season.leagueId,
-      );
+    for (const league of race.season.participatingLeagues) {
+      const recipients = await leagueUserIds(prisma, league.id);
       await createNotifications(
-        transaction,
+        prisma,
         recipients,
         {
           type: NotificationType.NewRace,
           priority: NotificationPriority.High,
-          title: `Mystery Race enthüllt: ${race.name}`,
+          title: `Mystery Track enthüllt: ${race.name}`,
           message: `Gefahren wird auf ${race.circuit}.`,
           href: `/calendar?raceId=${race.id}`,
           relatedEntity: { type: "Race", id: race.id },
-          dedupeKey: `mystery-published:${race.id}`,
+          dedupeKey: `mystery-published:${race.id}:${league.id}`,
         },
         {
-          leagueId: race.season.leagueId,
+          leagueId: league.id,
           discordContext: {
-            league: race.season.league.name,
+            league: league.name,
             season: race.season.name,
             race: race.name,
             track: race.circuit,
           },
         },
       );
-    });
+    }
   }
   return { published: races.length };
 }

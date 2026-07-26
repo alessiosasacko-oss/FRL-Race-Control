@@ -13,6 +13,7 @@ import { entityIdSchema } from "@/lib/master-data/schemas";
 
 type ResultPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function duration(value: number | null): string {
@@ -23,12 +24,22 @@ function duration(value: number | null): string {
   return `${minutes}:${(seconds % 60).toFixed(3).padStart(6, "0")}`;
 }
 
-export default async function ResultPage({ params }: ResultPageProps) {
+export default async function ResultPage({
+  params,
+  searchParams,
+}: ResultPageProps) {
   await requirePermission(Permission.ViewChampionship);
   const parsedId = entityIdSchema.safeParse((await params).id);
   if (!parsedId.success) notFound();
 
-  const data = await getRaceResults(parsedId.data);
+  const rawLeagueId = (await searchParams).leagueId;
+  const parsedLeagueId = entityIdSchema.safeParse(
+    Array.isArray(rawLeagueId) ? rawLeagueId[0] : rawLeagueId,
+  );
+  const data = await getRaceResults(
+    parsedId.data,
+    parsedLeagueId.success ? parsedLeagueId.data : undefined,
+  );
   if (!data) notFound();
 
   return (
@@ -52,12 +63,15 @@ export default async function ResultPage({ params }: ResultPageProps) {
             {data.race.name}
           </h1>
           <p className="mt-2 text-slate-400">
-            {data.race.circuit} · {data.race.countryCode}
+            {data.race.circuit}
+            {data.race.countryCode !== "–"
+              ? ` · ${data.race.countryCode}`
+              : ""}
           </p>
           {!data.race.revealMystery ? (
             <p className="mt-4 rounded-xl bg-amber-500/10 p-4 text-sm text-amber-200">
-              Details dieses Mystery Race bleiben bis zum Abschluss
-              verborgen.
+              Details dieses Mystery Tracks bleiben bis eine Stunde vor
+              Rennstart verborgen.
             </p>
           ) : null}
         </section>

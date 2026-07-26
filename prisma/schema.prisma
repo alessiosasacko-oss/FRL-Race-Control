@@ -22,12 +22,6 @@ enum TicketStatus {
   RESOLVED
 }
 
-enum TicketPriority {
-  LOW
-  NORMAL
-  HIGH
-}
-
 enum PenaltyType {
   NO_FURTHER_ACTION
   WARNING
@@ -213,6 +207,7 @@ enum TicketAuditAction {
   DISCUSSION_MESSAGE_ADDED
   VOTE_RECORDED
   DECISION_PUBLISHED
+  EVIDENCE_REMOVED
 }
 
 model User {
@@ -339,31 +334,38 @@ model Team {
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 
-  @@unique([seasonId, name])
-  @@unique([seasonId, shortName])
+  @@unique([leagueId, seasonId, name])
+  @@unique([leagueId, seasonId, shortName])
   @@index([leagueId, seasonId, active])
   @@index([principalUserId])
 }
 
 model League {
-  id              Int         @id @default(autoincrement())
-  currentSeasonId Int?        @unique
-  name            String      @db.VarChar(160)
-  code            String      @unique @db.VarChar(12)
-  description     String?     @db.Text
-  active          Boolean     @default(true)
-  currentSeason   Season?     @relation("CurrentSeason", fields: [currentSeasonId], references: [id], onDelete: SetNull)
-  seasons         Season[]    @relation("LeagueSeasons")
-  teams           Team[]
-  drivers         Driver[]
-  tickets         FiaTicket[]
-  discordChannels DiscordChannelMapping[]
-  discordDeliveries DiscordDelivery[]
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id                      Int                      @id @default(autoincrement())
+  currentSeasonId         Int?
+  name                    String                   @db.VarChar(160)
+  code                    String                   @unique @db.VarChar(12)
+  description             String?                  @db.Text
+  active                  Boolean                  @default(true)
+  currentSeason           Season?                  @relation("CurrentSeason", fields: [currentSeasonId], references: [id], onDelete: SetNull)
+  seasons                 Season[]                 @relation("LeagueSeasons")
+  calendarSeasons         Season[]                 @relation("SeasonParticipation")
+  teams                   Team[]
+  drivers                 Driver[]
+  championships           Championship[]
+  scoringConfigurations   ScoringConfiguration[]
+  resultSessions          RaceResultSession[]
+  championshipAdjustments ChampionshipAdjustment[]
+  championshipAudits      ChampionshipAudit[]
+  tickets                 FiaTicket[]
+  discordChannels         DiscordChannelMapping[]
+  discordDeliveries       DiscordDelivery[]
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
 
   @@index([active])
   @@index([name])
+  @@index([currentSeasonId])
 }
 
 model Season {
@@ -375,11 +377,12 @@ model Season {
   active                  Boolean                  @default(true)
   archivedAt              DateTime?
   league                  League                   @relation("LeagueSeasons", fields: [leagueId], references: [id], onDelete: Restrict)
+  participatingLeagues    League[]                 @relation("SeasonParticipation")
   currentForLeagues       League[]                 @relation("CurrentSeason")
   races                   Race[]
   teams                   Team[]
-  championship            Championship?
-  scoringConfiguration    ScoringConfiguration?
+  championships           Championship[]
+  scoringConfigurations   ScoringConfiguration[]
   championshipAdjustments ChampionshipAdjustment[]
   championshipAudits      ChampionshipAudit[]
   tickets                 FiaTicket[]
@@ -396,8 +399,8 @@ model Race {
   id                      Int                      @id @default(autoincrement())
   seasonId                Int
   name                    String                   @db.VarChar(160)
-  circuit                 String                   @db.VarChar(160)
-  countryCode             String                   @db.Char(2)
+  circuit                 String?                  @db.VarChar(160)
+  countryCode             String?                  @db.Char(2)
   round                   Int
   scheduledAt             DateTime
   timezone                String                   @default("Europe/Berlin") @db.VarChar(64)
@@ -424,14 +427,19 @@ model Race {
 
 model Championship {
   id              Int              @id @default(autoincrement())
-  seasonId        Int              @unique
+  leagueId        Int
+  seasonId        Int
   name            String           @db.VarChar(160)
+  league          League           @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   season          Season           @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   driverStandings DriverStanding[]
   teamStandings   TeamStanding[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
+  @@unique([leagueId, seasonId])
+  @@index([seasonId])
+  @@index([leagueId])
   @@index([name])
 }
 
@@ -520,15 +528,18 @@ model RaceAttendance {
 model RaceResultSession {
   id        Int           @id @default(autoincrement())
   raceId    Int
+  leagueId  Int
   session   ResultSession
   lockedAt  DateTime?
   race      Race          @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  league    League        @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   results   RaceResult[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  @@unique([raceId, session])
+  @@unique([raceId, leagueId, session])
   @@index([raceId, lockedAt])
+  @@index([leagueId, raceId])
 }
 
 model RaceResult {
@@ -569,7 +580,8 @@ model RaceResult {
 
 model ScoringConfiguration {
   id                            Int               @id @default(autoincrement())
-  seasonId                      Int               @unique
+  leagueId                      Int
+  seasonId                      Int
   fastestLapPoint               Float             @default(1)
   fastestLapRequiresTopPosition Int?
   polePositionPoint             Float             @default(0)
@@ -579,12 +591,15 @@ model ScoringConfiguration {
   teamPointsEnabled             Boolean           @default(true)
   substituteDriverPointsEnabled Boolean           @default(true)
   deductPenaltyPoints           Boolean           @default(false)
+  league                        League            @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   season                        Season            @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   positions                     ScoringPosition[]
   createdAt                     DateTime          @default(now())
   updatedAt                     DateTime          @updatedAt
 
+  @@unique([leagueId, seasonId])
   @@index([seasonId, updatedAt])
+  @@index([leagueId, updatedAt])
 }
 
 model ScoringPosition {
@@ -603,6 +618,7 @@ model ScoringPosition {
 
 model ChampionshipAdjustment {
   id          Int                          @id @default(autoincrement())
+  leagueId    Int
   seasonId    Int
   target      ChampionshipAdjustmentTarget
   driverId    Int?
@@ -612,6 +628,7 @@ model ChampionshipAdjustment {
   actorId     Int
   raceId      Int?
   fiaTicketId Int?
+  league      League                       @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   season      Season                       @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   driver      Driver?                      @relation(fields: [driverId], references: [id], onDelete: Restrict)
   team        Team?                        @relation(fields: [teamId], references: [id], onDelete: Restrict)
@@ -620,6 +637,7 @@ model ChampionshipAdjustment {
   fiaTicket   FiaTicket?                   @relation(fields: [fiaTicketId], references: [id], onDelete: Restrict)
   createdAt   DateTime                     @default(now())
 
+  @@index([leagueId, seasonId, createdAt])
   @@index([seasonId, createdAt])
   @@index([driverId, createdAt])
   @@index([teamId, createdAt])
@@ -630,6 +648,7 @@ model ChampionshipAdjustment {
 
 model ChampionshipAudit {
   id            Int                     @id @default(autoincrement())
+  leagueId      Int?
   seasonId      Int?
   raceId        Int?
   actorId       Int?
@@ -638,11 +657,13 @@ model ChampionshipAudit {
   entityId      Int
   previousState Json?
   newState      Json?
+  league        League?                 @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   season        Season?                 @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   race          Race?                   @relation(fields: [raceId], references: [id], onDelete: Restrict)
   actor         User?                   @relation(fields: [actorId], references: [id], onDelete: SetNull)
   createdAt     DateTime                @default(now())
 
+  @@index([leagueId, seasonId, createdAt])
   @@index([seasonId, createdAt])
   @@index([raceId, createdAt])
   @@index([actorId, createdAt])
@@ -662,7 +683,6 @@ model FiaTicket {
   lap                     Int?
   corner                  String?                  @db.VarChar(80)
   status                  TicketStatus             @default(OPEN)
-  priority                TicketPriority           @default(NORMAL)
   league                  League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   season                  Season                   @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   race                    Race                     @relation(fields: [raceId], references: [id], onDelete: Restrict)
@@ -681,7 +701,7 @@ model FiaTicket {
   @@index([leagueId, status])
   @@index([seasonId, status])
   @@index([raceId, status])
-  @@index([status, priority, createdAt])
+  @@index([status, createdAt])
   @@index([reportedByUserId])
 }
 
@@ -734,8 +754,12 @@ model Evidence {
   ticketId          Int
   submittedByUserId Int?
   type              EvidenceType
-  url               String       @db.Text
+  url               String?      @db.Text
   label             String       @db.VarChar(160)
+  storagePath       String?      @unique @db.VarChar(500)
+  originalFilename  String?      @db.VarChar(255)
+  mimeType          String?      @db.VarChar(120)
+  fileSize          Int?
   ticket            FiaTicket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   submittedBy       User?        @relation("EvidenceSubmitter", fields: [submittedByUserId], references: [id], onDelete: SetNull)
   createdAt         DateTime     @default(now())
@@ -744,6 +768,17 @@ model Evidence {
   @@unique([ticketId, url])
   @@index([submittedByUserId])
   @@index([ticketId, type])
+}
+
+model EvidenceStorageCleanup {
+  id          Int      @id @default(autoincrement())
+  storagePath String   @unique @db.VarChar(500)
+  attempts    Int      @default(0)
+  lastError   String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdAt])
 }
 
 model DiscussionMessage {
@@ -872,38 +907,38 @@ model EmailDelivery {
 }
 
 model DiscordGuildSettings {
-  id               Int                     @id @default(autoincrement())
-  guildId          String                  @unique @db.VarChar(32)
-  guildName        String                  @db.VarChar(160)
-  enabled          Boolean                 @default(true)
-  botUserId        String?                 @db.VarChar(32)
-  botUsername      String?                 @db.VarChar(64)
-  lastConnectedAt  DateTime?
-  lastHeartbeatAt  DateTime?
-  lastError        String?                 @db.Text
-  channelMappings  DiscordChannelMapping[]
-  roleMappings     DiscordRoleMapping[]
-  deliveries       DiscordDelivery[]
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
+  id              Int                     @id @default(autoincrement())
+  guildId         String                  @unique @db.VarChar(32)
+  guildName       String                  @db.VarChar(160)
+  enabled         Boolean                 @default(true)
+  botUserId       String?                 @db.VarChar(32)
+  botUsername     String?                 @db.VarChar(64)
+  lastConnectedAt DateTime?
+  lastHeartbeatAt DateTime?
+  lastError       String?                 @db.Text
+  channelMappings DiscordChannelMapping[]
+  roleMappings    DiscordRoleMapping[]
+  deliveries      DiscordDelivery[]
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
 
   @@index([enabled])
   @@index([lastHeartbeatAt])
 }
 
 model DiscordChannelMapping {
-  id              Int                       @id @default(autoincrement())
+  id              Int                   @id @default(autoincrement())
   guildSettingsId Int
   leagueId        Int?
-  scopeKey        String                    @db.VarChar(64)
+  scopeKey        String                @db.VarChar(64)
   purpose         DiscordChannelPurpose
-  channelId       String                    @db.VarChar(32)
-  channelName     String?                   @db.VarChar(160)
-  enabled         Boolean                   @default(true)
-  guildSettings   DiscordGuildSettings      @relation(fields: [guildSettingsId], references: [id], onDelete: Cascade)
-  league          League?                   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
+  channelId       String                @db.VarChar(32)
+  channelName     String?               @db.VarChar(160)
+  enabled         Boolean               @default(true)
+  guildSettings   DiscordGuildSettings  @relation(fields: [guildSettingsId], references: [id], onDelete: Cascade)
+  league          League?               @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   @@unique([guildSettingsId, scopeKey, purpose])
   @@index([leagueId, purpose, enabled])
@@ -926,25 +961,25 @@ model DiscordRoleMapping {
 }
 
 model DiscordDelivery {
-  id              Int                       @id @default(autoincrement())
-  guildSettingsId Int
-  leagueId        Int?
-  announcementId  Int?
-  purpose         DiscordChannelPurpose
-  status          DiscordDeliveryStatus     @default(PENDING)
-  payload         Json
-  dedupeKey       String                    @unique @db.VarChar(190)
-  channelId       String?                   @db.VarChar(32)
-  discordMessageId String?                  @db.VarChar(32)
-  attempts        Int                       @default(0)
-  scheduledFor    DateTime                  @default(now())
-  sentAt          DateTime?
-  lastError       String?                   @db.Text
-  guildSettings   DiscordGuildSettings      @relation(fields: [guildSettingsId], references: [id], onDelete: Cascade)
-  league          League?                   @relation(fields: [leagueId], references: [id], onDelete: SetNull)
-  announcement    Announcement?             @relation(fields: [announcementId], references: [id], onDelete: SetNull)
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
+  id               Int                   @id @default(autoincrement())
+  guildSettingsId  Int
+  leagueId         Int?
+  announcementId   Int?
+  purpose          DiscordChannelPurpose
+  status           DiscordDeliveryStatus @default(PENDING)
+  payload          Json
+  dedupeKey        String                @unique @db.VarChar(190)
+  channelId        String?               @db.VarChar(32)
+  discordMessageId String?               @db.VarChar(32)
+  attempts         Int                   @default(0)
+  scheduledFor     DateTime              @default(now())
+  sentAt           DateTime?
+  lastError        String?               @db.Text
+  guildSettings    DiscordGuildSettings  @relation(fields: [guildSettingsId], references: [id], onDelete: Cascade)
+  league           League?               @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  announcement     Announcement?         @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   @@index([status, scheduledFor])
   @@index([guildSettingsId, purpose, createdAt])
@@ -953,22 +988,22 @@ model DiscordDelivery {
 }
 
 model Announcement {
-  id              Int                @id @default(autoincrement())
-  createdByUserId Int
-  title           String             @db.VarChar(160)
-  content         String             @db.Text
-  href            String?            @db.VarChar(500)
-  priority        NotificationPriority @default(NORMAL)
-  target          AnnouncementTarget
-  status          AnnouncementStatus @default(SCHEDULED)
-  pinned          Boolean            @default(false)
-  scheduledFor    DateTime           @default(now())
-  publishedAt     DateTime?
-  lastError       String?            @db.Text
-  createdBy       User               @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  id                Int                  @id @default(autoincrement())
+  createdByUserId   Int
+  title             String               @db.VarChar(160)
+  content           String               @db.Text
+  href              String?              @db.VarChar(500)
+  priority          NotificationPriority @default(NORMAL)
+  target            AnnouncementTarget
+  status            AnnouncementStatus   @default(SCHEDULED)
+  pinned            Boolean              @default(false)
+  scheduledFor      DateTime             @default(now())
+  publishedAt       DateTime?
+  lastError         String?              @db.Text
+  createdBy         User                 @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
   discordDeliveries DiscordDelivery[]
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   @@index([status, scheduledFor])
   @@index([pinned, publishedAt])
@@ -997,17 +1032,17 @@ model AutomationJob {
 }
 
 model AutomationJobRun {
-  id             Int                 @id @default(autoincrement())
-  jobId          Int
-  retryActorId   Int?
-  status         AutomationJobStatus @default(RUNNING)
-  startedAt      DateTime            @default(now())
-  finishedAt     DateTime?
-  result         Json?
-  error          String?             @db.Text
-  job            AutomationJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  retryActor     User?               @relation("AutomationRunRetryActor", fields: [retryActorId], references: [id], onDelete: SetNull)
-  createdAt      DateTime            @default(now())
+  id           Int                 @id @default(autoincrement())
+  jobId        Int
+  retryActorId Int?
+  status       AutomationJobStatus @default(RUNNING)
+  startedAt    DateTime            @default(now())
+  finishedAt   DateTime?
+  result       Json?
+  error        String?             @db.Text
+  job          AutomationJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  retryActor   User?               @relation("AutomationRunRetryActor", fields: [retryActorId], references: [id], onDelete: SetNull)
+  createdAt    DateTime            @default(now())
 
   @@index([jobId, startedAt])
   @@index([status, startedAt])
@@ -1015,17 +1050,17 @@ model AutomationJobRun {
 }
 
 model WebhookEvent {
-  id            Int                @id @default(autoincrement())
-  type          WebhookEventType
-  source        String             @db.VarChar(80)
-  status        WebhookEventStatus @default(PENDING)
-  dedupeKey     String             @unique @db.VarChar(190)
-  payload       Json
-  attempts      Int                @default(0)
-  processedAt   DateTime?
-  lastError     String?            @db.Text
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id          Int                @id @default(autoincrement())
+  type        WebhookEventType
+  source      String             @db.VarChar(80)
+  status      WebhookEventStatus @default(PENDING)
+  dedupeKey   String             @unique @db.VarChar(190)
+  payload     Json
+  attempts    Int                @default(0)
+  processedAt DateTime?
+  lastError   String?            @db.Text
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
   @@index([status, createdAt])
   @@index([type, createdAt])
