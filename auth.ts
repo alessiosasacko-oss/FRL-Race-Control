@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Discord from "next-auth/providers/discord";
 import { z } from "zod";
 import { canonicalPrismaAdapter } from "@/lib/auth/adapter";
+import { authLogger } from "@/lib/auth/logging";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { logger } from "@/lib/observability/logger";
 
@@ -14,6 +15,7 @@ const discordProfileSchema = z.object({
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
   adapter: canonicalPrismaAdapter(),
+  logger: authLogger,
   providers: [Discord],
   session: {
     strategy: "database",

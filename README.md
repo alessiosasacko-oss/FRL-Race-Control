@@ -15,7 +15,10 @@ Die Anwendung ist anschließend unter [http://localhost:3000](http://localhost:3
 ## Lokale PostgreSQL-Datenbank
 
 Voraussetzungen sind eine lokale PostgreSQL-Instanz und eine leere Datenbank.
-Die Anwendung liest die Verbindung ausschließlich aus `DATABASE_URL`.
+Die Anwendung liest die Laufzeitverbindung aus `DATABASE_URL`. Wenn
+`DIRECT_URL` gesetzt ist, verwendet Prisma CLI diese direkte Verbindung für
+Migrationen; andernfalls wird ebenfalls `DATABASE_URL` verwendet. `.env.local`
+wird vor `.env` geladen.
 
 1. `.env.example` als `.env` kopieren.
 2. Benutzername, Passwort, Host, Port und Datenbankname in `DATABASE_URL`
@@ -66,6 +69,11 @@ Auth.js speichert Sitzungen in PostgreSQL. Der Browser erhält nur das
 zufällige, HTTP-only Session-Token. Neue Discord-Benutzer werden als
 `DRIVER` angelegt und können anschließend über die Datenbank einer oder
 mehreren Rollen zugeordnet werden.
+
+Nach einer Änderung von `AUTH_SECRET`, `AUTH_URL` oder der Session-Datenbank
+kann ein altes localhost-Session-Cookie ungültig sein. In diesem Fall die
+Cookies für `localhost` im Browser manuell löschen und erneut über Discord
+anmelden. Die Anwendung löscht Auth-Cookies nicht automatisch.
 
 Geschützte Seiten liegen in `app/(protected)`. `proxy.ts` übernimmt die frühe
 Weiterleitung zur Anmeldung; der geschützte Layout- und Datenzugriff prüft die
