@@ -125,7 +125,7 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
 
 export async function getMasterDataFilterOptions(): Promise<MasterDataFilterOptions> {
   const prisma = getPrismaClient();
-  const [leagues, seasons] = await prisma.$transaction([
+  const [leagues, seasons] = await Promise.all([
     prisma.league.findMany({
       where: { active: true },
       orderBy: { code: "asc" },

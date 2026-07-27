@@ -32,7 +32,7 @@ export default async function ResultsAdminPage({
     : rawParams.session;
   const session =
     resultSessionInputSchema.catch(ResultSession.Race).parse(rawSession);
-  const [data, filterOptions] = await Promise.all([
+  const [dataResult, filterOptionsResult] = await Promise.allSettled([
     getResultAdminData(
       query.raceId,
       query.leagueId,
@@ -40,6 +40,20 @@ export default async function ResultsAdminPage({
     ),
     getMasterDataFilterOptions(),
   ]);
+  if (dataResult.status === "rejected") {
+    throw dataResult.reason;
+  }
+  if (filterOptionsResult.status === "rejected") {
+    console.error(
+      "[results] Unable to load filter options.",
+      filterOptionsResult.reason,
+    );
+  }
+  const data = dataResult.value;
+  const filterOptions =
+    filterOptionsResult.status === "fulfilled"
+      ? filterOptionsResult.value
+      : { leagues: [], seasons: [] };
 
   return (
     <AppLayout>

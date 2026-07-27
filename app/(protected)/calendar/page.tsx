@@ -45,10 +45,25 @@ export default async function CalendarPage({
 }: CalendarPageProps) {
   const user = await requirePermission(Permission.ViewMasterData);
   const query = parseMasterDataListQuery(await searchParams);
-  const [races, options] = await Promise.all([
+  const [racesResult, optionsResult] = await Promise.allSettled([
     getRaceItems(query),
     getMasterDataFilterOptions(),
   ]);
+  if (racesResult.status === "rejected") {
+    console.error("[calendar] Unable to load race list.", racesResult.reason);
+  }
+  if (optionsResult.status === "rejected") {
+    console.error(
+      "[calendar] Unable to load filter options.",
+      optionsResult.reason,
+    );
+  }
+  const races =
+    racesResult.status === "fulfilled" ? racesResult.value : [];
+  const options =
+    optionsResult.status === "fulfilled"
+      ? optionsResult.value
+      : { leagues: [], seasons: [] };
   const canManage = hasPermission(user.roles, Permission.ManageMasterData);
   const nextRace = races.find(
     (race) =>

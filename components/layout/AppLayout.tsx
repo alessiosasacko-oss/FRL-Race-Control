@@ -11,7 +11,19 @@ type AppLayoutProps = {
 
 export default async function AppLayout({ children }: AppLayoutProps) {
   const user = await requireAuthenticatedUser();
-  const unreadNotifications = await getUnreadNotificationCount(user.id);
+  let unreadNotifications = 0;
+
+  try {
+    unreadNotifications = await getUnreadNotificationCount(user.id);
+  } catch (error: unknown) {
+    console.error("[app-shell] Unable to load unread notification count.", {
+      userId: user.id,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message }
+          : "Unknown error",
+    });
+  }
   const canManageAdministration = hasPermission(
     user.roles,
     Permission.ManageAdministration,

@@ -221,7 +221,7 @@ export async function getFiaTicketList(
 
 export async function getFiaTicketStats(): Promise<FiaTicketStatsData> {
   const prisma = getPrismaClient();
-  const [open, inReview, resolved, total] = await prisma.$transaction([
+  const [open, inReview, resolved, total] = await Promise.all([
     prisma.fiaTicket.count({ where: { status: PrismaTicketStatus.OPEN } }),
     prisma.fiaTicket.count({
       where: { status: PrismaTicketStatus.IN_REVIEW },
@@ -237,7 +237,7 @@ export async function getFiaTicketStats(): Promise<FiaTicketStatsData> {
 
 export async function getFiaListFilterOptions(): Promise<FiaListFilterOptions> {
   const prisma = getPrismaClient();
-  const [leagues, seasons, races] = await prisma.$transaction([
+  const [leagues, seasons, races] = await Promise.all([
     prisma.league.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true, code: true },

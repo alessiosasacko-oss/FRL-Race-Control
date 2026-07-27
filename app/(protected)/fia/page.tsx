@@ -24,11 +24,42 @@ type FIAPageProps = {
 export default async function FIAPage({ searchParams }: FIAPageProps) {
   const user = await requirePermission(Permission.ViewRaceControl);
   const query = parseFiaTicketListParams(await searchParams);
-  const [tickets, stats, filterOptions] = await Promise.all([
+  const [ticketsResult, statsResult, filterOptionsResult] =
+    await Promise.allSettled([
     getFiaTicketList(query),
     getFiaTicketStats(),
     getFiaListFilterOptions(),
   ]);
+  if (ticketsResult.status === "rejected") {
+    console.error("[fia] Unable to load ticket list.", ticketsResult.reason);
+  }
+  if (statsResult.status === "rejected") {
+    console.error("[fia] Unable to load ticket statistics.", statsResult.reason);
+  }
+  if (filterOptionsResult.status === "rejected") {
+    console.error(
+      "[fia] Unable to load ticket filter options.",
+      filterOptionsResult.reason,
+    );
+  }
+  const tickets =
+    ticketsResult.status === "fulfilled"
+      ? ticketsResult.value
+      : {
+          items: [],
+          total: 0,
+          page: 1,
+          pageSize: query.pageSize,
+          pageCount: 1,
+        };
+  const stats =
+    statsResult.status === "fulfilled"
+      ? statsResult.value
+      : { open: 0, inReview: 0, resolved: 0, total: 0 };
+  const filterOptions =
+    filterOptionsResult.status === "fulfilled"
+      ? filterOptionsResult.value
+      : { leagues: [], seasons: [], races: [] };
   const canCreate = hasPermission(
     user.roles,
     Permission.SubmitFiaTicket,

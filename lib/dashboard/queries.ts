@@ -9,6 +9,26 @@ import { getRecentNotifications } from "@/lib/notifications/queries";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import type { DashboardData } from "./types";
 
+async function optionalDashboardData<T>(
+  label: string,
+  userId: number,
+  load: () => PromiseLike<T>,
+  fallback: T,
+): Promise<T> {
+  try {
+    return await load();
+  } catch (error: unknown) {
+    console.error(`[dashboard] Unable to load ${label}.`, {
+      userId,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message }
+          : "Unknown error",
+    });
+    return fallback;
+  }
+}
+
 export async function getDashboardData(
   userId: number,
 ): Promise<DashboardData> {
@@ -43,26 +63,38 @@ export async function getDashboardData(
     user.driver?.league.currentSeasonId ??
     null;
   if (!seasonId) {
-    const league = await prisma.league.findFirst({
-      where: { active: true, currentSeasonId: { not: null } },
-      orderBy: { code: "asc" },
-      select: { id: true, currentSeasonId: true },
-    });
+    const league = await optionalDashboardData(
+      "active league fallback",
+      userId,
+      () =>
+        prisma.league.findFirst({
+          where: { active: true, currentSeasonId: { not: null } },
+          orderBy: { code: "asc" },
+          select: { id: true, currentSeasonId: true },
+        }),
+      null,
+    );
     seasonId = league?.currentSeasonId ?? null;
     leagueId = league?.id ?? null;
   }
 
-  const nextRace = await prisma.race.findFirst({
-    where: {
-      seasonId: seasonId ?? undefined,
-      scheduledAt: { gte: new Date() },
-      status: { not: "CANCELLED" },
-    },
-    orderBy: { scheduledAt: "asc" },
-    include: {
-      season: { select: { id: true, name: true } },
-    },
-  });
+  const nextRace = await optionalDashboardData(
+    "next race",
+    userId,
+    () =>
+      prisma.race.findFirst({
+        where: {
+          seasonId: seasonId ?? undefined,
+          scheduledAt: { gte: new Date() },
+          status: { not: "CANCELLED" },
+        },
+        orderBy: { scheduledAt: "asc" },
+        include: {
+          season: { select: { id: true, name: true } },
+        },
+      }),
+    null,
+  );
   if (!seasonId && nextRace) seasonId = nextRace.seasonId;
 
   const driverId = user.driver?.id;
@@ -82,167 +114,236 @@ export async function getDashboardData(
     notifications,
   ] = await Promise.all([
     nextRace && driverId
-      ? prisma.raceAttendance.findUnique({
-          where: {
-            raceId_driverId: {
-              raceId: nextRace.id,
-              driverId,
-            },
-          },
-          select: { status: true, changedAt: true },
-        })
+      ? optionalDashboardData(
+          "attendance",
+          userId,
+          () =>
+            prisma.raceAttendance.findUnique({
+              where: {
+                raceId_driverId: {
+                  raceId: nextRace.id,
+                  driverId,
+                },
+              },
+              select: { status: true, changedAt: true },
+            }),
+          null,
+        )
       : null,
     seasonId && leagueId
-      ? prisma.championship.findUnique({
-          where: {
-            leagueId_seasonId: { leagueId, seasonId },
-          },
-          include: {
-            driverStandings: {
-              orderBy: { position: "asc" },
-              take: 5,
+      ? optionalDashboardData(
+          "championship preview",
+          userId,
+          () =>
+            prisma.championship.findUnique({
+              where: {
+                leagueId_seasonId: { leagueId, seasonId },
+              },
               include: {
-                driver: {
-                  select: { name: true, flag: true },
+                driverStandings: {
+                  orderBy: { position: "asc" },
+                  take: 5,
+                  include: {
+                    driver: {
+                      select: { name: true, flag: true },
+                    },
+                  },
+                },
+                teamStandings: {
+                  orderBy: { position: "asc" },
+                  take: 5,
+                  include: {
+                    team: {
+                      select: { name: true, color: true },
+                    },
+                  },
                 },
               },
-            },
-            teamStandings: {
-              orderBy: { position: "asc" },
-              take: 5,
-              include: {
-                team: {
-                  select: { name: true, color: true },
-                },
-              },
-            },
-          },
-        })
+            }),
+          null,
+        )
       : null,
     driverId && seasonId
-      ? prisma.raceResult.findFirst({
-          where: {
-            driverId,
-            resultSession: {
-              leagueId: leagueId ?? undefined,
-              session: "RACE",
-              race: { seasonId },
-            },
-          },
-          orderBy: {
-            resultSession: { race: { scheduledAt: "desc" } },
-          },
-          select: { racePoints: true, bonusPoints: true },
-        })
+      ? optionalDashboardData(
+          "latest race result",
+          userId,
+          () =>
+            prisma.raceResult.findFirst({
+              where: {
+                driverId,
+                resultSession: {
+                  leagueId: leagueId ?? undefined,
+                  session: "RACE",
+                  race: { seasonId },
+                },
+              },
+              orderBy: {
+                resultSession: { race: { scheduledAt: "desc" } },
+              },
+              select: { racePoints: true, bonusPoints: true },
+            }),
+          null,
+        )
       : null,
     seasonId
-      ? prisma.season.findUnique({
-          where: { id: seasonId },
-          select: {
-            id: true,
-            name: true,
-            races: { select: { status: true } },
-          },
-        })
+      ? optionalDashboardData(
+          "season progress",
+          userId,
+          () =>
+            prisma.season.findUnique({
+              where: { id: seasonId },
+              select: {
+                id: true,
+                name: true,
+                races: { select: { status: true } },
+              },
+            }),
+          null,
+        )
       : null,
-    prisma.fiaTicket.count({
-      where: {
-        status: { not: "RESOLVED" },
-        OR: [
-          { reportedByUserId: userId },
-          { stewardAssignments: { some: { userId } } },
-          ...(driverId
-            ? [{ drivers: { some: { driverId } } }]
-            : []),
-        ],
-      },
-    }),
-    prisma.decision.findMany({
-      where: {
-        ticket: {
-          OR: [
-            { reportedByUserId: userId },
-            { stewardAssignments: { some: { userId } } },
-            ...(driverId
-              ? [{ drivers: { some: { driverId } } }]
-              : []),
-          ],
-        },
-      },
-      orderBy: { decidedAt: "desc" },
-      take: 3,
-      include: {
-        ticket: { select: { id: true, title: true } },
-      },
-    }),
-    driverId
-      ? prisma.decision.findMany({
+    optionalDashboardData(
+      "open FIA ticket count",
+      userId,
+      () =>
+        prisma.fiaTicket.count({
           where: {
-            penaltyType: {
-              not: "NO_FURTHER_ACTION",
+            status: { not: "RESOLVED" },
+            OR: [
+              { reportedByUserId: userId },
+              { stewardAssignments: { some: { userId } } },
+              ...(driverId
+                ? [{ drivers: { some: { driverId } } }]
+                : []),
+            ],
+          },
+        }),
+      0,
+    ),
+    optionalDashboardData(
+      "latest FIA decisions",
+      userId,
+      () =>
+        prisma.decision.findMany({
+          where: {
+            ticket: {
+              OR: [
+                { reportedByUserId: userId },
+                { stewardAssignments: { some: { userId } } },
+                ...(driverId
+                  ? [{ drivers: { some: { driverId } } }]
+                  : []),
+              ],
             },
-            ticket: { drivers: { some: { driverId } } },
           },
           orderBy: { decidedAt: "desc" },
           take: 3,
           include: {
             ticket: { select: { id: true, title: true } },
           },
-        })
+        }),
+      [],
+    ),
+    driverId
+      ? optionalDashboardData(
+          "current FIA penalties",
+          userId,
+          () =>
+            prisma.decision.findMany({
+              where: {
+                penaltyType: {
+                  not: "NO_FURTHER_ACTION",
+                },
+                ticket: { drivers: { some: { driverId } } },
+              },
+              orderBy: { decidedAt: "desc" },
+              take: 3,
+              include: {
+                ticket: { select: { id: true, title: true } },
+              },
+            }),
+          [],
+        )
       : [],
-    getRecentNotifications(userId, 5),
+    optionalDashboardData(
+      "recent notifications",
+      userId,
+      () => getRecentNotifications(userId, 5),
+      [],
+    ),
   ]);
 
   const driverStanding =
     driverId && seasonId
-      ? await prisma.driverStanding.findFirst({
-          where: {
-            driverId,
-            championship: {
-              seasonId,
-              leagueId: leagueId ?? undefined,
-            },
-          },
-        })
+      ? await optionalDashboardData(
+          "driver standing",
+          userId,
+          () =>
+            prisma.driverStanding.findFirst({
+              where: {
+                driverId,
+                championship: {
+                  seasonId,
+                  leagueId: leagueId ?? undefined,
+                },
+              },
+            }),
+          null,
+        )
       : null;
   const teamStanding =
     teamId && seasonId
-      ? await prisma.teamStanding.findFirst({
-          where: {
-            teamId,
-            championship: {
-              seasonId,
-              leagueId: leagueId ?? undefined,
-            },
-          },
-        })
+      ? await optionalDashboardData(
+          "team standing",
+          userId,
+          () =>
+            prisma.teamStanding.findFirst({
+              where: {
+                teamId,
+                championship: {
+                  seasonId,
+                  leagueId: leagueId ?? undefined,
+                },
+              },
+            }),
+          null,
+        )
       : null;
-  const driverLeader =
-    seasonId
-      ? await prisma.driverStanding.findFirst({
-          where: {
-            championship: {
-              seasonId,
-              leagueId: leagueId ?? undefined,
+  const driverLeader = seasonId
+    ? await optionalDashboardData(
+        "driver championship leader",
+        userId,
+        () =>
+          prisma.driverStanding.findFirst({
+            where: {
+              championship: {
+                seasonId,
+                leagueId: leagueId ?? undefined,
+              },
             },
-          },
-          orderBy: { position: "asc" },
-          select: { points: true },
-        })
-      : null;
-  const teamLeader =
-    seasonId
-      ? await prisma.teamStanding.findFirst({
-          where: {
-            championship: {
-              seasonId,
-              leagueId: leagueId ?? undefined,
+            orderBy: { position: "asc" },
+            select: { points: true },
+          }),
+        null,
+      )
+    : null;
+  const teamLeader = seasonId
+    ? await optionalDashboardData(
+        "team championship leader",
+        userId,
+        () =>
+          prisma.teamStanding.findFirst({
+            where: {
+              championship: {
+                seasonId,
+                leagueId: leagueId ?? undefined,
+              },
             },
-          },
-          orderBy: { position: "asc" },
-          select: { points: true },
-        })
-      : null;
+            orderBy: { position: "asc" },
+            select: { points: true },
+          }),
+        null,
+      )
+    : null;
   const publicTrack = nextRace ? publicRaceTrack(nextRace) : null;
   const deadlinePassed = Boolean(
     nextRace?.attendanceDeadline &&
