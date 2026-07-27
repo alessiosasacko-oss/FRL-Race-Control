@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -117,6 +118,28 @@ export default function VideoEvidenceUploader({
   const totalCount =
     existingFileCount + uploads.length + queue.length;
   const atLimit = totalCount >= limits.maxFiles;
+
+  useEffect(() => {
+    function handleEvidenceAction(event: Event): void {
+      const action = (
+        event as CustomEvent<{
+          action?: "file" | "image" | "video" | "external";
+        }>
+      ).detail?.action;
+      if (action === "file" || action === "video") {
+        fileInputRef.current?.click();
+      }
+    }
+    window.addEventListener(
+      "frl-evidence-action",
+      handleEvidenceAction,
+    );
+    return () =>
+      window.removeEventListener(
+        "frl-evidence-action",
+        handleEvidenceAction,
+      );
+  }, []);
 
   function updateQueued(
     key: string,

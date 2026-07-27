@@ -20,7 +20,11 @@ export enum PenaltyType {
   Warning = "WARNING",
   Reprimand = "REPRIMAND",
   TimePenalty = "TIME_PENALTY",
+  PenaltyPoints = "PENALTY_POINTS",
   GridPenalty = "GRID_PENALTY",
+  QualifyingBan = "QUALIFYING_BAN",
+  RaceBan = "RACE_BAN",
+  SeasonBan = "SEASON_BAN",
   DriveThrough = "DRIVE_THROUGH",
   StopAndGo = "STOP_AND_GO",
   Disqualification = "DISQUALIFICATION",
@@ -216,7 +220,31 @@ export enum TicketAuditAction {
   EvidenceRemoved = "EVIDENCE_REMOVED",
   DiscussionMessageAdded = "DISCUSSION_MESSAGE_ADDED",
   VoteRecorded = "VOTE_RECORDED",
+  ProposalCreated = "PROPOSAL_CREATED",
+  ProposalVoteRecorded = "PROPOSAL_VOTE_RECORDED",
+  ProposalClosed = "PROPOSAL_CLOSED",
+  ProposalReviewed = "PROPOSAL_REVIEWED",
   DecisionPublished = "DECISION_PUBLISHED",
+}
+
+export enum DiscussionMessageType {
+  Normal = "NORMAL",
+  System = "SYSTEM",
+  PenaltyProposal = "PENALTY_PROPOSAL",
+}
+
+export enum PenaltyProposalStatus {
+  Open = "OPEN",
+  AwaitingApproval = "AWAITING_APPROVAL",
+  Approved = "APPROVED",
+  Rejected = "REJECTED",
+  ChangesRequested = "CHANGES_REQUESTED",
+}
+
+export enum ProposalVoteChoice {
+  For = "FOR",
+  Against = "AGAINST",
+  Abstain = "ABSTAIN",
 }
 
 export const roleSchema = z.enum(Role);
@@ -251,3 +279,10 @@ export const webhookEventTypeSchema = z.enum(WebhookEventType);
 export const webhookEventStatusSchema = z.enum(WebhookEventStatus);
 export const evidenceTypeSchema = z.enum(EvidenceType);
 export const ticketAuditActionSchema = z.enum(TicketAuditAction);
+export const discussionMessageTypeSchema = z.enum(
+  DiscussionMessageType,
+);
+export const penaltyProposalStatusSchema = z.enum(
+  PenaltyProposalStatus,
+);
+export const proposalVoteChoiceSchema = z.enum(ProposalVoteChoice);

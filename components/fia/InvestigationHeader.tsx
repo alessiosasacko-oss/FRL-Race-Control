@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import type { FiaTicketDetail } from "@/lib/fia/types";
 import StatusBadge from "./StatusBadge";
 
@@ -11,29 +11,33 @@ export default function InvestigationHeader({
   ticket,
 }: InvestigationHeaderProps) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-8">
+    <header className="relative isolate overflow-hidden rounded-[1.5rem] border border-violet-500/25 bg-[#111421] p-5 shadow-2xl shadow-violet-950/15 sm:p-8">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_10%,rgba(139,92,246,0.22),transparent_28%),linear-gradient(115deg,transparent_0_68%,rgba(255,255,255,0.025)_68%_69%,transparent_69%_100%)]"
+      />
       <Link
         href="/fia"
-        className="mb-5 inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-white"
+        className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm text-slate-400 transition hover:text-white"
       >
         <ArrowLeft size={16} /> Alle Untersuchungen
       </Link>
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm uppercase tracking-widest text-blue-400">
-            FIA Investigation
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-violet-300">
+            FIA Investigation · Case #{String(ticket.id).padStart(4, "0")}
           </p>
-          <h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
+          <h1 className="mt-3 max-w-4xl text-3xl font-black tracking-[-0.035em] text-white sm:text-5xl">
             {ticket.title}
           </h1>
-          <p className="mt-2 text-slate-400">
-            CASE #{String(ticket.id).padStart(4, "0")} · {ticket.league.code}
+          <p className="mt-3 text-sm text-slate-400">
+            {ticket.league.code} · {ticket.season.name} · {ticket.race.name}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <StatusBadge status={ticket.status} />
         </div>
       </div>
-    </div>
+    </header>
   );
 }

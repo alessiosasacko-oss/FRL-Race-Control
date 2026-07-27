@@ -2,18 +2,21 @@ type ButtonProps = {
   text: string;
   onClick?: () => void;
   type?: "button" | "submit" | "reset";
+  disabled?: boolean;
 };
 
 export default function Button({
   text,
   onClick,
   type = "button",
+  disabled = false,
 }: ButtonProps) {
   return (
     <button
       type={type}
       onClick={onClick}
-      className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700"
+      disabled={disabled}
+      className="wizard-primary-button"
     >
       {text}
     </button>

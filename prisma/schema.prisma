@@ -27,7 +27,11 @@ enum PenaltyType {
   WARNING
   REPRIMAND
   TIME_PENALTY
+  PENALTY_POINTS
   GRID_PENALTY
+  QUALIFYING_BAN
+  RACE_BAN
+  SEASON_BAN
   DRIVE_THROUGH
   STOP_AND_GO
   DISQUALIFICATION
@@ -222,49 +226,77 @@ enum TicketAuditAction {
   EVIDENCE_ADDED
   DISCUSSION_MESSAGE_ADDED
   VOTE_RECORDED
+  PROPOSAL_CREATED
+  PROPOSAL_VOTE_RECORDED
+  PROPOSAL_CLOSED
+  PROPOSAL_REVIEWED
   DECISION_PUBLISHED
   EVIDENCE_REMOVED
 }
 
+enum DiscussionMessageType {
+  NORMAL
+  SYSTEM
+  PENALTY_PROPOSAL
+}
+
+enum PenaltyProposalStatus {
+  OPEN
+  AWAITING_APPROVAL
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum ProposalVoteChoice {
+  FOR
+  AGAINST
+  ABSTAIN
+}
+
 model User {
-  id                      Int                        @id @default(autoincrement())
-  discordId               String?                    @unique @db.VarChar(32)
-  discordUsername         String?                    @db.VarChar(64)
-  discordGlobalName       String?                    @db.VarChar(160)
-  discordGuildNickname    String?                    @db.VarChar(160)
-  discordAvatarUrl        String?                    @db.Text
-  discordVerifiedAt       DateTime?
-  discordSyncedAt         DateTime?
-  email                   String?                    @unique @db.VarChar(320)
-  emailVerified           DateTime?
-  displayName             String                     @db.VarChar(160)
-  avatarUrl               String?                    @db.Text
-  roles                   Role[]                     @default([DRIVER])
-  active                  Boolean                    @default(true)
-  driver                  Driver?
-  reportedTickets         FiaTicket[]                @relation("TicketReporter")
-  ticketAssignments       FiaTicketSteward[]
-  submittedEvidence       Evidence[]                 @relation("EvidenceSubmitter")
-  discussionMessages      DiscussionMessage[]
-  votes                   Vote[]
-  decisionMemberships     DecisionSteward[]
-  ticketAuditEntries      FiaTicketAuditLog[]
-  principalTeams          Team[]                     @relation("TeamPrincipal")
-  attendanceChanges       RaceAttendance[]           @relation("AttendanceSubmitter")
-  championshipAdjustments ChampionshipAdjustment[]
-  championshipAudits      ChampionshipAudit[]
-  publishedResultSessions RaceResultSession[]        @relation("ResultPublisher")
-  resultPenaltyChanges    ResultPenaltyApplication[] @relation("ResultPenaltyActor")
-  notifications           Notification[]
-  settings                UserSettings?
-  emailDeliveries         EmailDelivery[]
-  createdAnnouncements    Announcement[]
-  retriedAutomationRuns   AutomationJobRun[]         @relation("AutomationRunRetryActor")
-  systemAuditEntries      SystemAuditLog[]
-  accounts                Account[]
-  sessions                Session[]
-  createdAt               DateTime                   @default(now())
-  updatedAt               DateTime                   @updatedAt
+  id                       Int                        @id @default(autoincrement())
+  discordId                String?                    @unique @db.VarChar(32)
+  discordUsername          String?                    @db.VarChar(64)
+  discordGlobalName        String?                    @db.VarChar(160)
+  discordGuildNickname     String?                    @db.VarChar(160)
+  discordAvatarUrl         String?                    @db.Text
+  discordVerifiedAt        DateTime?
+  discordSyncedAt          DateTime?
+  email                    String?                    @unique @db.VarChar(320)
+  emailVerified            DateTime?
+  displayName              String                     @db.VarChar(160)
+  avatarUrl                String?                    @db.Text
+  roles                    Role[]                     @default([DRIVER])
+  active                   Boolean                    @default(true)
+  driver                   Driver?
+  reportedTickets          FiaTicket[]                @relation("TicketReporter")
+  ticketAssignments        FiaTicketSteward[]
+  submittedEvidence        Evidence[]                 @relation("EvidenceSubmitter")
+  discussionMessages       DiscussionMessage[]
+  votes                    Vote[]
+  createdPenaltyProposals  PenaltyProposal[]          @relation("ProposalCreator")
+  closedPenaltyProposals   PenaltyProposal[]          @relation("ProposalCloser")
+  reviewedPenaltyProposals PenaltyProposal[]          @relation("ProposalReviewer")
+  proposalVoteChanges      VoteChange[]               @relation("VoteChangeActor")
+  decisionMemberships      DecisionSteward[]
+  ticketAuditEntries       FiaTicketAuditLog[]
+  principalTeams           Team[]                     @relation("TeamPrincipal")
+  attendanceChanges        RaceAttendance[]           @relation("AttendanceSubmitter")
+  championshipAdjustments  ChampionshipAdjustment[]
+  championshipAudits       ChampionshipAudit[]
+  publishedResultSessions  RaceResultSession[]        @relation("ResultPublisher")
+  resultPenaltyChanges     ResultPenaltyApplication[] @relation("ResultPenaltyActor")
+  notifications            Notification[]
+  settings                 UserSettings?
+  emailDeliveries          EmailDelivery[]
+  createdAnnouncements     Announcement[]
+  retriedAutomationRuns    AutomationJobRun[]         @relation("AutomationRunRetryActor")
+  systemAuditEntries       SystemAuditLog[]
+  accounts                 Account[]
+  sessions                 Session[]
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
 
   @@index([active])
   @@index([displayName])
@@ -304,27 +336,29 @@ model Session {
 }
 
 model Driver {
-  id                      Int                      @id @default(autoincrement())
-  userId                  Int?                     @unique
-  teamId                  Int?
-  leagueId                Int
-  name                    String                   @db.VarChar(160)
-  number                  Int
-  flag                    String                   @db.VarChar(16)
-  countryCode             String                   @db.Char(2)
-  active                  Boolean                  @default(true)
-  user                    User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  team                    Team?                    @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  league                  League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  standings               DriverStanding[]
-  ticketLinks             FiaTicketDriver[]
-  attendanceEntries       RaceAttendance[]         @relation("ExpectedAttendanceDriver")
-  substituteAttendances   RaceAttendance[]         @relation("SubstituteAttendanceDriver")
-  raceResults             RaceResult[]             @relation("ResultDriver")
-  substituteForResults    RaceResult[]             @relation("ExpectedResultDriver")
-  championshipAdjustments ChampionshipAdjustment[]
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  id                       Int                      @id @default(autoincrement())
+  userId                   Int?                     @unique
+  teamId                   Int?
+  leagueId                 Int
+  name                     String                   @db.VarChar(160)
+  number                   Int
+  flag                     String                   @db.VarChar(16)
+  countryCode              String                   @db.Char(2)
+  active                   Boolean                  @default(true)
+  user                     User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  team                     Team?                    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  league                   League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  standings                DriverStanding[]
+  ticketLinks              FiaTicketDriver[]
+  attendanceEntries        RaceAttendance[]         @relation("ExpectedAttendanceDriver")
+  substituteAttendances    RaceAttendance[]         @relation("SubstituteAttendanceDriver")
+  raceResults              RaceResult[]             @relation("ResultDriver")
+  substituteForResults     RaceResult[]             @relation("ExpectedResultDriver")
+  championshipAdjustments  ChampionshipAdjustment[]
+  affectedPenaltyProposals PenaltyProposal[]
+  fiaDecisions             Decision[]
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
 
   @@unique([leagueId, number])
   @@index([leagueId, active])
@@ -751,6 +785,7 @@ model FiaTicket {
   evidence                Evidence[]
   discussionMessages      DiscussionMessage[]
   votes                   Vote[]
+  penaltyProposals        PenaltyProposal[]
   decision                Decision?
   auditLog                FiaTicketAuditLog[]
   championshipAdjustments ChampionshipAdjustment[]
@@ -809,20 +844,21 @@ model FiaTicketSteward {
 }
 
 model Evidence {
-  id                Int          @id @default(autoincrement())
+  id                Int                       @id @default(autoincrement())
   ticketId          Int
   submittedByUserId Int?
   type              EvidenceType
-  url               String?      @db.Text
-  label             String       @db.VarChar(160)
-  storagePath       String?      @unique @db.VarChar(500)
-  originalFilename  String?      @db.VarChar(255)
-  mimeType          String?      @db.VarChar(120)
+  url               String?                   @db.Text
+  label             String                    @db.VarChar(160)
+  storagePath       String?                   @unique @db.VarChar(500)
+  originalFilename  String?                   @db.VarChar(255)
+  mimeType          String?                   @db.VarChar(120)
   fileSize          Int?
-  ticket            FiaTicket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  submittedBy       User?        @relation("EvidenceSubmitter", fields: [submittedByUserId], references: [id], onDelete: SetNull)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  ticket            FiaTicket                 @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  submittedBy       User?                     @relation("EvidenceSubmitter", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  proposalLinks     PenaltyProposalEvidence[]
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
 
   @@unique([ticketId, url])
   @@index([submittedByUserId])
@@ -841,44 +877,124 @@ model EvidenceStorageCleanup {
 }
 
 model DiscussionMessage {
-  id        Int       @id @default(autoincrement())
+  id        Int                   @id @default(autoincrement())
   ticketId  Int
   authorId  Int
-  message   String    @db.Text
-  ticket    FiaTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author    User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  type      DiscussionMessageType @default(NORMAL)
+  eventKey  String?               @unique @db.VarChar(190)
+  message   String                @db.Text
+  ticket    FiaTicket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User                  @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  proposal  PenaltyProposal?
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
 
   @@index([ticketId, createdAt])
+  @@index([ticketId, type, createdAt])
   @@index([authorId])
 }
 
 model Vote {
-  id           Int         @id @default(autoincrement())
+  id           Int                 @id @default(autoincrement())
+  proposalId   Int?
   ticketId     Int
   voterId      Int
-  penaltyType  PenaltyType
+  choice       ProposalVoteChoice?
+  penaltyType  PenaltyType?
   penaltyValue Float?
-  reason       String      @db.Text
-  ticket       FiaTicket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  voter        User        @relation(fields: [voterId], references: [id], onDelete: Restrict)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  reason       String?             @db.Text
+  proposal     PenaltyProposal?    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  ticket       FiaTicket           @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  voter        User                @relation(fields: [voterId], references: [id], onDelete: Restrict)
+  changes      VoteChange[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
-  @@unique([ticketId, voterId])
+  @@unique([proposalId, voterId])
   @@index([voterId])
   @@index([ticketId, penaltyType])
+  @@index([proposalId, choice])
+}
+
+model VoteChange {
+  id              Int                 @id @default(autoincrement())
+  voteId          Int
+  changedByUserId Int
+  fromChoice      ProposalVoteChoice?
+  toChoice        ProposalVoteChoice
+  vote            Vote                @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  changedBy       User                @relation("VoteChangeActor", fields: [changedByUserId], references: [id], onDelete: Restrict)
+  createdAt       DateTime            @default(now())
+
+  @@index([voteId, createdAt])
+  @@index([changedByUserId, createdAt])
+}
+
+model PenaltyProposal {
+  id                Int                       @id @default(autoincrement())
+  ticketId          Int
+  messageId         Int                       @unique
+  creatorId         Int
+  affectedDriverId  Int
+  supersedesId      Int?
+  penaltyType       PenaltyType
+  penaltyValue      Float?
+  reason            String                    @db.Text
+  closesAt          DateTime?
+  closeWhenAllVoted Boolean                   @default(false)
+  status            PenaltyProposalStatus     @default(OPEN)
+  revision          Int                       @default(1)
+  closedAt          DateTime?
+  closedByUserId    Int?
+  reviewedAt        DateTime?
+  reviewedByUserId  Int?
+  reviewReason      String?                   @db.Text
+  ticket            FiaTicket                 @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  message           DiscussionMessage         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  creator           User                      @relation("ProposalCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  affectedDriver    Driver                    @relation(fields: [affectedDriverId], references: [id], onDelete: Restrict)
+  supersedes        PenaltyProposal?          @relation("ProposalRevisions", fields: [supersedesId], references: [id], onDelete: Restrict)
+  revisions         PenaltyProposal[]         @relation("ProposalRevisions")
+  closedBy          User?                     @relation("ProposalCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  reviewedBy        User?                     @relation("ProposalReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  votes             Vote[]
+  evidence          PenaltyProposalEvidence[]
+  decision          Decision?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([ticketId, createdAt])
+  @@index([ticketId, status])
+  @@index([affectedDriverId, status])
+  @@index([creatorId, createdAt])
+  @@index([closedByUserId])
+  @@index([reviewedByUserId])
+  @@index([supersedesId])
+}
+
+model PenaltyProposalEvidence {
+  proposalId Int
+  evidenceId Int
+  proposal   PenaltyProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  evidence   Evidence        @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+  createdAt  DateTime        @default(now())
+
+  @@id([proposalId, evidenceId])
+  @@index([evidenceId, proposalId])
 }
 
 model Decision {
   id                        Int                        @id @default(autoincrement())
   ticketId                  Int                        @unique
+  proposalId                Int?                       @unique
+  affectedDriverId          Int?
   penaltyType               PenaltyType
   penaltyValue              Float?
   reason                    String                     @db.Text
   decidedAt                 DateTime
   ticket                    FiaTicket                  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  proposal                  PenaltyProposal?           @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  affectedDriver            Driver?                    @relation(fields: [affectedDriverId], references: [id], onDelete: Restrict)
   stewards                  DecisionSteward[]
   resultPenaltyApplications ResultPenaltyApplication[]
   createdAt                 DateTime                   @default(now())
@@ -886,6 +1002,7 @@ model Decision {
 
   @@index([penaltyType])
   @@index([decidedAt])
+  @@index([affectedDriverId])
 }
 
 model DecisionSteward {

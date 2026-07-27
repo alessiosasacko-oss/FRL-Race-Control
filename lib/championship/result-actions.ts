@@ -380,6 +380,7 @@ export async function saveResultsAction(
     orderBy: { id: "asc" },
     select: {
       id: true,
+      affectedDriverId: true,
       penaltyType: true,
       penaltyValue: true,
       reason: true,
@@ -702,9 +703,11 @@ export async function saveResultsAction(
             },
           });
           const driverDecisions = decisions.filter((decision) =>
-            decision.ticket.drivers.some(
-              ({ driverId }) => driverId === result.driverId,
-            ),
+            decision.affectedDriverId
+              ? decision.affectedDriverId === result.driverId
+              : decision.ticket.drivers.some(
+                  ({ driverId }) => driverId === result.driverId,
+                ),
           );
           if (driverDecisions.length > 0) {
             await transaction.resultPenaltyApplication.createMany({

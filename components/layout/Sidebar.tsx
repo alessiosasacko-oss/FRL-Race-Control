@@ -1,21 +1,26 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  User,
-  Settings,
-  LogOut,
-} from "lucide-react";
+import { Crown, LogOut, Settings, User } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { roleLabels } from "@/domain";
 import { signOutCurrentUser } from "@/lib/auth/actions";
-import {
-  hasPermission,
-  Permission,
-} from "@/lib/auth/permissions";
+import { hasPermission, Permission } from "@/lib/auth/permissions";
 import type { AuthenticatedUser } from "@/lib/auth/session";
-import { mainNavigationItems } from "./navigation";
+import ActiveNavLink from "./ActiveNavLink";
+import {
+  administrationNavigationItems,
+  driverNavigationItems,
+  leagueNavigationItems,
+} from "./navigation";
 
 type SidebarProps = {
   user: AuthenticatedUser;
+};
+
+type NavigationItem = {
+  name: string;
+  href: string;
+  icon: LucideIcon;
 };
 
 export default function Sidebar({ user }: SidebarProps) {
@@ -25,130 +30,122 @@ export default function Sidebar({ user }: SidebarProps) {
   );
 
   return (
-    <aside className="hidden h-screen w-72 flex-col border-r border-slate-800 bg-[#0F141B] lg:flex">
-
-      {/* Logo */}
-      <div className="border-b border-slate-800 px-6 py-6">
-
+    <aside className="sticky top-0 hidden h-screen w-[17.5rem] shrink-0 flex-col border-r border-slate-800/90 bg-[#0b1119]/95 lg:flex">
+      <div className="border-b border-slate-800/80 px-5 py-5">
         <div className="flex items-center gap-3">
-
           <Image
             src="/images/frl-logo.png"
             alt="FRL"
-            width={48}
-            height={48}
+            width={44}
+            height={44}
+            className="rounded-xl shadow-lg shadow-blue-950/30"
           />
-
-          <div>
-            <h1 className="text-lg font-bold text-white">
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-bold text-white">
               FRL Race Control
             </h1>
-
-            <p className="text-xs text-slate-400">
-              Formula Realistic League
+            <p className="mt-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-blue-400">
+              Control Center
             </p>
           </div>
-
         </div>
-
       </div>
 
-      {/* Menü */}
-
-      <nav className="flex-1 px-4 py-5 space-y-2">
-
-        {mainNavigationItems.map((item) => {
-
-          const Icon = item.icon;
-
-          return (
-
-            <Link
-              key={item.name}
-              href={item.href}
-              className="flex items-center gap-3 rounded-xl px-4 py-3 text-slate-300 transition-all hover:bg-blue-600 hover:text-white"
-            >
-
-              <Icon size={20} />
-
-              <span>{item.name}</span>
-
-            </Link>
-
-          );
-
-        })}
-
+      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
+        <SidebarGroup label="Fahrer" items={driverNavigationItems} />
+        <SidebarGroup label="Liga" items={leagueNavigationItems} />
+        {canManageAdministration ? (
+          <SidebarGroup
+            label="Administration"
+            items={administrationNavigationItems}
+            compact
+            special
+          />
+        ) : null}
       </nav>
 
-      {/* Profil */}
-
-      <div className="border-t border-slate-800 p-4">
-
-        <div className="rounded-xl bg-[#151B24] p-4">
-
+      <div className="border-t border-slate-800/80 p-3">
+        <div className="rounded-2xl border border-slate-800 bg-[#101720] p-3">
           <div className="flex items-center gap-3">
-
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600">
-
-              <User size={22} />
-
-            </div>
-
-            <div>
-
-              <h3 className="font-semibold text-white">
+            {user.avatarUrl ? (
+              <Image
+                src={user.avatarUrl}
+                alt=""
+                width={44}
+                height={44}
+                className="size-11 rounded-xl object-cover"
+              />
+            ) : (
+              <div className="flex size-11 items-center justify-center rounded-xl bg-blue-600">
+                <User size={20} />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-sm font-semibold text-white">
                 {user.displayName}
               </h3>
-
-              <p className="text-xs text-slate-400">
-                {user.roles.map((role) => roleLabels[role]).join(" • ")}
+              <p className="mt-0.5 truncate text-[0.68rem] text-violet-300">
+                {user.roles.map((role) => roleLabels[role]).join(" · ")}
               </p>
-
             </div>
-
           </div>
-
           <Link
             href="/profile"
-            className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700"
+            className="mt-3 flex min-h-10 items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-400 transition hover:bg-slate-800 hover:text-white"
           >
-            <User size={18} />
+            <User size={16} />
             Profil
           </Link>
-
           <Link
             href="/settings"
-            className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700"
+            className="flex min-h-10 items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-400 transition hover:bg-slate-800 hover:text-white"
           >
-            <Settings size={18} />
+            <Settings size={16} />
             Einstellungen
           </Link>
-
-          {canManageAdministration ? (
-            <Link
-              href="/admin"
-              className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700"
-            >
-              <Settings size={18} />
-              Administration
-            </Link>
-          ) : null}
-
           <form action={signOutCurrentUser}>
             <button
               type="submit"
-              className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700"
+              className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-400 transition hover:bg-red-500/10 hover:text-red-300"
             >
-              <LogOut size={18} />
+              <LogOut size={16} />
               Abmelden
             </button>
           </form>
-
         </div>
-
       </div>
-
     </aside>
+  );
+}
+
+function SidebarGroup({
+  label,
+  items,
+  compact = false,
+  special = false,
+}: {
+  label: string;
+  items: ReadonlyArray<NavigationItem>;
+  compact?: boolean;
+  special?: boolean;
+}) {
+  return (
+    <section>
+      <div className="mb-2 flex items-center gap-2 px-3">
+        {special ? <Crown size={12} className="text-violet-400" /> : null}
+        <p
+          className={`text-[0.62rem] font-bold uppercase tracking-[0.18em] ${
+            special ? "text-violet-400" : "text-slate-600"
+          }`}
+        >
+          {label}
+        </p>
+      </div>
+      <div className="space-y-0.5">
+        {items.map((item) => (
+          <ActiveNavLink key={item.href} {...item} compact={compact} />
+        ))}
+      </div>
+    </section>
   );
 }

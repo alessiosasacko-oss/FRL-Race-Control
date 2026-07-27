@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   ExternalLink,
@@ -48,9 +54,48 @@ export default function EvidenceCard({
   );
   const [removalPending, startRemovalTransition] = useTransition();
   const [removalError, setRemovalError] = useState("");
+  const sectionRef = useRef<HTMLElement>(null);
+  const linkLabelRef = useRef<HTMLInputElement>(null);
+  const linkUrlRef = useRef<HTMLInputElement>(null);
   const uploadedFileCount = evidence.filter(
     (item) => item.storagePath !== null,
   ).length;
+
+  useEffect(() => {
+    function handleEvidenceAction(event: Event): void {
+      const action = (
+        event as CustomEvent<{
+          action?: "file" | "image" | "video" | "external";
+        }>
+      ).detail?.action;
+      if (!action) return;
+      sectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      if (action === "image" || action === "external") {
+        window.setTimeout(() => {
+          if (
+            action === "image" &&
+            linkLabelRef.current &&
+            !linkLabelRef.current.value
+          ) {
+            linkLabelRef.current.value = "Bildbeweis";
+          }
+          linkUrlRef.current?.focus();
+        }, 300);
+      }
+    }
+    window.addEventListener(
+      "frl-evidence-action",
+      handleEvidenceAction,
+    );
+    return () =>
+      window.removeEventListener(
+        "frl-evidence-action",
+        handleEvidenceAction,
+      );
+  }, []);
 
   function removeEvidence(evidenceId: number): void {
     setRemovalError("");
@@ -67,9 +112,13 @@ export default function EvidenceCard({
   }
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-6">
+    <section
+      ref={sectionRef}
+      id="fia-evidence"
+      className="scroll-mt-24 rounded-[1.25rem] border border-cyan-500/20 bg-[#101720] p-5 shadow-xl shadow-cyan-950/5 sm:p-6"
+    >
       <div className="flex items-center gap-2">
-        <FileSearch className="text-blue-400" size={20} />
+        <FileSearch className="text-cyan-400" size={20} />
         <h2 className="text-xl font-bold text-white">
           Beweise ({evidence.length})
         </h2>
@@ -79,7 +128,7 @@ export default function EvidenceCard({
         {evidence.map((item) => (
           <div
             key={item.id}
-            className="flex items-start gap-3 rounded-xl border border-slate-700 bg-slate-900 p-4 transition hover:border-blue-500"
+            className="flex items-start gap-3 rounded-xl border border-slate-700 bg-slate-900/70 p-4 transition hover:border-cyan-500"
           >
             {item.storagePath ? (
               <FileVideo
@@ -161,6 +210,7 @@ export default function EvidenceCard({
             </h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <input
+                ref={linkLabelRef}
                 name="label"
                 required
                 maxLength={160}
@@ -168,6 +218,7 @@ export default function EvidenceCard({
                 className="form-control min-h-12"
               />
               <input
+                ref={linkUrlRef}
                 name="url"
                 type="url"
                 required

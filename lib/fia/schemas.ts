@@ -1,7 +1,9 @@
 import { z } from "zod";
 import {
   fiaRaceSessionSchema,
+  PenaltyType,
   penaltyTypeSchema,
+  proposalVoteChoiceSchema,
   ticketStatusSchema,
 } from "@/domain";
 import {
@@ -110,3 +112,92 @@ export const voteSchema = z.object({
 export const decisionSchema = voteSchema;
 
 export const ticketIdSchema = z.coerce.number().int().positive();
+export const proposalIdSchema = z.coerce.number().int().positive();
+
+const optionalProposalValueSchema = z.preprocess(
+  (value) => (value === "" || value === null ? undefined : value),
+  z.coerce.number().nonnegative().max(9999).optional(),
+);
+
+const proposalValuePenaltyTypes = new Set<PenaltyType>([
+  PenaltyType.TimePenalty,
+  PenaltyType.PenaltyPoints,
+  PenaltyType.GridPenalty,
+  PenaltyType.PointsDeduction,
+]);
+
+export const createPenaltyProposalSchema = z
+  .object({
+    affectedDriverId: z.coerce.number().int().positive(),
+    penaltyType: penaltyTypeSchema,
+    penaltyValue: optionalProposalValueSchema,
+    reason: z.string().trim().min(5).max(5000),
+    durationMinutes: z.preprocess(
+      (value) =>
+        value === "" || value === null || value === "MANUAL"
+          ? undefined
+          : value,
+      z.coerce.number().int().min(5).max(10080).optional(),
+    ),
+    closeWhenAllVoted: z.boolean(),
+    evidenceIds: z
+      .array(z.coerce.number().int().positive())
+      .max(20)
+      .refine(
+        (values) => new Set(values).size === values.length,
+        "Beweise dürfen nicht mehrfach verknüpft werden.",
+      ),
+    supersedesId: z.preprocess(
+      (value) => (value === "" || value === null ? undefined : value),
+      z.coerce.number().int().positive().optional(),
+    ),
+  })
+  .superRefine((proposal, context) => {
+    if (
+      proposalValuePenaltyTypes.has(proposal.penaltyType) &&
+      proposal.penaltyValue === undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["penaltyValue"],
+        message: "Für diese Strafe ist ein Wert erforderlich.",
+      });
+    }
+    if (
+      !proposalValuePenaltyTypes.has(proposal.penaltyType) &&
+      proposal.penaltyValue !== undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["penaltyValue"],
+        message: "Für diese Strafe ist kein Zahlenwert vorgesehen.",
+      });
+    }
+  });
+
+export const penaltyProposalVoteSchema = z.object({
+  choice: proposalVoteChoiceSchema,
+});
+
+export const penaltyProposalReviewSchema = z
+  .object({
+    action: z.enum(["APPROVE", "REJECT", "REQUEST_CHANGES"]),
+    reason: z
+      .preprocess(
+        (value) => (value === "" || value === null ? null : value),
+        z.string().trim().max(5000).nullable(),
+      ),
+  })
+  .superRefine((review, context) => {
+    if (
+      review.action !== "APPROVE" &&
+      (!review.reason || review.reason.length < 5)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["reason"],
+        message:
+          "Ablehnung und Änderungswunsch benötigen eine Begründung.",
+      });
+    }
+  });

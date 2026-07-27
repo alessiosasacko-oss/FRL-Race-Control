@@ -1,6 +1,9 @@
 import type {
+  DiscussionMessageType,
   EvidenceType,
+  PenaltyProposalStatus,
   PenaltyType,
+  ProposalVoteChoice,
   RaceSession,
   TicketAuditAction,
   TicketStatus,
@@ -131,6 +134,10 @@ export type FiaTicketDetail = {
     displayName: string;
     avatarUrl: string | null;
   } | null;
+  assignedStewards: Array<{
+    id: number;
+    displayName: string;
+  }>;
   drivers: Array<FiaDriverSummary & { userId: number | null }>;
   evidence: Array<{
     id: number;
@@ -147,9 +154,47 @@ export type FiaTicketDetail = {
   }>;
   discussionMessages: Array<{
     id: number;
+    type: DiscussionMessageType;
     message: string;
     createdAt: string;
+    updatedAt: string;
     author: { id: number; displayName: string };
+    proposal: {
+      id: number;
+      affectedDriver: {
+        id: number;
+        name: string;
+        number: number;
+        flag: string;
+      };
+      creator: { id: number; displayName: string };
+      penaltyType: PenaltyType;
+      penaltyValue: number | null;
+      reason: string;
+      status: PenaltyProposalStatus;
+      revision: number;
+      closesAt: string | null;
+      closeWhenAllVoted: boolean;
+      closedAt: string | null;
+      reviewedAt: string | null;
+      reviewReason: string | null;
+      reviewedBy: { id: number; displayName: string } | null;
+      supersedesId: number | null;
+      decisionId: number | null;
+      evidence: Array<{
+        id: number;
+        label: string;
+        viewUrl: string | null;
+      }>;
+      votes: Array<{
+        id: number;
+        choice: ProposalVoteChoice;
+        createdAt: string;
+        updatedAt: string;
+        changeCount: number;
+        voter: { id: number; displayName: string };
+      }>;
+    } | null;
   }>;
   votes: Array<{
     id: number;
@@ -163,6 +208,11 @@ export type FiaTicketDetail = {
     id: number;
     penaltyType: PenaltyType;
     penaltyValue: number | null;
+    affectedDriver: {
+      id: number;
+      name: string;
+      number: number;
+    } | null;
     reason: string;
     decidedAt: string;
     stewards: Array<{ id: number; displayName: string }>;

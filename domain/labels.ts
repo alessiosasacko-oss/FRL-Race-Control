@@ -12,6 +12,8 @@ import {
   ResultStatus,
   ResultGapMode,
   ResultPublicationStatus,
+  PenaltyProposalStatus,
+  ProposalVoteChoice,
   Role,
   TicketAuditAction,
   TicketStatus,
@@ -99,11 +101,35 @@ export const penaltyTypeLabels: Record<PenaltyType, string> = {
   [PenaltyType.Warning]: "Verwarnung",
   [PenaltyType.Reprimand]: "Rüge",
   [PenaltyType.TimePenalty]: "Zeitstrafe",
+  [PenaltyType.PenaltyPoints]: "Strafpunkte",
   [PenaltyType.GridPenalty]: "Startplatzstrafe",
+  [PenaltyType.QualifyingBan]: "Q-Sperre",
+  [PenaltyType.RaceBan]: "Rennsperre",
+  [PenaltyType.SeasonBan]: "Saisonsperre",
   [PenaltyType.DriveThrough]: "Durchfahrtsstrafe",
   [PenaltyType.StopAndGo]: "Stop-and-Go-Strafe",
   [PenaltyType.Disqualification]: "Disqualifikation",
   [PenaltyType.PointsDeduction]: "Punktabzug",
+};
+
+export const penaltyProposalStatusLabels: Record<
+  PenaltyProposalStatus,
+  string
+> = {
+  [PenaltyProposalStatus.Open]: "Abstimmung läuft",
+  [PenaltyProposalStatus.AwaitingApproval]: "FIA-Freigabe ausstehend",
+  [PenaltyProposalStatus.Approved]: "Genehmigt",
+  [PenaltyProposalStatus.Rejected]: "Abgelehnt",
+  [PenaltyProposalStatus.ChangesRequested]: "Änderungen angefordert",
+};
+
+export const proposalVoteChoiceLabels: Record<
+  ProposalVoteChoice,
+  string
+> = {
+  [ProposalVoteChoice.For]: "Dafür",
+  [ProposalVoteChoice.Against]: "Dagegen",
+  [ProposalVoteChoice.Abstain]: "Enthalten",
 };
 
 export const raceSessionLabels: Record<RaceSession, string> = {
@@ -157,5 +183,11 @@ export const ticketAuditActionLabels: Record<TicketAuditAction, string> = {
   [TicketAuditAction.EvidenceRemoved]: "Beweis entfernt",
   [TicketAuditAction.DiscussionMessageAdded]: "Kommentar hinzugefügt",
   [TicketAuditAction.VoteRecorded]: "Steward-Bewertung gespeichert",
+  [TicketAuditAction.ProposalCreated]: "Strafenvorschlag erstellt",
+  [TicketAuditAction.ProposalVoteRecorded]:
+    "Vorschlagsstimme gespeichert",
+  [TicketAuditAction.ProposalClosed]: "Abstimmung geschlossen",
+  [TicketAuditAction.ProposalReviewed]:
+    "Strafenvorschlag geprüft",
   [TicketAuditAction.DecisionPublished]: "Entscheidung veröffentlicht",
 };

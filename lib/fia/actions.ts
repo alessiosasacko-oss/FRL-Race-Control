@@ -39,6 +39,7 @@ import {
   voteSchema,
 } from "@/lib/fia/schemas";
 import type { FiaActionState } from "@/lib/fia/types";
+import { canParticipateInProposal } from "@/lib/fia/proposal-policy";
 import { getVideoUploadLimits } from "@/lib/storage/evidence-config";
 import { verifyStoredVideo } from "@/lib/storage/evidence-storage";
 import type {
@@ -446,7 +447,10 @@ export async function addFiaDiscussionMessageAction(
         select: { status: true },
       });
 
-      if (!ticket || ticket.status === PrismaTicketStatus.RESOLVED) {
+      if (
+        !ticket ||
+        ticket.status === PrismaTicketStatus.RESOLVED
+      ) {
         throw new Error("CLOSED");
       }
 
@@ -459,7 +463,9 @@ export async function addFiaDiscussionMessageAction(
       });
 
       await transaction.fiaTicketSteward.upsert({
-        where: { ticketId_userId: { ticketId, userId: user.id } },
+        where: {
+          ticketId_userId: { ticketId, userId: user.id },
+        },
         update: {},
         create: { ticketId, userId: user.id },
       });
@@ -510,34 +516,52 @@ export async function castFiaVoteAction(
     await prisma.$transaction(async (transaction) => {
       const ticket = await transaction.fiaTicket.findUnique({
         where: { id: ticketId },
-        select: { status: true },
+        select: {
+          status: true,
+          stewardAssignments: { select: { userId: true } },
+        },
       });
 
-      if (ticket?.status !== PrismaTicketStatus.IN_REVIEW) {
+      if (
+        ticket?.status !== PrismaTicketStatus.IN_REVIEW ||
+        !canParticipateInProposal({
+          roles: user.roles,
+          userId: user.id,
+          assignedStewardIds:
+            ticket?.stewardAssignments.map(
+              ({ userId }) => userId,
+            ) ?? [],
+        })
+      ) {
         throw new Error("NOT_IN_REVIEW");
       }
 
-      await transaction.vote.upsert({
-        where: { ticketId_voterId: { ticketId, voterId: user.id } },
-        update: {
-          penaltyType: parsed.data.penaltyType as PrismaPenaltyType,
-          penaltyValue: parsed.data.penaltyValue ?? null,
-          reason: parsed.data.reason,
-        },
-        create: {
-          ticketId,
-          voterId: user.id,
-          penaltyType: parsed.data.penaltyType as PrismaPenaltyType,
-          penaltyValue: parsed.data.penaltyValue ?? null,
-          reason: parsed.data.reason,
-        },
+      const existingVote = await transaction.vote.findFirst({
+        where: { ticketId, voterId: user.id, proposalId: null },
+        select: { id: true },
       });
-
-      await transaction.fiaTicketSteward.upsert({
-        where: { ticketId_userId: { ticketId, userId: user.id } },
-        update: {},
-        create: { ticketId, userId: user.id },
-      });
+      if (existingVote) {
+        await transaction.vote.update({
+          where: { id: existingVote.id },
+          data: {
+            penaltyType:
+              parsed.data.penaltyType as PrismaPenaltyType,
+            penaltyValue: parsed.data.penaltyValue ?? null,
+            reason: parsed.data.reason,
+          },
+        });
+      } else {
+        await transaction.vote.create({
+          data: {
+            ticketId,
+            voterId: user.id,
+            penaltyType:
+              parsed.data.penaltyType as PrismaPenaltyType,
+            penaltyValue: parsed.data.penaltyValue ?? null,
+            reason: parsed.data.reason,
+          },
+        });
+      }
 
       await transaction.fiaTicketAuditLog.create({
         data: {
@@ -608,7 +632,14 @@ export async function publishFiaDecisionAction(
           },
           drivers: { select: { driver: { select: { userId: true } } } },
           stewardAssignments: { select: { userId: true } },
-          votes: { select: { voterId: true } },
+          votes: {
+            where: { proposalId: null },
+            select: { voterId: true },
+          },
+          penaltyProposals: {
+            select: { id: true },
+            take: 1,
+          },
           decision: { select: { id: true } },
         },
       });
@@ -617,7 +648,8 @@ export async function publishFiaDecisionAction(
         !ticket ||
         ticket.status !== PrismaTicketStatus.IN_REVIEW ||
         ticket.decision ||
-        ticket.votes.length === 0
+        ticket.votes.length === 0 ||
+        ticket.penaltyProposals.length > 0
       ) {
         throw new Error("INVALID_WORKFLOW");
       }

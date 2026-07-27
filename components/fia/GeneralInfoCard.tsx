@@ -15,11 +15,11 @@ export default function GeneralInfoCard({
   }).format(new Date(ticket.createdAt));
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-6">
-      <h2 className="text-xl font-bold text-white">
-        Allgemeine Informationen
+    <section className="rounded-2xl border border-slate-800 bg-[#101720] p-5">
+      <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">
+        Ticketinformationen
       </h2>
-      <div className="mt-5 grid grid-cols-2 gap-5 text-sm">
+      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5 text-sm xl:grid-cols-1">
         <Info title="Liga" value={ticket.league.name} />
         <Info title="Saison" value={ticket.season.name} />
         <Info title="Rennen" value={ticket.race.name} />

@@ -1,42 +1,133 @@
 @import "tailwindcss";
 
 :root {
-  --background: #080b10;
-  --foreground: #ffffff;
+  --background: #070a0f;
+  --surface: #0d1219;
+  --surface-raised: #121923;
+  --surface-muted: #171f2b;
+  --border: #253044;
+  --border-strong: #34435c;
+  --foreground: #f7f9fc;
+  --muted: #93a0b4;
+  --brand: #3b82f6;
+  --brand-strong: #2563eb;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+  --special: #a78bfa;
+  --live: #22d3ee;
+  --radius-sm: 0.625rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --shadow-panel: 0 18px 55px rgb(0 0 0 / 0.22);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "Cascadia Code", Consolas, monospace;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
+  background: var(--background);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  min-width: 320px;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at 78% -10%, rgb(37 99 235 / 0.13), transparent 28rem),
+    linear-gradient(135deg, transparent 0 49.5%, rgb(255 255 255 / 0.018) 49.5% 50.5%, transparent 50.5% 100%);
+  background-size: auto, 22px 22px;
+}
+
+::selection {
+  color: white;
+  background: rgb(37 99 235 / 0.75);
+}
+
+:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 3px;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+summary {
+  -webkit-tap-highlight-color: transparent;
 }
 
 @layer components {
+  .page-container {
+    @apply mx-auto w-full max-w-[1540px];
+  }
+
+  .page-stack {
+    @apply space-y-8 lg:space-y-10;
+  }
+
+  .page-section {
+    @apply border-t border-slate-800/80 pt-6 sm:pt-8;
+  }
+
+  .surface-panel {
+    @apply rounded-[1.25rem] border border-slate-800/90 bg-[#101720]/95 shadow-2xl shadow-black/10;
+  }
+
+  .surface-subtle {
+    @apply rounded-2xl bg-slate-950/40;
+  }
+
+  .eyebrow {
+    @apply text-[0.7rem] font-bold uppercase tracking-[0.18em] text-blue-400;
+  }
+
+  .metadata {
+    @apply text-xs leading-5 text-slate-500;
+  }
+
   .filter-select {
-    @apply rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white transition hover:border-blue-500;
+    @apply min-h-11 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white transition hover:border-blue-500 focus:border-blue-400;
   }
 
   .pagination-link {
-    @apply inline-flex items-center justify-center gap-1 rounded-lg border border-slate-700 px-3 py-2 text-slate-300 transition hover:border-blue-500 hover:text-white;
+    @apply inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-950/20 px-3 py-2 text-slate-300 transition hover:border-blue-500 hover:bg-blue-500/10 hover:text-white;
   }
 
   .form-control {
-    @apply w-full rounded-xl border border-slate-700 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500;
+    @apply min-h-11 w-full rounded-xl border border-slate-700 bg-[#0b1119] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 hover:border-slate-600 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10;
   }
 
   .wizard-primary-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .wizard-secondary-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 px-5 py-3 text-slate-300 transition hover:border-blue-500 hover:text-white;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/20 px-5 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-blue-500 hover:bg-blue-500/10 hover:text-white;
+  }
+
+  .danger-button {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-5 py-2.5 text-sm font-semibold text-red-200 transition hover:border-red-400 hover:bg-red-500/20;
   }
 
   .master-label {
@@ -44,6 +135,55 @@ body {
   }
 
   .master-card {
-    @apply rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-6;
+    @apply rounded-[1.25rem] border border-slate-800/90 bg-[#101720]/95 p-5 shadow-xl shadow-black/5 sm:p-6;
+  }
+
+  .data-table-shell {
+    @apply overflow-hidden rounded-[1.25rem] border border-slate-800/90 bg-[#101720]/95;
+  }
+
+  .data-table {
+    @apply w-full border-separate border-spacing-0 text-left text-sm;
+  }
+
+  .data-table thead {
+    @apply sticky top-0 z-10 bg-[#121923]/95 text-[0.68rem] uppercase tracking-[0.14em] text-slate-500 backdrop-blur;
+  }
+
+  .data-table th {
+    @apply border-b border-slate-700/80 px-4 py-3 font-semibold;
+  }
+
+  .data-table td {
+    @apply border-b border-slate-800/70 px-4 py-3.5;
+  }
+
+  .data-table tbody tr {
+    @apply transition-colors hover:bg-blue-500/5;
+  }
+
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .mobile-safe-bottom {
+    padding-bottom: max(5.75rem, calc(4.75rem + env(safe-area-inset-bottom)));
+  }
+}
+
+@media (min-width: 1024px) {
+  .mobile-safe-bottom {
+    padding-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

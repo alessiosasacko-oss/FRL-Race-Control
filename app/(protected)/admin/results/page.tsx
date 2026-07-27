@@ -1,5 +1,7 @@
 import AppLayout from "@/components/layout/AppLayout";
 import ResultsEditor from "@/components/championship/ResultsEditor";
+import PageHeader from "@/components/ui/PageHeader";
+import { Flag, SlidersHorizontal } from "lucide-react";
 import {
   ResultSession,
   resultSessionLabels,
@@ -41,21 +43,23 @@ export default async function ResultsAdminPage({
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-white">
-            Ergebnisse eintragen
-          </h1>
-          <p className="mt-2 text-slate-400">
-            Qualifying, Sprint und Rennen in einer gemeinsamen,
-            validierten Ergebnistabelle erfassen.
-          </p>
-        </div>
+      <div className="page-stack">
+        <PageHeader
+          title="Ergebnisverwaltung"
+          subtitle="Die Ergebnistabelle ist die zentrale Race-Control-Arbeitsfläche."
+          eyebrow="Timing & classification"
+          icon={Flag}
+        />
 
-        <form
-          action="/admin/results"
-          className="master-card grid gap-3 md:grid-cols-2 xl:grid-cols-[140px_220px_1fr_190px_auto]"
-        >
+        <details className="rounded-2xl border border-slate-800 bg-[#101720]" open>
+          <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-300">
+            <SlidersHorizontal size={17} className="text-blue-400" />
+            Rennen und Sitzung wählen
+          </summary>
+          <form
+            action="/admin/results"
+            className="grid gap-3 border-t border-slate-800 p-4 md:grid-cols-2 xl:grid-cols-[140px_220px_1fr_190px_auto]"
+          >
           <label className="master-label">
             Liga
             <select
@@ -132,11 +136,13 @@ export default async function ResultsAdminPage({
           <button className="wizard-primary-button self-end">
             Laden
           </button>
-        </form>
+          </form>
+        </details>
 
         {data.selected ? (
-          <section className="master-card">
-            <div className="mb-5 border-b border-slate-800 pb-5">
+          <section>
+            <div className="mb-5 flex flex-col gap-3 border-l-4 border-blue-500 bg-blue-500/5 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
                 {data.selected.race.season.league.code} ·{" "}
                 {data.selected.race.season.name} · Runde{" "}
@@ -146,6 +152,10 @@ export default async function ResultsAdminPage({
                 {data.selected.race.name} ·{" "}
                 {resultSessionLabels[session]}
               </h2>
+              </div>
+              <p className="text-sm text-slate-400">
+                Positionen, Abstände, FIA-Strafen und Endklassifikation
+              </p>
             </div>
             <ResultsEditor
               key={`${data.selected.race.id}:${data.selected.race.season.league.id}:${session}`}

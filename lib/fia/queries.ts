@@ -1,7 +1,10 @@
 import "server-only";
 import {
+  DiscussionMessageType,
   EvidenceType,
+  PenaltyProposalStatus,
   PenaltyType,
+  ProposalVoteChoice,
   RaceSession,
   TicketAuditAction,
   TicketStatus,
@@ -355,8 +358,10 @@ export async function getTicketWizardOptions(): Promise<TicketWizardOptions> {
 
 export async function getFiaTicketById(
   ticketId: number,
+  options: { includeInternal?: boolean } = {},
 ): Promise<FiaTicketDetail | null> {
   const prisma = getPrismaClient();
+  const includeInternal = options.includeInternal ?? false;
   const ticket = await prisma.fiaTicket.findUnique({
     where: { id: ticketId },
     include: {
@@ -375,6 +380,12 @@ export async function getFiaTicketById(
       },
       reportedBy: {
         select: { id: true, displayName: true, avatarUrl: true },
+      },
+      stewardAssignments: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          user: { select: { id: true, displayName: true } },
+        },
       },
       drivers: {
         orderBy: { driver: { number: "asc" } },
@@ -406,12 +417,55 @@ export async function getFiaTicketById(
         },
       },
       discussionMessages: {
+        where: includeInternal ? undefined : { id: -1 },
         orderBy: { createdAt: "asc" },
         include: {
           author: { select: { id: true, displayName: true } },
+          proposal: {
+            include: {
+              creator: { select: { id: true, displayName: true } },
+              affectedDriver: {
+                select: {
+                  id: true,
+                  name: true,
+                  number: true,
+                  flag: true,
+                },
+              },
+              reviewedBy: {
+                select: { id: true, displayName: true },
+              },
+              evidence: {
+                orderBy: { createdAt: "asc" },
+                include: {
+                  evidence: {
+                    select: {
+                      id: true,
+                      label: true,
+                      url: true,
+                      storagePath: true,
+                    },
+                  },
+                },
+              },
+              votes: {
+                orderBy: { createdAt: "asc" },
+                include: {
+                  voter: {
+                    select: { id: true, displayName: true },
+                  },
+                  _count: { select: { changes: true } },
+                },
+              },
+              decision: { select: { id: true } },
+            },
+          },
         },
       },
       votes: {
+        where: includeInternal
+          ? { proposalId: null }
+          : { id: -1 },
         orderBy: { updatedAt: "desc" },
         include: {
           voter: { select: { id: true, displayName: true } },
@@ -419,7 +473,11 @@ export async function getFiaTicketById(
       },
       decision: {
         include: {
+          affectedDriver: {
+            select: { id: true, name: true, number: true },
+          },
           stewards: {
+            where: includeInternal ? undefined : { id: -1 },
             include: {
               user: { select: { id: true, displayName: true } },
             },
@@ -427,6 +485,19 @@ export async function getFiaTicketById(
         },
       },
       auditLog: {
+        where: includeInternal
+          ? undefined
+          : {
+              action: {
+                in: [
+                  "CREATED",
+                  "STATUS_CHANGED",
+                  "EVIDENCE_ADDED",
+                  "EVIDENCE_REMOVED",
+                  "DECISION_PUBLISHED",
+                ],
+              },
+            },
         orderBy: { createdAt: "desc" },
         include: {
           actor: { select: { id: true, displayName: true } },
@@ -459,6 +530,9 @@ export async function getFiaTicketById(
       round: ticket.race.round,
     },
     reportedBy: ticket.reportedBy,
+    assignedStewards: ticket.stewardAssignments.map(
+      ({ user }) => user,
+    ),
     drivers: ticket.drivers.map(({ driver }) => driver),
     evidence: ticket.evidence.map((evidence) => ({
       id: evidence.id,
@@ -477,15 +551,66 @@ export async function getFiaTicketById(
     })),
     discussionMessages: ticket.discussionMessages.map((message) => ({
       id: message.id,
+      type: message.type as DiscussionMessageType,
       message: message.message,
       createdAt: message.createdAt.toISOString(),
+      updatedAt: message.updatedAt.toISOString(),
       author: message.author,
+      proposal: message.proposal
+        ? {
+            id: message.proposal.id,
+            affectedDriver: message.proposal.affectedDriver,
+            creator: message.proposal.creator,
+            penaltyType:
+              message.proposal.penaltyType as PenaltyType,
+            penaltyValue: message.proposal.penaltyValue,
+            reason: message.proposal.reason,
+            status:
+              message.proposal.status as PenaltyProposalStatus,
+            revision: message.proposal.revision,
+            closesAt:
+              message.proposal.closesAt?.toISOString() ?? null,
+            closeWhenAllVoted:
+              message.proposal.closeWhenAllVoted,
+            closedAt:
+              message.proposal.closedAt?.toISOString() ?? null,
+            reviewedAt:
+              message.proposal.reviewedAt?.toISOString() ?? null,
+            reviewReason: message.proposal.reviewReason,
+            reviewedBy: message.proposal.reviewedBy,
+            supersedesId: message.proposal.supersedesId,
+            decisionId: message.proposal.decision?.id ?? null,
+            evidence: message.proposal.evidence.map(
+              ({ evidence }) => ({
+                id: evidence.id,
+                label: evidence.label,
+                viewUrl: evidence.storagePath
+                  ? `/api/fia/evidence/${evidence.id}`
+                  : evidence.url,
+              }),
+            ),
+            votes: message.proposal.votes.flatMap((vote) =>
+              vote.choice
+                ? [
+                    {
+                      id: vote.id,
+                      choice: vote.choice as ProposalVoteChoice,
+                      createdAt: vote.createdAt.toISOString(),
+                      updatedAt: vote.updatedAt.toISOString(),
+                      changeCount: vote._count.changes,
+                      voter: vote.voter,
+                    },
+                  ]
+                : [],
+            ),
+          }
+        : null,
     })),
     votes: ticket.votes.map((vote) => ({
       id: vote.id,
       penaltyType: vote.penaltyType as PenaltyType,
       penaltyValue: vote.penaltyValue,
-      reason: vote.reason,
+      reason: vote.reason ?? "",
       updatedAt: vote.updatedAt.toISOString(),
       voter: vote.voter,
     })),
@@ -494,6 +619,7 @@ export async function getFiaTicketById(
           id: ticket.decision.id,
           penaltyType: ticket.decision.penaltyType as PenaltyType,
           penaltyValue: ticket.decision.penaltyValue,
+          affectedDriver: ticket.decision.affectedDriver,
           reason: ticket.decision.reason,
           decidedAt: ticket.decision.decidedAt.toISOString(),
           stewards: ticket.decision.stewards.map(({ user }) => user),

@@ -642,11 +642,25 @@ export default function ResultsEditor({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-white">
-            Abstandsmodus
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${
+                published
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-200"
+              }`}
+            >
+              {published ? "Veröffentlicht" : "Entwurf"}
+            </span>
+            <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">
+              {rows.length} Fahrerzeilen
+            </span>
+          </div>
+          <p className="mt-3 text-sm font-semibold text-white">
+            Race-Control-Arbeitsfläche
           </p>
           <p className="mt-1 text-xs text-slate-400">
-            Zeiten werden intern immer auf Millisekunden normalisiert.
+            Abstände werden intern immer auf Millisekunden normalisiert.
           </p>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -715,16 +729,16 @@ export default function ResultsEditor({
         />
 
         <div
-          className="hidden overflow-x-auto rounded-2xl border border-slate-800 md:block"
+          className="hidden max-h-[68vh] overflow-auto rounded-2xl border border-slate-700 bg-[#0b1119] shadow-2xl shadow-black/20 md:block"
           onKeyDown={handleTableKeyDown}
         >
           <table className="min-w-[1380px] w-full border-collapse text-sm">
-            <thead className="sticky top-0 z-20 bg-slate-900 text-left text-xs uppercase tracking-wide text-slate-400">
+            <thead className="sticky top-0 z-20 bg-[#151e2a] text-left text-[0.68rem] uppercase tracking-[0.13em] text-slate-400 shadow-lg">
               <tr>
-                <th className="sticky left-0 z-30 w-20 bg-slate-900 px-3 py-3">
+                <th className="sticky left-0 z-30 w-20 bg-[#151e2a] px-3 py-3">
                   Pos.
                 </th>
-                <th className="sticky left-20 z-30 min-w-64 bg-slate-900 px-3 py-3">
+                <th className="sticky left-20 z-30 min-w-64 bg-[#151e2a] px-3 py-3">
                   Fahrer
                 </th>
                 <th className="px-3 py-3">Nr.</th>
@@ -908,7 +922,7 @@ export default function ResultsEditor({
         ) : null}
 
         <ActionMessage state={state} />
-        <div className="sticky bottom-3 z-30 grid gap-2 rounded-2xl border border-slate-700 bg-slate-950/95 p-3 shadow-2xl backdrop-blur sm:grid-cols-3">
+        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 grid gap-2 rounded-2xl border border-blue-500/25 bg-[#0b1119]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur sm:grid-cols-3 lg:bottom-3">
           <button
             name="intent"
             value="DRAFT"

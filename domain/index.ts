@@ -8,6 +8,7 @@ export * from "./fia-ticket";
 export * from "./labels";
 export * from "./league";
 export * from "./notification";
+export * from "./penalty-proposal";
 export * from "./race";
 export * from "./result";
 export * from "./scoring";

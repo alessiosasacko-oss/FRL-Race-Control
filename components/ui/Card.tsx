@@ -1,16 +1,18 @@
 type CardProps = {
   title: string;
   children: React.ReactNode;
+  className?: string;
 };
 
-export default function Card({ title, children }: CardProps) {
+export default function Card({ title, children, className = "" }: CardProps) {
   return (
-    <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-6 shadow-xl transition-all duration-300 hover:-translate-y-1 hover:border-red-600 hover:shadow-2xl">
-      <h2 className="mb-4 text-2xl font-bold tracking-wide text-red-500">
+    <section
+      className={`rounded-[1.25rem] border border-slate-800 bg-[#101720]/95 p-6 shadow-2xl shadow-black/10 ${className}`}
+    >
+      <h2 className="mb-4 text-xl font-semibold tracking-tight text-white">
         {title}
       </h2>
-
       {children}
-    </div>
+    </section>
   );
 }

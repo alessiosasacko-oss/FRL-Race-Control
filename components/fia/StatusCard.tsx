@@ -22,9 +22,9 @@ export default function StatusCard({
   const startReview = startFiaReviewAction.bind(null, ticket.id);
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-6">
+    <section className="rounded-2xl border border-violet-500/25 bg-violet-500/5 p-5">
       <div className="flex items-center gap-2">
-        <Clock3 className="text-blue-400" size={20} />
+        <Clock3 className="text-violet-300" size={20} />
         <h2 className="text-xl font-bold text-white">Workflow</h2>
       </div>
       <ol className="mt-6 space-y-4">
@@ -33,7 +33,7 @@ export default function StatusCard({
           return (
             <li key={status} className="flex items-center gap-3">
               {complete ? (
-                <CheckCircle2 className="text-blue-400" size={20} />
+                <CheckCircle2 className="text-violet-300" size={20} />
               ) : (
                 <Circle className="text-slate-600" size={20} />
               )}

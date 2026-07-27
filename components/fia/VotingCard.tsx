@@ -19,6 +19,7 @@ type VotingCardProps = {
   status: FiaTicketDetail["status"];
   votes: FiaTicketDetail["votes"];
   currentUserId: number;
+  readOnly?: boolean;
 };
 
 export default function VotingCard({
@@ -26,6 +27,7 @@ export default function VotingCard({
   status,
   votes,
   currentUserId,
+  readOnly = false,
 }: VotingCardProps) {
   const currentVote = votes.find(
     (vote) => vote.voter.id === currentUserId,
@@ -41,6 +43,7 @@ export default function VotingCard({
       <div className="flex items-center gap-2">
         <VoteIcon className="text-blue-400" size={20} />
         <h2 className="text-xl font-bold text-white">
+          {readOnly ? "Historische " : ""}
           Steward-Bewertungen ({votes.length})
         </h2>
       </div>
@@ -63,7 +66,7 @@ export default function VotingCard({
         ))}
       </div>
 
-      {status === TicketStatus.InReview ? (
+      {!readOnly && status === TicketStatus.InReview ? (
         <form action={formAction} className="mt-6 space-y-3 border-t border-slate-800 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <select
@@ -109,11 +112,11 @@ export default function VotingCard({
             </button>
           </div>
         </form>
-      ) : (
+      ) : !readOnly ? (
         <p className="mt-5 text-sm text-slate-400">
           Bewertungen sind nur während der Untersuchung möglich.
         </p>
-      )}
+      ) : null}
     </section>
   );
 }

@@ -1,10 +1,10 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Bell, Menu, Settings, UserRound } from "lucide-react";
-import { roleLabels } from "@/domain";
-import { hasPermission, Permission } from "@/lib/auth/permissions";
-import type { AuthenticatedUser } from "@/lib/auth/session";
-import { mainNavigationItems } from "./navigation";
+import { Bell, Radio } from "lucide-react";
 import GlobalSearch from "@/components/search/GlobalSearch";
+import { roleLabels } from "@/domain";
+import type { AuthenticatedUser } from "@/lib/auth/session";
+import RouteContext from "./RouteContext";
 
 type TopbarProps = {
   user: AuthenticatedUser;
@@ -15,94 +15,63 @@ export default function Topbar({
   user,
   unreadNotifications,
 }: TopbarProps) {
-  const canManageAdministration = hasPermission(
-    user.roles,
-    Permission.ManageAdministration,
-  );
-
   return (
-    <header className="flex min-h-20 items-center justify-between gap-4 border-b border-slate-800 bg-[#0F141B] px-4 py-4 sm:px-6 lg:px-8">
-
-      <div>
-        <h1 className="text-xl font-bold text-white sm:text-2xl">
-          FRL Race Control
-        </h1>
-
-        <p className="text-sm text-slate-400">
-          Willkommen zurück bei FRL Race Control.
-        </p>
+    <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b border-slate-800/80 bg-[#080d14]/90 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+      <div className="flex min-w-0 items-center gap-3">
+        <Image
+          src="/images/frl-logo.png"
+          alt=""
+          width={36}
+          height={36}
+          className="rounded-lg lg:hidden"
+        />
+        <RouteContext />
       </div>
-
-      <div className="flex items-center gap-4">
-        <details className="relative lg:hidden">
-          <summary
-            aria-label="Navigation öffnen"
-            className="flex cursor-pointer list-none rounded-xl bg-[#151B24] p-3 transition hover:bg-blue-600"
-          >
-            <Menu size={20} />
-          </summary>
-          <nav className="absolute right-0 top-14 z-50 w-64 rounded-2xl border border-slate-700 bg-[#0F141B] p-3 shadow-2xl">
-            {mainNavigationItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-300 transition hover:bg-blue-600 hover:text-white"
-                >
-                  <Icon size={18} />
-                  {item.name}
-                </Link>
-              );
-            })}
-            {canManageAdministration ? (
-              <Link
-                href="/admin"
-                className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-300 transition hover:bg-blue-600 hover:text-white"
-              >
-                <Settings size={18} />
-                Administration
-              </Link>
-            ) : null}
-            <Link
-              href="/settings"
-              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-300 transition hover:bg-blue-600 hover:text-white"
-            >
-              <Settings size={18} />
-              Einstellungen
-            </Link>
-          </nav>
-        </details>
-
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <span className="hidden items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-cyan-300 xl:flex">
+          <Radio size={13} />
+          System online
+        </span>
         <GlobalSearch />
-
         <Link
           href="/notifications"
           aria-label="Benachrichtigungen öffnen"
-          className="relative rounded-xl bg-[#151B24] p-3 transition hover:bg-blue-600"
+          className="relative flex size-11 items-center justify-center rounded-xl border border-slate-800 bg-[#101720] text-slate-300 transition hover:border-blue-500 hover:text-white"
         >
-          <Bell size={20} />
+          <Bell size={19} />
           {unreadNotifications > 0 ? (
-            <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+            <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#080d14] bg-red-500 px-1 text-[9px] font-bold text-white">
               {unreadNotifications > 99 ? "99+" : unreadNotifications}
             </span>
           ) : null}
         </Link>
-
-        <div className="hidden items-center gap-3 rounded-xl bg-[#151B24] px-4 py-2 sm:flex">
-          <UserRound size={20} className="text-blue-400" />
-          <div>
-            <p className="text-sm font-semibold text-white">
+        <Link
+          href="/profile"
+          className="hidden min-h-11 items-center gap-3 rounded-xl border border-slate-800 bg-[#101720] px-2.5 py-1.5 transition hover:border-blue-500 sm:flex"
+        >
+          {user.avatarUrl ? (
+            <Image
+              src={user.avatarUrl}
+              alt=""
+              width={32}
+              height={32}
+              className="size-8 rounded-lg object-cover"
+            />
+          ) : (
+            <span className="flex size-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold">
+              {user.displayName.slice(0, 1).toUpperCase()}
+            </span>
+          )}
+          <span className="hidden min-w-0 lg:block">
+            <span className="block max-w-36 truncate text-xs font-semibold text-white">
               {user.displayName}
-            </p>
-            <p className="text-xs text-slate-400">
+            </span>
+            <span className="block max-w-36 truncate text-[0.65rem] text-violet-300">
               {roleLabels[user.roles[0]]}
-            </p>
-          </div>
-        </div>
-
+            </span>
+          </span>
+        </Link>
       </div>
-
     </header>
   );
 }

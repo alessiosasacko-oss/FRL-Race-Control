@@ -20,6 +20,7 @@ type DecisionCardProps = {
   decision: FiaTicketDetail["decision"];
   voteCount: number;
   canDecide: boolean;
+  canUseLegacyDecision: boolean;
 };
 
 export default function DecisionCard({
@@ -28,6 +29,7 @@ export default function DecisionCard({
   decision,
   voteCount,
   canDecide,
+  canUseLegacyDecision,
 }: DecisionCardProps) {
   const action = publishFiaDecisionAction.bind(null, ticketId);
   const [state, formAction, pending] = useActionState(
@@ -52,6 +54,12 @@ export default function DecisionCard({
               ? ` · ${decision.penaltyValue}`
               : ""}
           </p>
+          {decision.affectedDriver ? (
+            <p className="mt-2 text-sm font-medium text-slate-300">
+              Fahrer: {decision.affectedDriver.name} · #
+              {decision.affectedDriver.number}
+            </p>
+          ) : null}
           <p className="mt-4 whitespace-pre-wrap leading-7 text-slate-200">
             {decision.reason}
           </p>
@@ -68,7 +76,9 @@ export default function DecisionCard({
               : ""}
           </p>
         </div>
-      ) : canDecide && status === TicketStatus.InReview ? (
+      ) : canDecide &&
+        canUseLegacyDecision &&
+        status === TicketStatus.InReview ? (
         <form action={formAction} className="mt-5 space-y-3">
           <p className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-blue-200">
             Nur der FIA-Präsident oder eine Rolle mit Entscheidungsrecht kann

@@ -411,7 +411,13 @@ export async function recalculateChampionship(
   if (scoring.deductPenaltyPoints) {
     for (const ticket of season.tickets) {
       const deduction = Math.max(0, ticket.decision?.penaltyValue ?? 0);
-      for (const link of ticket.drivers) {
+      const affectedDriverId = ticket.decision?.affectedDriverId;
+      const affectedDrivers = affectedDriverId
+        ? ticket.drivers.filter(
+            ({ driverId }) => driverId === affectedDriverId,
+          )
+        : ticket.drivers;
+      for (const link of affectedDrivers) {
         const driver =
           drivers.get(link.driverId) ?? accumulator(link.driverId);
         driver.penaltyPoints += deduction;

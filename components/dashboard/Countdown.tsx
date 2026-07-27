@@ -27,7 +27,10 @@ export default function Countdown({ target }: { target: string }) {
   }, [target]);
 
   return (
-    <span className="font-mono text-lg font-bold text-blue-300">
+    <span
+      suppressHydrationWarning
+      className="font-mono text-[inherit] font-black tracking-tight text-cyan-200"
+    >
       {label}
     </span>
   );

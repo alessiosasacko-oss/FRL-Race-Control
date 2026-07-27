@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { UserRound } from "lucide-react";
+import { Gauge, UserRound } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard/types";
 
 export default function WelcomeWidget({
@@ -8,41 +8,45 @@ export default function WelcomeWidget({
   identity: DashboardData["identity"];
 }) {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-blue-500/25 bg-gradient-to-br from-blue-600/20 via-[#151B24] to-[#151B24] p-6 sm:p-8">
-      <div className="absolute -right-16 -top-16 size-48 rounded-full bg-blue-500/10 blur-3xl" />
-      <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="eyebrow">Persönliche Rennzentrale</p>
+        <h1 className="mt-2 text-3xl font-bold tracking-[-0.03em] text-white sm:text-4xl">
+          Willkommen, {identity.driver?.name ?? identity.displayName}
+        </h1>
+        <p className="mt-2 text-sm text-slate-400">
+          Nächstes Rennen, Fahrerstatus und aktuelle Liga-Aktivität auf einen Blick.
+        </p>
+      </div>
+      <div className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-[#101720] p-3 pr-5">
         {identity.avatarUrl ? (
           <Image
             src={identity.avatarUrl}
             alt=""
-            width={80}
-            height={80}
-            className="size-20 rounded-2xl border border-blue-400/30 object-cover"
+            width={48}
+            height={48}
+            className="size-12 rounded-xl object-cover"
           />
         ) : (
-          <span className="flex size-20 items-center justify-center rounded-2xl bg-blue-600 text-white">
-            <UserRound size={34} />
+          <span className="flex size-12 items-center justify-center rounded-xl bg-blue-600 text-white">
+            <UserRound size={22} />
           </span>
         )}
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-300">
-            Willkommen zurück
-          </p>
-          <h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
-            {identity.driver?.flag}{" "}
-            {identity.driver?.name ?? identity.displayName}
-          </h1>
-          <p className="mt-3 text-slate-300">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-white">
             {identity.driver
-              ? `#${identity.driver.number} · ${
-                  identity.driver.team?.name ?? "Ohne Team"
-                } · ${identity.driver.league.code} · ${
-                  identity.season?.name ?? "Keine Saison"
-                }`
-              : "Noch kein Fahrerprofil zugeordnet"}
+              ? `${identity.driver.flag} #${identity.driver.number} ${identity.driver.name}`
+              : identity.displayName}
+          </p>
+          <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-slate-500">
+            <Gauge size={13} className="text-cyan-400" />
+            {identity.driver
+              ? `${identity.driver.team?.name ?? "Ohne Team"} · ${identity.driver.league.code}`
+              : "Noch kein Fahrerprofil"}
+            {identity.season ? ` · ${identity.season.name}` : ""}
           </p>
         </div>
       </div>
-    </section>
+    </header>
   );
 }
