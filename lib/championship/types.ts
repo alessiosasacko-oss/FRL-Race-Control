@@ -259,6 +259,7 @@ export type ResultAdminData = {
     teamId: number | null;
     teamName: string | null;
     registered: boolean;
+    registrationOrder: number | null;
     replacement: boolean;
     expectedDriverId: number | null;
   }>;

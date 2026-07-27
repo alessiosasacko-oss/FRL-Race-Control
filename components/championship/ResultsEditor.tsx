@@ -16,6 +16,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import {
   RaceSession,
@@ -29,6 +30,14 @@ import {
 } from "@/domain";
 import { deleteResultsAction } from "@/lib/championship/actions";
 import { saveResultsAction } from "@/lib/championship/result-actions";
+import {
+  isPopulatedResultRow,
+  moveResultRow,
+  orderRegisteredResultDrivers,
+  removeResultRow,
+  restoreResultRow,
+  withDefaultResultRows,
+} from "@/lib/championship/result-editor";
 import {
   aggregateFiaPenalties,
   calculateFinalClassification,
@@ -213,9 +222,23 @@ function initialRows(
     });
   }
 
-  const registered = data.drivers.filter((driver) => driver.registered);
-  if (registered.length === 0) return [emptyRow(1)];
-  return registered.map((driver, index) => {
+  const startingGrid =
+    session === ResultSession.Qualifying
+      ? []
+      : (data.selected?.sessions.find(
+          (item) => item.session === ResultSession.Qualifying,
+        )?.results ?? []);
+  const gridPositionByDriver = new Map(
+    startingGrid.map((result, index) => [
+      result.driverId,
+      result.finalPosition ?? result.position ?? index + 1,
+    ]),
+  );
+  const registered = orderRegisteredResultDrivers(
+    data.drivers,
+    startingGrid,
+  );
+  const registeredRows = registered.map((driver, index) => {
     const row = emptyRow(index + 1);
     const expectedDriver = driver.expectedDriverId
       ? data.drivers.find(
@@ -235,9 +258,19 @@ function initialRows(
       expectedDriverId: driver.expectedDriverId
         ? String(driver.expectedDriverId)
         : "",
+      startingPosition: gridPositionByDriver.has(
+        driver.expectedDriverId ?? driver.id,
+      )
+        ? String(
+            gridPositionByDriver.get(
+              driver.expectedDriverId ?? driver.id,
+            ),
+          )
+        : "",
       substitute: driver.replacement,
     };
   });
+  return withDefaultResultRows(registeredRows, emptyRow);
 }
 
 export default function ResultsEditor({
@@ -264,6 +297,10 @@ export default function ResultsEditor({
     !existingSession || existingSession.fiaPenaltyVersion === null,
   );
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [removedRow, setRemovedRow] = useState<{
+    row: RowState;
+    index: number;
+  } | null>(null);
   const [state, action, pending] = useActionState(
     saveResultsAction,
     initialSportsActionState,
@@ -308,6 +345,9 @@ export default function ResultsEditor({
   );
   const hasDuplicateDriver =
     new Set(selectedDriverIds).size !== selectedDriverIds.length;
+  const hasIncompleteDriverRow = rows.some(
+    (row) => !row.driverId && isPopulatedResultRow(row),
+  );
   const parsedGaps = rows.map(
     (row) => parseGapInput(row.gapInput) ?? {
       milliseconds: null,
@@ -476,13 +516,7 @@ export default function ResultsEditor({
   }
 
   function moveRow(index: number, direction: -1 | 1): void {
-    const target = index + direction;
-    if (target < 0 || target >= rows.length) return;
-    setRows((current) => {
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+    setRows((current) => moveResultRow(current, index, direction));
   }
 
   function dropRow(targetIndex: number): void {
@@ -494,6 +528,42 @@ export default function ResultsEditor({
       return next;
     });
     setDraggedIndex(null);
+  }
+
+  function addRow(): void {
+    setRows((current) => [
+      ...current,
+      {
+        ...emptyRow(current.length + 1),
+        key: crypto.randomUUID(),
+      },
+    ]);
+  }
+
+  function removeRow(index: number): void {
+    const row = rows[index];
+    if (!row || rows.length === 1) return;
+    if (
+      isPopulatedResultRow(row) &&
+      !window.confirm(
+        `Die ausgefüllte Fahrerzeile auf Position ${index + 1} wirklich entfernen?`,
+      )
+    ) {
+      return;
+    }
+
+    const result = removeResultRow(rows, index);
+    if (!result.removed) return;
+    setRows(result.rows);
+    setRemovedRow({ row: result.removed, index });
+  }
+
+  function undoRemove(): void {
+    if (!removedRow) return;
+    setRows((current) =>
+      restoreResultRow(current, removedRow.row, removedRow.index),
+    );
+    setRemovedRow(null);
   }
 
   function handleTableKeyDown(
@@ -623,10 +693,15 @@ export default function ResultsEditor({
         </div>
       ) : null}
 
-      {hasDuplicateDriver || normalizedGaps.error ? (
+      {hasDuplicateDriver ||
+      hasIncompleteDriverRow ||
+      normalizedGaps.error ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
           {hasDuplicateDriver
             ? "Ein Fahrer wurde mehrfach ausgewählt. "
+            : ""}
+          {hasIncompleteDriverRow
+            ? "Mindestens eine ausgefüllte Zeile hat noch keinen ausgewählten Fahrer. "
             : ""}
           {normalizedGaps.error}
         </div>
@@ -662,7 +737,9 @@ export default function ResultsEditor({
                 </th>
                 <th className="min-w-64 px-3 py-3">FIA-Strafe</th>
                 <th className="min-w-28 px-3 py-3">Endposition</th>
-                <th className="w-32 px-3 py-3">Aktionen</th>
+                <th className="w-32 px-3 py-3">
+                  Sortieren / Entfernen
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -681,13 +758,7 @@ export default function ResultsEditor({
                     selectDriver(index, driverId)
                   }
                   onMove={(direction) => moveRow(index, direction)}
-                  onRemove={() =>
-                    setRows((current) =>
-                      current.filter(
-                        (_, rowIndex) => rowIndex !== index,
-                      ),
-                    )
-                  }
+                  onRemove={() => removeRow(index)}
                   onDragStart={() => setDraggedIndex(index)}
                   onDrop={() => dropRow(index)}
                 />
@@ -712,32 +783,38 @@ export default function ResultsEditor({
                 selectDriver(index, driverId)
               }
               onMove={(direction) => moveRow(index, direction)}
-              onRemove={() =>
-                setRows((current) =>
-                  current.filter(
-                    (_, rowIndex) => rowIndex !== index,
-                  ),
-                )
-              }
+              onRemove={() => removeRow(index)}
             />
           ))}
         </div>
 
         <button
           type="button"
-          onClick={() =>
-            setRows((current) => [
-              ...current,
-              {
-                ...emptyRow(current.length + 1),
-                key: crypto.randomUUID(),
-              },
-            ])
-          }
+          onClick={addRow}
           className="wizard-secondary-button min-h-12 w-full justify-center"
         >
           <Plus size={18} /> Fahrer hinzufügen
         </button>
+
+        {removedRow ? (
+          <div
+            role="status"
+            className="flex flex-col gap-3 rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-100 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span>
+              Fahrerzeile von Position {removedRow.index + 1} wurde
+              entfernt.
+            </span>
+            <button
+              type="button"
+              onClick={undoRemove}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-blue-400/50 px-4 font-semibold text-blue-100"
+            >
+              <Undo2 size={17} />
+              Rückgängig
+            </button>
+          </div>
+        ) : null}
 
         <section className="rounded-2xl border border-blue-500/25 bg-blue-500/5 p-4">
           <div className="mb-4 flex items-center gap-2">
@@ -851,6 +928,7 @@ export default function ResultsEditor({
             disabled={
               pending ||
               hasDuplicateDriver ||
+              hasIncompleteDriverRow ||
               Boolean(normalizedGaps.error)
             }
             className="wizard-secondary-button min-h-12 justify-center"
@@ -863,8 +941,9 @@ export default function ResultsEditor({
             disabled={
               pending ||
               hasDuplicateDriver ||
+              hasIncompleteDriverRow ||
               Boolean(normalizedGaps.error) ||
-              submission.results.length === 0
+              selectedDriverIds.length === 0
             }
             className="wizard-primary-button min-h-12 justify-center"
           >
@@ -959,7 +1038,11 @@ function DriverPicker({
         />
       </span>
       {open && row.driverQuery ? (
-        <div className="absolute z-50 mt-1 max-h-72 w-full min-w-72 overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 p-1 shadow-2xl">
+        <div
+          className={`absolute z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 p-1 shadow-2xl ${
+            compact ? "min-w-0" : "min-w-72"
+          }`}
+        >
           {suggestions.map((driver) => (
             <button
               key={driver.id}
@@ -1305,7 +1388,7 @@ function MobileRow(props: SharedRowProps) {
               onClick={() => onMove(-1)}
               disabled={index === 0}
               aria-label="Fahrer nach oben"
-              className="min-h-11 min-w-11 rounded-xl border border-slate-700 p-2 disabled:opacity-30"
+              className="min-h-12 min-w-12 rounded-xl border border-slate-700 p-2 disabled:opacity-30"
             >
               <ArrowUp className="mx-auto" size={18} />
             </button>
@@ -1314,9 +1397,18 @@ function MobileRow(props: SharedRowProps) {
               onClick={() => onMove(1)}
               disabled={index === rows.length - 1}
               aria-label="Fahrer nach unten"
-              className="min-h-11 min-w-11 rounded-xl border border-slate-700 p-2 disabled:opacity-30"
+              className="min-h-12 min-w-12 rounded-xl border border-slate-700 p-2 disabled:opacity-30"
             >
               <ArrowDown className="mx-auto" size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={rows.length === 1}
+              aria-label="Fahrer entfernen"
+              className="min-h-12 min-w-12 rounded-xl border border-red-500/30 p-2 text-red-200 disabled:opacity-30"
+            >
+              <Trash2 className="mx-auto" size={18} />
             </button>
           </div>
         </div>
@@ -1488,14 +1580,6 @@ function MobileRow(props: SharedRowProps) {
               className="form-control mt-2"
             />
           </label>
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={rows.length === 1}
-            className="min-h-12 w-full rounded-xl border border-red-500/30 text-red-200 disabled:opacity-30"
-          >
-            Fahrer entfernen
-          </button>
         </div>
       </details>
     </article>

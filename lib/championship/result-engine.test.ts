@@ -19,6 +19,16 @@ import {
   parseGapInput,
 } from "./result-engine";
 import {
+  DEFAULT_RESULT_ROW_COUNT,
+  isPopulatedResultRow,
+  moveResultRow,
+  orderRegisteredResultDrivers,
+  removeResultRow,
+  restoreResultRow,
+  resultRowsForIntent,
+  withDefaultResultRows,
+} from "./result-editor";
+import {
   resultDraftSubmissionSchema,
   resultSubmissionSchema,
 } from "./schemas";
@@ -347,5 +357,184 @@ test("drafts preserve incomplete rows while publication rejects them", () => {
       intent: "PUBLISH",
     }).success,
     false,
+  );
+});
+
+test("new result tables default to 22 rows without limiting larger grids", () => {
+  const eighteenDrivers: Array<{
+    position: number;
+    driverId: number | null;
+  }> = Array.from({ length: 18 }, (_, index) => ({
+    position: index + 1,
+    driverId: index + 1,
+  }));
+  const padded = withDefaultResultRows(
+    eighteenDrivers,
+    (position) => ({ position, driverId: null }),
+  );
+  assert.equal(padded.length, DEFAULT_RESULT_ROW_COUNT);
+  assert.deepEqual(
+    padded.map((row) => row.position),
+    Array.from({ length: 22 }, (_, index) => index + 1),
+  );
+  assert.equal(padded.slice(18).every((row) => row.driverId === null), true);
+
+  const twentyFourDrivers: Array<{
+    position: number;
+    driverId: number | null;
+  }> = Array.from({ length: 24 }, (_, index) => ({
+    position: index + 1,
+    driverId: index + 1,
+  }));
+  assert.equal(
+    withDefaultResultRows(
+      twentyFourDrivers,
+      (position) => ({ position, driverId: null }),
+    ).length,
+    24,
+  );
+});
+
+test("existing drafts remain exact and publication omits empty default rows", () => {
+  const draftRows = [
+    {
+      driverId: 7,
+      representedTeamId: 1,
+      expectedDriverId: null,
+      startingPosition: 1,
+      status: "FINISHED",
+      gapInput: "Sieger",
+      fastestLapInput: "",
+      legacyFastestLap: false,
+      polePosition: false,
+      lapsCompleted: 57,
+      manualOverride: false,
+      manualPenaltySeconds: 0,
+      manualDisqualified: false,
+      manualOverrideReason: null,
+      notes: null,
+      substitute: false,
+    },
+    {
+      driverId: null,
+      representedTeamId: null,
+      expectedDriverId: null,
+      startingPosition: null,
+      status: "FINISHED",
+      gapInput: "",
+      fastestLapInput: "",
+      legacyFastestLap: false,
+      polePosition: false,
+      lapsCompleted: 0,
+      manualOverride: false,
+      manualPenaltySeconds: 0,
+      manualDisqualified: false,
+      manualOverrideReason: null,
+      notes: null,
+      substitute: false,
+    },
+  ];
+  assert.deepEqual(
+    withDefaultResultRows(
+      draftRows,
+      () => draftRows[1],
+      true,
+    ),
+    draftRows,
+  );
+  assert.deepEqual(resultRowsForIntent(draftRows, "DRAFT"), draftRows);
+  assert.deepEqual(resultRowsForIntent(draftRows, "PUBLISH"), [
+    draftRows[0],
+  ]);
+  assert.deepEqual(
+    resultRowsForIntent(
+      [{ ...draftRows[1], notes: "Unvollständig" }],
+      "PUBLISH",
+    ),
+    [{ ...draftRows[1], notes: "Unvollständig" }],
+  );
+});
+
+test("registered drivers use a starting grid before attendance order", () => {
+  const drivers = [
+    {
+      id: 1,
+      name: "Alpha",
+      registered: true,
+      registrationOrder: 0,
+      expectedDriverId: null,
+    },
+    {
+      id: 2,
+      name: "Beta",
+      registered: true,
+      registrationOrder: 1,
+      expectedDriverId: null,
+    },
+    {
+      id: 3,
+      name: "Substitute",
+      registered: true,
+      registrationOrder: 2,
+      expectedDriverId: 4,
+    },
+    {
+      id: 5,
+      name: "Declined",
+      registered: false,
+      registrationOrder: null,
+      expectedDriverId: null,
+    },
+  ];
+  const ordered = orderRegisteredResultDrivers(drivers, [
+    { driverId: 4, position: 1, finalPosition: 1 },
+    { driverId: 2, position: 2, finalPosition: 2 },
+  ]);
+  assert.deepEqual(
+    ordered.map((driver) => driver.id),
+    [3, 2, 1],
+  );
+});
+
+test("result rows can be moved, removed, renumbered and restored", () => {
+  const rows = ["A", "B", "C"];
+  assert.deepEqual(moveResultRow(rows, 2, -1), ["A", "C", "B"]);
+
+  const removal = removeResultRow(rows, 1);
+  assert.equal(removal.removed, "B");
+  assert.deepEqual(removal.rows, ["A", "C"]);
+  assert.deepEqual(
+    removal.rows.map((_, index) => index + 1),
+    [1, 2],
+  );
+  assert.deepEqual(
+    restoreResultRow(removal.rows, removal.removed!, 1),
+    rows,
+  );
+});
+
+test("only filled result rows require removal confirmation", () => {
+  const empty = {
+    driverId: "",
+    driverQuery: "",
+    representedTeamId: "",
+    expectedDriverId: "",
+    gapInput: "Sieger",
+    fastestLapInput: "",
+    legacyFastestLap: false,
+    startingPosition: "",
+    lapsCompleted: "0",
+    polePosition: false,
+    notes: "",
+    substitute: false,
+    manualOverride: false,
+    manualPenaltySeconds: "0",
+    manualDisqualified: false,
+    manualOverrideReason: "",
+  };
+  assert.equal(isPopulatedResultRow(empty), false);
+  assert.equal(
+    isPopulatedResultRow({ ...empty, driverQuery: "Max" }),
+    true,
   );
 });

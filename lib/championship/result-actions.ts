@@ -40,6 +40,7 @@ import {
   parseFastestLapInput,
   parseGapInput,
 } from "./result-engine";
+import { resultRowsForIntent } from "./result-editor";
 import { recalculateChampionship } from "./recalculation";
 import {
   resultDraftSubmissionSchema,
@@ -129,6 +130,18 @@ export async function saveResultsAction(
       typeof formData.get("intent") === "string"
     ) {
       input = { ...input, intent: formData.get("intent") };
+    }
+    if (
+      typeof input === "object" &&
+      input !== null &&
+      "results" in input &&
+      Array.isArray(input.results) &&
+      "intent" in input
+    ) {
+      input = {
+        ...input,
+        results: resultRowsForIntent(input.results, input.intent),
+      };
     }
   } catch {
     return errorState("Ergebnisdaten sind ungültig.");

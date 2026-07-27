@@ -854,6 +854,7 @@ export async function getResultAdminData(
             leagueId: selected.race.season.league.id,
           },
         },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: {
           driverId: true,
           substituteDriverId: true,
@@ -904,6 +905,12 @@ export async function getResultAdminData(
     attendance.map((entry) => [
       entry.substituteDriverId ?? entry.driverId,
       entry,
+    ]),
+  );
+  const registrationOrderByDriver = new Map(
+    attendance.map((entry, index) => [
+      entry.substituteDriverId ?? entry.driverId,
+      index,
     ]),
   );
 
@@ -959,6 +966,8 @@ export async function getResultAdminData(
       teamId: driver.team?.id ?? null,
       teamName: driver.team?.name ?? null,
       registered: attendanceByDriver.has(driver.id),
+      registrationOrder:
+        registrationOrderByDriver.get(driver.id) ?? null,
       replacement:
         attendanceByDriver.get(driver.id)?.substituteDriverId ===
         driver.id,
