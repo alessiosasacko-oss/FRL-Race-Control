@@ -58,6 +58,13 @@ enum AttendanceStatus {
   NO_RESPONSE
 }
 
+enum AttendanceChangeSource {
+  DRIVER
+  TEAM_PRINCIPAL
+  ADMIN
+  AUTOMATION
+}
+
 enum ResultSession {
   QUALIFYING
   RACE
@@ -283,6 +290,7 @@ model User {
   ticketAuditEntries       FiaTicketAuditLog[]
   principalTeams           Team[]                     @relation("TeamPrincipal")
   attendanceChanges        RaceAttendance[]           @relation("AttendanceSubmitter")
+  attendanceAuditEntries   AttendanceAudit[]          @relation("AttendanceAuditActor")
   championshipAdjustments  ChampionshipAdjustment[]
   championshipAudits       ChampionshipAudit[]
   publishedResultSessions  RaceResultSession[]        @relation("ResultPublisher")
@@ -352,6 +360,7 @@ model Driver {
   ticketLinks              FiaTicketDriver[]
   attendanceEntries        RaceAttendance[]         @relation("ExpectedAttendanceDriver")
   substituteAttendances    RaceAttendance[]         @relation("SubstituteAttendanceDriver")
+  attendanceAuditEntries   AttendanceAudit[]
   raceResults              RaceResult[]             @relation("ResultDriver")
   substituteForResults     RaceResult[]             @relation("ExpectedResultDriver")
   championshipAdjustments  ChampionshipAdjustment[]
@@ -393,27 +402,34 @@ model Team {
 }
 
 model League {
-  id                      Int                      @id @default(autoincrement())
-  currentSeasonId         Int?
-  name                    String                   @db.VarChar(160)
-  code                    String                   @unique @db.VarChar(12)
-  description             String?                  @db.Text
-  active                  Boolean                  @default(true)
-  currentSeason           Season?                  @relation("CurrentSeason", fields: [currentSeasonId], references: [id], onDelete: SetNull)
-  seasons                 Season[]                 @relation("LeagueSeasons")
-  calendarSeasons         Season[]                 @relation("SeasonParticipation")
-  teams                   Team[]
-  drivers                 Driver[]
-  championships           Championship[]
-  scoringConfigurations   ScoringConfiguration[]
-  resultSessions          RaceResultSession[]
-  championshipAdjustments ChampionshipAdjustment[]
-  championshipAudits      ChampionshipAudit[]
-  tickets                 FiaTicket[]
-  discordChannels         DiscordChannelMapping[]
-  discordDeliveries       DiscordDelivery[]
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  id                               Int                      @id @default(autoincrement())
+  currentSeasonId                  Int?
+  name                             String                   @db.VarChar(160)
+  code                             String                   @unique @db.VarChar(12)
+  description                      String?                  @db.Text
+  active                           Boolean                  @default(true)
+  raceWeekday                      Int                      @default(7)
+  raceStartMinute                  Int                      @default(1140)
+  raceTimezone                     String                   @default("Europe/Berlin") @db.VarChar(64)
+  defaultAttendanceDeadlineMinutes Int?
+  displayOrder                     Int                      @default(0)
+  currentSeason                    Season?                  @relation("CurrentSeason", fields: [currentSeasonId], references: [id], onDelete: SetNull)
+  seasons                          Season[]                 @relation("LeagueSeasons")
+  calendarSeasons                  Season[]                 @relation("SeasonParticipation")
+  teams                            Team[]
+  drivers                          Driver[]
+  championships                    Championship[]
+  scoringConfigurations            ScoringConfiguration[]
+  resultSessions                   RaceResultSession[]
+  championshipAdjustments          ChampionshipAdjustment[]
+  championshipAudits               ChampionshipAudit[]
+  tickets                          FiaTicket[]
+  raceSchedules                    RaceLeagueSchedule[]
+  attendanceAuditEntries           AttendanceAudit[]
+  discordChannels                  DiscordChannelMapping[]
+  discordDeliveries                DiscordDelivery[]
+  createdAt                        DateTime                 @default(now())
+  updatedAt                        DateTime                 @updatedAt
 
   @@index([active])
   @@index([name])
@@ -454,6 +470,7 @@ model Race {
   circuit                 String?                  @db.VarChar(160)
   countryCode             String?                  @db.Char(2)
   round                   Int
+  weekendDate             DateTime                 @db.Date
   scheduledAt             DateTime
   timezone                String                   @default("Europe/Berlin") @db.VarChar(64)
   status                  RaceStatus               @default(SCHEDULED)
@@ -465,6 +482,8 @@ model Race {
   season                  Season                   @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   tickets                 FiaTicket[]
   attendanceEntries       RaceAttendance[]
+  leagueSchedules         RaceLeagueSchedule[]
+  attendanceAuditEntries  AttendanceAudit[]
   resultSessions          RaceResultSession[]
   championshipAdjustments ChampionshipAdjustment[]
   championshipAudits      ChampionshipAudit[]
@@ -554,27 +573,81 @@ model TeamStanding {
 }
 
 model RaceAttendance {
-  id                 Int              @id @default(autoincrement())
+  id                 Int                    @id @default(autoincrement())
   raceId             Int
+  leagueScheduleId   Int
   driverId           Int
   substituteDriverId Int?
   representedTeamId  Int?
   submittedByUserId  Int
   status             AttendanceStatus
-  race               Race             @relation(fields: [raceId], references: [id], onDelete: Restrict)
-  driver             Driver           @relation("ExpectedAttendanceDriver", fields: [driverId], references: [id], onDelete: Restrict)
-  substituteDriver   Driver?          @relation("SubstituteAttendanceDriver", fields: [substituteDriverId], references: [id], onDelete: Restrict)
-  representedTeam    Team?            @relation(fields: [representedTeamId], references: [id], onDelete: Restrict)
-  submittedBy        User             @relation("AttendanceSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
-  changedAt          DateTime         @default(now())
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  changeSource       AttendanceChangeSource @default(DRIVER)
+  changeReason       String?                @db.VarChar(1000)
+  race               Race                   @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  leagueSchedule     RaceLeagueSchedule     @relation(fields: [leagueScheduleId], references: [id], onDelete: Restrict)
+  driver             Driver                 @relation("ExpectedAttendanceDriver", fields: [driverId], references: [id], onDelete: Restrict)
+  substituteDriver   Driver?                @relation("SubstituteAttendanceDriver", fields: [substituteDriverId], references: [id], onDelete: Restrict)
+  representedTeam    Team?                  @relation(fields: [representedTeamId], references: [id], onDelete: Restrict)
+  submittedBy        User                   @relation("AttendanceSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+  auditEntries       AttendanceAudit[]
+  changedAt          DateTime               @default(now())
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
   @@unique([raceId, driverId])
   @@unique([raceId, substituteDriverId])
   @@index([raceId, status])
+  @@index([leagueScheduleId, status])
   @@index([representedTeamId, raceId])
   @@index([submittedByUserId])
+}
+
+model RaceLeagueSchedule {
+  id                 Int               @id @default(autoincrement())
+  raceId             Int
+  leagueId           Int
+  scheduledAt        DateTime
+  timezone           String            @db.VarChar(64)
+  attendanceDeadline DateTime?
+  race               Race              @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  league             League            @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  attendanceEntries  RaceAttendance[]
+  attendanceAudits   AttendanceAudit[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@unique([raceId, leagueId])
+  @@index([leagueId, scheduledAt])
+  @@index([raceId, scheduledAt])
+  @@index([attendanceDeadline])
+}
+
+model AttendanceAudit {
+  id               Int                    @id @default(autoincrement())
+  attendanceId     Int?
+  leagueScheduleId Int
+  raceId           Int
+  leagueId         Int
+  driverId         Int
+  changedByUserId  Int?
+  actorRole        Role
+  source           AttendanceChangeSource
+  previousStatus   AttendanceStatus
+  newStatus        AttendanceStatus
+  reason           String?                @db.VarChar(1000)
+  attendance       RaceAttendance?        @relation(fields: [attendanceId], references: [id], onDelete: SetNull)
+  leagueSchedule   RaceLeagueSchedule     @relation(fields: [leagueScheduleId], references: [id], onDelete: Restrict)
+  race             Race                   @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  league           League                 @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  driver           Driver                 @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  changedBy        User?                  @relation("AttendanceAuditActor", fields: [changedByUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime               @default(now())
+
+  @@index([raceId, leagueId, createdAt])
+  @@index([driverId, createdAt])
+  @@index([attendanceId, createdAt])
+  @@index([changedByUserId, createdAt])
+  @@index([source, createdAt])
 }
 
 model RaceResultSession {

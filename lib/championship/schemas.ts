@@ -74,6 +74,14 @@ export const attendanceUpdateSchema = z.object({
   ]),
   substituteDriverId: optionalEntityId,
   representedTeamId: optionalEntityId,
+  changeMode: z.enum(["SELF", "MANAGEMENT"]).default("SELF"),
+  reason: z.preprocess(
+    (value) =>
+      value === "" || value === null || value === undefined
+        ? null
+        : value,
+    z.string().trim().max(1000).nullable(),
+  ),
 });
 
 const resultRowSchema = z.object({

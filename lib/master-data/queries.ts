@@ -162,7 +162,7 @@ export async function getMasterDataFilterOptions(): Promise<MasterDataFilterOpti
 export async function getLeagueAdminItems(): Promise<LeagueAdminItem[]> {
   const prisma = getPrismaClient();
   const leagues = await prisma.league.findMany({
-    orderBy: { code: "asc" },
+    orderBy: [{ displayOrder: "asc" }, { code: "asc" }],
     include: {
       seasons: {
         orderBy: { startsOn: "desc" },
@@ -178,6 +178,22 @@ export async function getLeagueAdminItems(): Promise<LeagueAdminItem[]> {
       _count: {
         select: { drivers: true, teams: true, tickets: true },
       },
+      raceSchedules: {
+        where: {
+          scheduledAt: { gte: new Date() },
+          race: { status: { notIn: ["COMPLETED", "CANCELLED"] } },
+        },
+        orderBy: { scheduledAt: "asc" },
+        take: 12,
+        select: {
+          id: true,
+          raceId: true,
+          scheduledAt: true,
+          race: {
+            select: { name: true, round: true, weekendDate: true },
+          },
+        },
+      },
     },
   });
 
@@ -188,6 +204,22 @@ export async function getLeagueAdminItems(): Promise<LeagueAdminItem[]> {
     description: league.description,
     active: league.active,
     currentSeasonId: league.currentSeasonId,
+    raceWeekday: league.raceWeekday,
+    raceStartMinute: league.raceStartMinute,
+    raceTimezone: league.raceTimezone,
+    defaultAttendanceDeadlineMinutes:
+      league.defaultAttendanceDeadlineMinutes,
+    displayOrder: league.displayOrder,
+    futureSchedules: league.raceSchedules.map((schedule) => ({
+      id: schedule.id,
+      raceId: schedule.raceId,
+      raceName: schedule.race.name,
+      round: schedule.race.round,
+      weekendDate: schedule.race.weekendDate
+        .toISOString()
+        .slice(0, 10),
+      scheduledAt: schedule.scheduledAt.toISOString(),
+    })),
     seasons: league.seasons.map((season) => ({
       id: season.id,
       leagueId: season.leagueId,
@@ -306,12 +338,26 @@ export async function getRaceItems(
           },
         },
       },
+      leagueSchedules: {
+        orderBy: [{ league: { displayOrder: "asc" } }, { scheduledAt: "asc" }],
+        include: {
+          league: { select: { id: true, code: true, name: true } },
+        },
+      },
       _count: { select: { tickets: true } },
     },
   });
 
   return races.map((race) => {
     const track = publicRaceTrack(race);
+    const displaySchedule =
+      race.leagueSchedules.find(
+        (schedule) => schedule.leagueId === query.leagueId,
+      ) ?? race.leagueSchedules[0];
+    const displayStart = displaySchedule?.scheduledAt ?? race.scheduledAt;
+    const displayTimezone = displaySchedule?.timezone ?? race.timezone;
+    const displayDeadline =
+      displaySchedule?.attendanceDeadline ?? race.attendanceDeadline;
     return {
       id: race.id,
       seasonId: race.seasonId,
@@ -319,25 +365,44 @@ export async function getRaceItems(
       circuit: track.circuit,
       countryCode: track.countryCode,
       round: race.round,
-      scheduledAt: race.scheduledAt.toISOString(),
+      weekendDate: race.weekendDate.toISOString().slice(0, 10),
+      scheduledAt: displayStart.toISOString(),
       localStart: formatLocalDateTimeInput(
-        race.scheduledAt,
-        race.timezone,
+        displayStart,
+        displayTimezone,
       ),
-      timezone: race.timezone,
+      timezone: displayTimezone,
       status: race.status as RaceStatus,
       sessions: race.sessions as RaceSession[],
       sprint: race.sprint,
       doublePoints: race.doublePoints,
       mystery: race.mystery,
       trackRevealed: track.revealed,
-      attendanceDeadline: race.attendanceDeadline?.toISOString() ?? null,
-      attendanceDeadlineLocal: race.attendanceDeadline
+      attendanceDeadline: displayDeadline?.toISOString() ?? null,
+      attendanceDeadlineLocal: displayDeadline
         ? formatLocalDateTimeInput(
-            race.attendanceDeadline,
-            race.timezone,
+            displayDeadline,
+            displayTimezone,
           )
         : "",
+      leagueSchedules: race.leagueSchedules.map((schedule) => ({
+        id: schedule.id,
+        league: schedule.league,
+        scheduledAt: schedule.scheduledAt.toISOString(),
+        localStart: formatLocalDateTimeInput(
+          schedule.scheduledAt,
+          schedule.timezone,
+        ),
+        timezone: schedule.timezone,
+        attendanceDeadline:
+          schedule.attendanceDeadline?.toISOString() ?? null,
+        attendanceDeadlineLocal: schedule.attendanceDeadline
+          ? formatLocalDateTimeInput(
+              schedule.attendanceDeadline,
+              schedule.timezone,
+            )
+          : "",
+      })),
       season: {
         id: race.season.id,
         name: race.season.name,

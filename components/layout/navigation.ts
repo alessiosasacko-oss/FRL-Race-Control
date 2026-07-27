@@ -6,6 +6,7 @@ import {
   CalendarRange,
   ChartNoAxesCombined,
   ClipboardCheck,
+  Clock3,
   Cog,
   Flag,
   Home,
@@ -34,6 +35,11 @@ export const leagueNavigationItems = [
 
 export const administrationNavigationItems = [
   { name: "Übersicht", href: "/admin", icon: Settings2 },
+  {
+    name: "Ligen & Rennzeiten",
+    href: "/admin/leagues",
+    icon: Clock3,
+  },
   { name: "Saisons", href: "/admin/seasons", icon: Layers3 },
   { name: "Rennen", href: "/admin/races", icon: CalendarRange },
   { name: "Ergebnisse", href: "/admin/results", icon: ChartNoAxesCombined },

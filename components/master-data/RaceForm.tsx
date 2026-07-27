@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import { useActionState, useState } from "react";
 import {
   RaceStatus,
   raceStatusLabels,
@@ -17,17 +17,6 @@ import {
 } from "@/lib/master-data/types";
 import ActionMessage from "./ActionMessage";
 
-const commonTimezones = [
-  "Europe/Berlin",
-  "Europe/London",
-  "Europe/Paris",
-  "America/New_York",
-  "America/Sao_Paulo",
-  "Asia/Tokyo",
-  "Australia/Melbourne",
-  "UTC",
-];
-
 type RaceFormProps = {
   seasons: SeasonOption[];
   race?: RaceItem;
@@ -37,7 +26,6 @@ export default function RaceForm({
   seasons,
   race,
 }: RaceFormProps) {
-  const timezoneListId = useId();
   const [mystery, setMystery] = useState(race?.mystery ?? false);
   const [mysteryJustEnabled, setMysteryJustEnabled] = useState(false);
   const [circuit, setCircuit] = useState(race?.circuit ?? "");
@@ -132,38 +120,18 @@ export default function RaceForm({
             />
           </label>
           <label className="master-label">
-            Datum und Startzeit
+            Rennwochenende
             <input
-              type="datetime-local"
-              name="localStart"
-              defaultValue={race?.localStart ?? ""}
+              type="date"
+              name="weekendDate"
+              defaultValue={race?.weekendDate ?? ""}
               required
               className="form-control mt-2"
             />
-          </label>
-          <label className="master-label">
-            Anmeldeschluss
-            <input
-              type="datetime-local"
-              name="attendanceDeadlineLocal"
-              defaultValue={race?.attendanceDeadlineLocal ?? ""}
-              className="form-control mt-2"
-            />
-          </label>
-          <label className="master-label">
-            Zeitzone
-            <input
-              name="timezone"
-              list={timezoneListId}
-              defaultValue={race?.timezone ?? "Europe/Berlin"}
-              required
-              className="form-control mt-2"
-            />
-            <datalist id={timezoneListId}>
-              {commonTimezones.map((timezone) => (
-                <option key={timezone} value={timezone} />
-              ))}
-            </datalist>
+            <span className="mt-2 block text-xs font-normal text-slate-500">
+              Die Startzeiten werden automatisch aus den Liga-Zeitplänen
+              berechnet.
+            </span>
           </label>
           <label className="master-label sm:col-span-2">
             Rennstatus
@@ -180,6 +148,38 @@ export default function RaceForm({
             </select>
           </label>
         </div>
+        <section className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-300">
+            Liga-Termine
+          </p>
+          {race?.leagueSchedules.length ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {race.leagueSchedules.map((schedule) => (
+                <div
+                  key={schedule.id}
+                  className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2"
+                >
+                  <p className="font-semibold text-white">
+                    {schedule.league.code}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {schedule.localStart.replace("T", " ")} ·{" "}
+                    {schedule.timezone}
+                  </p>
+                  <ScheduleDeadlineOverride
+                    leagueId={schedule.league.id}
+                    defaultValue={schedule.attendanceDeadlineLocal}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-slate-400">
+              Beim Speichern wird für jede aktive Liga genau ein Termin
+              angelegt.
+            </p>
+          )}
+        </section>
         <div className="grid gap-3 sm:grid-cols-3">
           <Check name="sprint" label="Sprint-Wochenende" checked={race?.sprint} />
           <Check
@@ -259,5 +259,37 @@ function Check({
       />
       {label}
     </label>
+  );
+}
+
+function ScheduleDeadlineOverride({
+  leagueId,
+  defaultValue,
+}: {
+  leagueId: number;
+  defaultValue: string;
+}) {
+  const [enabled, setEnabled] = useState(false);
+
+  return (
+    <div className="mt-2">
+      <label className="flex items-center gap-2 text-[0.68rem] font-semibold text-slate-500">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(event) => setEnabled(event.target.checked)}
+          className="size-3.5 accent-blue-500"
+        />
+        Anmeldeschluss individuell ändern
+      </label>
+      {enabled ? (
+        <input
+          type="datetime-local"
+          name={`attendanceDeadline-${leagueId}`}
+          defaultValue={defaultValue}
+          className="form-control mt-2 text-xs"
+        />
+      ) : null}
+    </div>
   );
 }

@@ -78,23 +78,52 @@ export async function getDashboardData(
     leagueId = league?.id ?? null;
   }
 
-  const nextRace = await optionalDashboardData(
-    "next race",
-    userId,
-    () =>
-      prisma.race.findFirst({
-        where: {
-          seasonId: seasonId ?? undefined,
-          scheduledAt: { gte: new Date() },
-          status: { not: "CANCELLED" },
-        },
-        orderBy: { scheduledAt: "asc" },
-        include: {
-          season: { select: { id: true, name: true } },
-        },
-      }),
-    null,
-  );
+  const nextSchedule = leagueId
+    ? await optionalDashboardData(
+        "next league race schedule",
+        userId,
+        () =>
+          prisma.raceLeagueSchedule.findFirst({
+            where: {
+              leagueId,
+              scheduledAt: { gte: new Date() },
+              race: {
+                seasonId: seasonId ?? undefined,
+                status: { not: "CANCELLED" },
+              },
+            },
+            orderBy: { scheduledAt: "asc" },
+            include: {
+              race: {
+                include: {
+                  season: { select: { id: true, name: true } },
+                },
+              },
+            },
+          }),
+        null,
+      )
+    : null;
+  const fallbackRace = !nextSchedule
+    ? await optionalDashboardData(
+        "next race fallback",
+        userId,
+        () =>
+          prisma.race.findFirst({
+            where: {
+              seasonId: seasonId ?? undefined,
+              scheduledAt: { gte: new Date() },
+              status: { not: "CANCELLED" },
+            },
+            orderBy: { scheduledAt: "asc" },
+            include: {
+              season: { select: { id: true, name: true } },
+            },
+          }),
+        null,
+      )
+    : null;
+  const nextRace = nextSchedule?.race ?? fallbackRace;
   if (!seasonId && nextRace) seasonId = nextRace.seasonId;
 
   const driverId = user.driver?.id;
@@ -346,8 +375,10 @@ export async function getDashboardData(
     : null;
   const publicTrack = nextRace ? publicRaceTrack(nextRace) : null;
   const deadlinePassed = Boolean(
-    nextRace?.attendanceDeadline &&
-      nextRace.attendanceDeadline <= new Date(),
+    (nextSchedule?.attendanceDeadline ??
+      nextRace?.attendanceDeadline) &&
+      (nextSchedule?.attendanceDeadline ??
+        nextRace?.attendanceDeadline)! <= new Date(),
   );
 
   return {
@@ -384,12 +415,17 @@ export async function getDashboardData(
           name: publicTrack?.name ?? "Mystery Track",
           circuit: publicTrack?.circuit ?? "Mystery Track",
           round: nextRace.round,
-          scheduledAt: nextRace.scheduledAt.toISOString(),
-          timezone: nextRace.timezone,
+          scheduledAt: (
+            nextSchedule?.scheduledAt ?? nextRace.scheduledAt
+          ).toISOString(),
+          timezone: nextSchedule?.timezone ?? nextRace.timezone,
           sprint: nextRace.sprint,
           mystery: nextRace.mystery,
           attendanceDeadline:
-            nextRace.attendanceDeadline?.toISOString() ?? null,
+            (
+              nextSchedule?.attendanceDeadline ??
+              nextRace.attendanceDeadline
+            )?.toISOString() ?? null,
         }
       : null,
     attendance:

@@ -3,6 +3,7 @@ import {
   countryCodeSchema,
   entityIdSchema,
   isoDateTimeSchema,
+  isoDateSchema,
   titleSchema,
 } from "./common";
 import { raceSessionSchema, raceStatusSchema } from "./enums";
@@ -15,6 +16,7 @@ export const raceSchema = z
     circuit: titleSchema.nullable(),
     countryCode: countryCodeSchema.nullable(),
     round: z.number().int().positive(),
+    weekendDate: isoDateSchema,
     scheduledAt: isoDateTimeSchema,
     timezone: z.string().trim().min(1).max(64),
     status: raceStatusSchema,

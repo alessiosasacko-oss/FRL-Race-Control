@@ -24,12 +24,14 @@ import {
   driverSchema,
   entityIdSchema,
   leagueUpdateSchema,
+  raceDeadlineOverrideSchema,
   raceSchema,
   seasonSchema,
   teamSchema,
 } from "./schemas";
 import { zonedLocalToUtc } from "./timezone";
 import { publicRaceTrack } from "@/lib/races/visibility";
+import { calculateLeagueRaceSchedule } from "@/lib/races/scheduling";
 import type { MasterDataActionState } from "./types";
 
 function errorState(
@@ -90,13 +92,24 @@ export async function updateLeagueAction(
   _previousState: MasterDataActionState,
   formData: FormData,
 ): Promise<MasterDataActionState> {
-  await authorize();
+  const user = await authorize();
   const leagueId = entityIdSchema.safeParse(leagueIdInput);
   const parsed = leagueUpdateSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
     currentSeasonId: formData.get("currentSeasonId"),
     active: formData.get("active"),
+    raceWeekday: formData.get("raceWeekday"),
+    raceStartTime: formData.get("raceStartTime"),
+    raceTimezone: formData.get("raceTimezone"),
+    defaultAttendanceDeadlineHours: formData.get(
+      "defaultAttendanceDeadlineHours",
+    ),
+    displayOrder: formData.get("displayOrder"),
+    updateFutureSchedules: formData.get("updateFutureSchedules"),
+    confirmFutureScheduleUpdate: formData.get(
+      "confirmFutureScheduleUpdate",
+    ),
   });
 
   if (!leagueId.success || !parsed.success) {
@@ -106,6 +119,22 @@ export async function updateLeagueAction(
   }
 
   const prisma = getPrismaClient();
+  if (
+    parsed.data.updateFutureSchedules &&
+    !parsed.data.confirmFutureScheduleUpdate
+  ) {
+    return errorState(
+      "Bitte bestätige die Vorschau, bevor bestehende Termine aktualisiert werden.",
+    );
+  }
+  const [startHour, startMinute] = parsed.data.raceStartTime
+    .split(":")
+    .map(Number);
+  const raceStartMinute = startHour * 60 + startMinute;
+  const defaultAttendanceDeadlineMinutes =
+    parsed.data.defaultAttendanceDeadlineHours === null
+      ? null
+      : parsed.data.defaultAttendanceDeadlineHours * 60;
 
   try {
     if (parsed.data.currentSeasonId) {
@@ -124,21 +153,117 @@ export async function updateLeagueAction(
       }
     }
 
-    await prisma.league.update({
-      where: { id: leagueId.data },
-      data: {
-        name: parsed.data.name,
-        description: parsed.data.description,
-        currentSeasonId: parsed.data.currentSeasonId,
-        active: parsed.data.active,
-      },
+    await prisma.$transaction(async (transaction) => {
+      const previous = await transaction.league.findUniqueOrThrow({
+        where: { id: leagueId.data },
+      });
+      await transaction.league.update({
+        where: { id: leagueId.data },
+        data: {
+          name: parsed.data.name,
+          description: parsed.data.description,
+          currentSeasonId: parsed.data.currentSeasonId,
+          active: parsed.data.active,
+          raceWeekday: parsed.data.raceWeekday,
+          raceStartMinute,
+          raceTimezone: parsed.data.raceTimezone,
+          defaultAttendanceDeadlineMinutes,
+          displayOrder: parsed.data.displayOrder,
+        },
+      });
+
+      let updatedScheduleCount = 0;
+      if (parsed.data.updateFutureSchedules) {
+        const schedules = await transaction.raceLeagueSchedule.findMany({
+          where: {
+            leagueId: leagueId.data,
+            scheduledAt: { gte: new Date() },
+            race: { status: { notIn: ["COMPLETED", "CANCELLED"] } },
+          },
+          include: {
+            race: { select: { id: true, weekendDate: true } },
+          },
+        });
+        const affectedRaceIds = new Set<number>();
+        for (const schedule of schedules) {
+          const calculated = calculateLeagueRaceSchedule(
+            schedule.race.weekendDate.toISOString().slice(0, 10),
+            {
+              raceWeekday: parsed.data.raceWeekday,
+              raceStartMinute,
+              raceTimezone: parsed.data.raceTimezone,
+              defaultAttendanceDeadlineMinutes,
+            },
+          );
+          await transaction.raceLeagueSchedule.update({
+            where: { id: schedule.id },
+            data: {
+              scheduledAt: calculated.scheduledAt,
+              timezone: calculated.timezone,
+              attendanceDeadline: calculated.attendanceDeadline,
+            },
+          });
+          affectedRaceIds.add(schedule.race.id);
+          updatedScheduleCount += 1;
+        }
+
+        for (const raceId of affectedRaceIds) {
+          const firstSchedule =
+            await transaction.raceLeagueSchedule.findFirst({
+              where: { raceId },
+              orderBy: { scheduledAt: "asc" },
+            });
+          if (firstSchedule) {
+            await transaction.race.update({
+              where: { id: raceId },
+              data: {
+                scheduledAt: firstSchedule.scheduledAt,
+                timezone: firstSchedule.timezone,
+                attendanceDeadline:
+                  firstSchedule.attendanceDeadline,
+              },
+            });
+          }
+        }
+      }
+
+      await transaction.systemAuditLog.create({
+        data: {
+          actorId: user.id,
+          action: "LEAGUE_RACE_SCHEDULE_UPDATED",
+          entityType: "League",
+          entityId: leagueId.data,
+          metadata: {
+            previous: {
+              raceWeekday: previous.raceWeekday,
+              raceStartMinute: previous.raceStartMinute,
+              raceTimezone: previous.raceTimezone,
+              defaultAttendanceDeadlineMinutes:
+                previous.defaultAttendanceDeadlineMinutes,
+              displayOrder: previous.displayOrder,
+            },
+            next: {
+              raceWeekday: parsed.data.raceWeekday,
+              raceStartMinute,
+              raceTimezone: parsed.data.raceTimezone,
+              defaultAttendanceDeadlineMinutes,
+              displayOrder: parsed.data.displayOrder,
+            },
+            updatedScheduleCount,
+          },
+        },
+      });
     });
   } catch {
     return databaseError();
   }
 
   revalidateMasterData();
-  return successState("Liga wurde aktualisiert.");
+  return successState(
+    parsed.data.updateFutureSchedules
+      ? "Liga und zukünftige Renntermine wurden aktualisiert."
+      : "Liga wurde aktualisiert. Der neue Zeitplan gilt für neue Rennen.",
+  );
 }
 
 function seasonPayload(formData: FormData) {
@@ -338,9 +463,7 @@ function racePayload(formData: FormData) {
     circuit: formData.get("circuit"),
     countryCode: formData.get("countryCode"),
     round: formData.get("round"),
-    localStart: formData.get("localStart"),
-    attendanceDeadlineLocal: formData.get("attendanceDeadlineLocal"),
-    timezone: formData.get("timezone"),
+    weekendDate: formData.get("weekendDate"),
     status: formData.get("status"),
     sprint: formData.get("sprint"),
     doublePoints: formData.get("doublePoints"),
@@ -387,29 +510,44 @@ export async function createRaceAction(
     return errorState("Die Saison ist für keinen aktiven Ligabetrieb verfügbar.");
   }
 
-  let scheduledAt: Date;
-  let attendanceDeadline: Date | null;
-
+  const prisma = getPrismaClient();
+  const season = await prisma.season.findUnique({
+    where: { id: parsed.data.seasonId },
+    include: {
+      participatingLeagues: {
+        where: { active: true },
+        orderBy: [{ displayOrder: "asc" }, { code: "asc" }],
+      },
+    },
+  });
+  if (!season || season.participatingLeagues.length === 0) {
+    return errorState("Für diese Saison sind keine aktiven Ligen verfügbar.");
+  }
+  let calculatedSchedules: Array<{
+    league: (typeof season.participatingLeagues)[number];
+    scheduledAt: Date;
+    attendanceDeadline: Date | null;
+    timezone: string;
+  }>;
   try {
-    scheduledAt = zonedLocalToUtc(
-      parsed.data.localStart,
-      parsed.data.timezone,
-    );
-    attendanceDeadline = parsed.data.attendanceDeadlineLocal
-      ? zonedLocalToUtc(
-          parsed.data.attendanceDeadlineLocal,
-          parsed.data.timezone,
-        )
-      : null;
+    calculatedSchedules = season.participatingLeagues.map((league) => ({
+      league,
+      ...calculateLeagueRaceSchedule(parsed.data.weekendDate, league),
+    }));
   } catch {
     return errorState(
-      "Die lokale Startzeit existiert in der gewählten Zeitzone nicht.",
+      "Mindestens ein Liga-Zeitplan enthält eine ungültige Startzeit.",
     );
   }
-
-  const prisma = getPrismaClient();
+  const firstSchedule = [...calculatedSchedules].sort(
+    (left, right) =>
+      left.scheduledAt.getTime() - right.scheduledAt.getTime(),
+  )[0];
+  const weekendDate = new Date(
+    `${parsed.data.weekendDate}T00:00:00.000Z`,
+  );
   const revealReached =
-    scheduledAt.getTime() - 60 * 60 * 1000 <= Date.now();
+    firstSchedule.scheduledAt.getTime() - 60 * 60 * 1000 <= Date.now();
   const circuit =
     parsed.data.mystery && !revealReached
       ? null
@@ -428,14 +566,23 @@ export async function createRaceAction(
           circuit,
           countryCode,
           round: parsed.data.round,
-          scheduledAt,
-          attendanceDeadline,
-          timezone: parsed.data.timezone,
+          weekendDate,
+          scheduledAt: firstSchedule.scheduledAt,
+          attendanceDeadline: firstSchedule.attendanceDeadline,
+          timezone: firstSchedule.timezone,
           status: parsed.data.status as PrismaRaceStatus,
           sessions: raceSessions(parsed.data.sprint),
           sprint: parsed.data.sprint,
           doublePoints: parsed.data.doublePoints,
           mystery: parsed.data.mystery,
+          leagueSchedules: {
+            create: calculatedSchedules.map((schedule) => ({
+              leagueId: schedule.league.id,
+              scheduledAt: schedule.scheduledAt,
+              timezone: schedule.timezone,
+              attendanceDeadline: schedule.attendanceDeadline,
+            })),
+          },
         },
         include: {
           season: {
@@ -450,6 +597,10 @@ export async function createRaceAction(
       });
       const track = publicRaceTrack(race);
       for (const league of race.season.participatingLeagues) {
+        const leagueSchedule = calculatedSchedules.find(
+          (schedule) => schedule.league.id === league.id,
+        );
+        if (!leagueSchedule) continue;
         const recipients = await leagueUserIds(transaction, league.id);
         await createNotifications(
           transaction,
@@ -473,7 +624,10 @@ export async function createRaceAction(
           },
         );
 
-        if (attendanceDeadline && attendanceDeadline > new Date()) {
+        if (
+          leagueSchedule.attendanceDeadline &&
+          leagueSchedule.attendanceDeadline > new Date()
+        ) {
           const drivers = await transaction.driver.findMany({
             where: {
               leagueId: league.id,
@@ -537,35 +691,7 @@ export async function updateRaceAction(
     return errorState("Die Saison ist für keinen Ligabetrieb verfügbar.");
   }
 
-  let scheduledAt: Date;
-  let attendanceDeadline: Date | null;
-
-  try {
-    scheduledAt = zonedLocalToUtc(
-      parsed.data.localStart,
-      parsed.data.timezone,
-    );
-    attendanceDeadline = parsed.data.attendanceDeadlineLocal
-      ? zonedLocalToUtc(
-          parsed.data.attendanceDeadlineLocal,
-          parsed.data.timezone,
-        )
-      : null;
-  } catch {
-    return errorState("Ungültige lokale Startzeit.");
-  }
-
   const prisma = getPrismaClient();
-  const revealReached =
-    scheduledAt.getTime() - 60 * 60 * 1000 <= Date.now();
-  const circuit =
-    parsed.data.mystery && !revealReached
-      ? null
-      : parsed.data.circuit;
-  const countryCode =
-    parsed.data.mystery && !revealReached
-      ? null
-      : parsed.data.countryCode;
 
   try {
     const existing = await prisma.race.findUnique({
@@ -573,9 +699,12 @@ export async function updateRaceAction(
       include: {
         season: {
           select: {
-            participatingLeagues: { select: { id: true } },
+            participatingLeagues: {
+              orderBy: [{ displayOrder: "asc" }, { code: "asc" }],
+            },
           },
         },
+        leagueSchedules: true,
         resultSessions: {
           select: { session: true },
         },
@@ -607,6 +736,87 @@ export async function updateRaceAction(
         "Das Sprint-Flag kann nicht entfernt werden, solange ein Sprint-Ergebnis existiert.",
       );
     }
+    const targetSeason =
+      existing.seasonId === parsed.data.seasonId
+        ? existing.season
+        : await prisma.season.findUnique({
+            where: { id: parsed.data.seasonId },
+            select: {
+              participatingLeagues: {
+                orderBy: [
+                  { displayOrder: "asc" },
+                  { code: "asc" },
+                ],
+              },
+            },
+          });
+    const calculatedSchedules = (
+      targetSeason?.participatingLeagues ?? []
+    ).map(
+      (league) => ({
+        league,
+        ...calculateLeagueRaceSchedule(parsed.data.weekendDate, league),
+      }),
+    );
+    if (calculatedSchedules.length === 0) {
+      return errorState("Für diese Saison sind keine Ligen verfügbar.");
+    }
+    for (const schedule of calculatedSchedules) {
+      const rawDeadline = formData.get(
+        `attendanceDeadline-${schedule.league.id}`,
+      );
+      if (rawDeadline === null) {
+        if (
+          existing.weekendDate.toISOString().slice(0, 10) ===
+          parsed.data.weekendDate
+        ) {
+          schedule.attendanceDeadline =
+            existing.leagueSchedules.find(
+              (current) =>
+                current.leagueId === schedule.league.id,
+            )?.attendanceDeadline ?? schedule.attendanceDeadline;
+        }
+        continue;
+      }
+      const deadline = raceDeadlineOverrideSchema.safeParse({
+        leagueId: schedule.league.id,
+        localDeadline: rawDeadline,
+      });
+      if (!deadline.success) {
+        return errorState(
+          `Der Anmeldeschluss für ${schedule.league.code} ist ungültig.`,
+        );
+      }
+      try {
+        schedule.attendanceDeadline = deadline.data.localDeadline
+          ? zonedLocalToUtc(
+              deadline.data.localDeadline,
+              schedule.timezone,
+            )
+          : null;
+      } catch {
+        return errorState(
+          `Der Anmeldeschluss für ${schedule.league.code} existiert in der Zeitzone nicht.`,
+        );
+      }
+    }
+    const firstSchedule = [...calculatedSchedules].sort(
+      (left, right) =>
+        left.scheduledAt.getTime() - right.scheduledAt.getTime(),
+    )[0];
+    const revealReached =
+      firstSchedule.scheduledAt.getTime() - 60 * 60 * 1000 <= Date.now();
+    const circuit =
+      parsed.data.mystery && !revealReached
+        ? null
+        : parsed.data.circuit;
+    const countryCode =
+      parsed.data.mystery && !revealReached
+        ? null
+        : parsed.data.countryCode;
+    const weekendDate = new Date(
+      `${parsed.data.weekendDate}T00:00:00.000Z`,
+    );
 
     await prisma.$transaction(async (transaction) => {
       await transaction.race.update({
@@ -621,9 +831,10 @@ export async function updateRaceAction(
           circuit,
           countryCode,
           round: parsed.data.round,
-          scheduledAt,
-          attendanceDeadline,
-          timezone: parsed.data.timezone,
+          weekendDate,
+          scheduledAt: firstSchedule.scheduledAt,
+          attendanceDeadline: firstSchedule.attendanceDeadline,
+          timezone: firstSchedule.timezone,
           status: parsed.data.status as PrismaRaceStatus,
           sessions: raceSessions(parsed.data.sprint),
           sprint: parsed.data.sprint,
@@ -631,6 +842,40 @@ export async function updateRaceAction(
           mystery: parsed.data.mystery,
         },
       });
+      for (const schedule of calculatedSchedules) {
+        await transaction.raceLeagueSchedule.upsert({
+          where: {
+            raceId_leagueId: {
+              raceId: raceId.data,
+              leagueId: schedule.league.id,
+            },
+          },
+          update: {
+            scheduledAt: schedule.scheduledAt,
+            timezone: schedule.timezone,
+            attendanceDeadline: schedule.attendanceDeadline,
+          },
+          create: {
+            raceId: raceId.data,
+            leagueId: schedule.league.id,
+            scheduledAt: schedule.scheduledAt,
+            timezone: schedule.timezone,
+            attendanceDeadline: schedule.attendanceDeadline,
+          },
+        });
+      }
+      if (existing.seasonId !== parsed.data.seasonId) {
+        await transaction.raceLeagueSchedule.deleteMany({
+          where: {
+            raceId: raceId.data,
+            leagueId: {
+              notIn: calculatedSchedules.map(
+                (schedule) => schedule.league.id,
+              ),
+            },
+          },
+        });
+      }
       if (existing.doublePoints !== parsed.data.doublePoints) {
         for (const league of existing.season.participatingLeagues) {
           await transaction.championshipAudit.create({

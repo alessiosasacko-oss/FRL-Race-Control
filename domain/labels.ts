@@ -1,4 +1,5 @@
 import {
+  AttendanceChangeSource,
   AttendanceStatus,
   ChampionshipAdjustmentTarget,
   ChampionshipAuditAction,
@@ -23,6 +24,16 @@ export const attendanceStatusLabels: Record<AttendanceStatus, string> = {
   [AttendanceStatus.Registered]: "Angemeldet",
   [AttendanceStatus.Declined]: "Abgemeldet",
   [AttendanceStatus.NoResponse]: "Keine Antwort",
+};
+
+export const attendanceChangeSourceLabels: Record<
+  AttendanceChangeSource,
+  string
+> = {
+  [AttendanceChangeSource.Driver]: "Fahrer selbst",
+  [AttendanceChangeSource.TeamPrincipal]: "Teamchef",
+  [AttendanceChangeSource.Admin]: "Administration",
+  [AttendanceChangeSource.Automation]: "Automation",
 };
 
 export const resultSessionLabels: Record<ResultSession, string> = {

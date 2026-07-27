@@ -12,10 +12,12 @@ export default async function LeagueAdminPage() {
     <AppLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-white">Ligen verwalten</h1>
+          <h1 className="text-3xl font-bold text-white">
+            Ligen &amp; Rennzeiten
+          </h1>
           <p className="mt-2 text-slate-400">
-            Die festen Ligacodes F1 bis F6 bleiben stabil; Namen, Status und
-            aktuelle Saison sind konfigurierbar.
+            Namen, Status, Reihenfolge und der automatische Wochenend-Zeitplan
+            für F1 bis F6 werden zentral verwaltet.
           </p>
         </div>
         <div className="grid gap-5 xl:grid-cols-2">

@@ -1,4 +1,5 @@
 import type {
+  AttendanceChangeSource,
   AttendanceStatus,
   PenaltyType,
   RaceSession,
@@ -7,6 +8,7 @@ import type {
   ResultPublicationStatus,
   ResultSession,
   ResultStatus,
+  Role,
 } from "@/domain";
 
 export type SportsActionState = {
@@ -33,8 +35,12 @@ export type SportsListQuery = {
 export type RaceOption = {
   id: number;
   name: string;
+  circuit: string | null;
+  countryCode: string | null;
   round: number;
+  leagueScheduleId: number;
   scheduledAt: string;
+  timezone: string;
   sprint: boolean;
   doublePoints: boolean;
   mystery: boolean;
@@ -65,10 +71,14 @@ export type AttendanceEntryView = {
   } | null;
   representedTeam: { id: number; name: string } | null;
   submittedBy: { id: number; displayName: string } | null;
+  changeSource: AttendanceChangeSource | null;
+  changeReason: string | null;
   changedAt: string | null;
 };
 
 export type AttendancePageData = {
+  accessibleLeagues: Array<{ id: number; code: string; name: string }>;
+  selectedLeague: { id: number; code: string; name: string } | null;
   races: RaceOption[];
   selectedRace: RaceOption | null;
   entries: AttendanceEntryView[];
@@ -81,6 +91,18 @@ export type AttendancePageData = {
   }>;
   ownDriverId: number | null;
   principalTeamIds: number[];
+  counts: Record<AttendanceStatus, number>;
+  auditEntries: Array<{
+    id: number;
+    driverName: string;
+    previousStatus: AttendanceStatus;
+    newStatus: AttendanceStatus;
+    source: AttendanceChangeSource;
+    actorRole: Role;
+    actorName: string | null;
+    reason: string | null;
+    createdAt: string;
+  }>;
 };
 
 export type DriverStandingView = {

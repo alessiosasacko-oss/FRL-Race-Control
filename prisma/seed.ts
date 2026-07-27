@@ -22,6 +22,7 @@ import {
   DEFAULT_RACE_POINTS,
   DEFAULT_SPRINT_POINTS,
 } from "../lib/championship/scoring";
+import { calculateLeagueRaceSchedule } from "../lib/races/scheduling";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -77,6 +78,12 @@ async function seed(): Promise<void> {
       code: league.code,
       description: league.description,
       active: league.active,
+      raceWeekday: league.raceWeekday,
+      raceStartMinute: league.raceStartMinute,
+      raceTimezone: league.raceTimezone,
+      defaultAttendanceDeadlineMinutes:
+        league.defaultAttendanceDeadlineMinutes,
+      displayOrder: league.displayOrder,
     };
 
     await prisma.league.upsert({
@@ -159,6 +166,7 @@ async function seed(): Promise<void> {
       circuit: race.circuit,
       countryCode: race.countryCode,
       round: race.round,
+      weekendDate: new Date(`${race.weekendDate}T00:00:00.000Z`),
       scheduledAt: new Date(race.scheduledAt),
       timezone: race.timezone,
       status: race.status as PrismaRaceStatus,
@@ -173,11 +181,56 @@ async function seed(): Promise<void> {
         : null,
     };
 
-    await prisma.race.upsert({
+    const raceRecord = await prisma.race.upsert({
       where: { id: race.id },
       update: data,
       create: { id: race.id, ...data },
     });
+    const season = seasons.find((item) => item.id === race.seasonId);
+    const calculatedSchedules = leagues
+      .filter((league) =>
+        season?.participatingLeagueIds.includes(league.id),
+      )
+      .map((league) => ({
+        league,
+        ...calculateLeagueRaceSchedule(race.weekendDate, league),
+      }));
+    for (const schedule of calculatedSchedules) {
+      await prisma.raceLeagueSchedule.upsert({
+        where: {
+          raceId_leagueId: {
+            raceId: raceRecord.id,
+            leagueId: schedule.league.id,
+          },
+        },
+        update: {
+          scheduledAt: schedule.scheduledAt,
+          timezone: schedule.timezone,
+          attendanceDeadline: schedule.attendanceDeadline,
+        },
+        create: {
+          raceId: raceRecord.id,
+          leagueId: schedule.league.id,
+          scheduledAt: schedule.scheduledAt,
+          timezone: schedule.timezone,
+          attendanceDeadline: schedule.attendanceDeadline,
+        },
+      });
+    }
+    const firstSchedule = calculatedSchedules.sort(
+      (left, right) =>
+        left.scheduledAt.getTime() - right.scheduledAt.getTime(),
+    )[0];
+    if (firstSchedule) {
+      await prisma.race.update({
+        where: { id: raceRecord.id },
+        data: {
+          scheduledAt: firstSchedule.scheduledAt,
+          timezone: firstSchedule.timezone,
+          attendanceDeadline: firstSchedule.attendanceDeadline,
+        },
+      });
+    }
   }
 
   for (const season of seasons) {

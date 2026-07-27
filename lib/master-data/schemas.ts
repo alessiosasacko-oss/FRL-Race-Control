@@ -28,6 +28,39 @@ export const leagueUpdateSchema = z.object({
     ),
   currentSeasonId: optionalId,
   active: checkbox,
+  raceWeekday: z.coerce.number().int().min(1).max(7),
+  raceStartTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .refine((value) => {
+      const [hour, minute] = value.split(":").map(Number);
+      return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+    }, "Ungültige Startzeit."),
+  raceTimezone: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .refine((timezone) => {
+      try {
+        new Intl.DateTimeFormat("de-DE", {
+          timeZone: timezone,
+        }).format();
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Ungültige IANA-Zeitzone."),
+  defaultAttendanceDeadlineHours: z.preprocess(
+    (value) =>
+      value === "" || value === null || value === undefined
+        ? null
+        : value,
+    z.coerce.number().int().min(0).max(720).nullable(),
+  ),
+  displayOrder: z.coerce.number().int().min(0).max(999),
+  updateFutureSchedules: checkbox,
+  confirmFutureScheduleUpdate: checkbox,
 });
 
 export const seasonSchema = z
@@ -70,17 +103,7 @@ export const raceSchema = z
       countryCodeSchema.nullable(),
     ),
     round: z.coerce.number().int().positive().max(999),
-    localStart: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
-    attendanceDeadlineLocal: z.preprocess(
-      (value) => (value === "" || value === null ? null : value),
-      z
-        .string()
-        .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
-        .nullable(),
-    ),
-    timezone: timezoneSchema,
+    weekendDate: z.iso.date(),
     status: raceStatusSchema.default(RaceStatus.Scheduled),
     sprint: checkbox,
     doublePoints: checkbox,
@@ -102,6 +125,17 @@ export const raceSchema = z
       });
     }
   });
+
+export const raceDeadlineOverrideSchema = z.object({
+  leagueId: entityId,
+  localDeadline: z.preprocess(
+    (value) => (value === "" || value === null ? null : value),
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
+      .nullable(),
+  ),
+});
 
 export const driverSchema = z.object({
   name,

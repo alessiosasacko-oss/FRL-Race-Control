@@ -51,6 +51,13 @@ export enum AttendanceStatus {
   NoResponse = "NO_RESPONSE",
 }
 
+export enum AttendanceChangeSource {
+  Driver = "DRIVER",
+  TeamPrincipal = "TEAM_PRINCIPAL",
+  Admin = "ADMIN",
+  Automation = "AUTOMATION",
+}
+
 export enum ResultSession {
   Qualifying = "QUALIFYING",
   Race = "RACE",
@@ -253,6 +260,9 @@ export const penaltyTypeSchema = z.enum(PenaltyType);
 export const raceSessionSchema = z.enum(RaceSession);
 export const raceStatusSchema = z.enum(RaceStatus);
 export const attendanceStatusSchema = z.enum(AttendanceStatus);
+export const attendanceChangeSourceSchema = z.enum(
+  AttendanceChangeSource,
+);
 export const resultSessionSchema = z.enum(ResultSession);
 export const resultStatusSchema = z.enum(ResultStatus);
 export const resultGapModeSchema = z.enum(ResultGapMode);

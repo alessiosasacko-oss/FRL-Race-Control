@@ -17,8 +17,8 @@ import { requirePermission } from "@/lib/auth/session";
 const areas = [
   {
     href: "/admin/leagues",
-    title: "Ligen",
-    description: "F1 bis F6, Namen, Status und aktuelle Saison",
+    title: "Ligen & Rennzeiten",
+    description: "F1 bis F6, Wochentage, Startzeiten und Fristen",
     icon: Trophy,
   },
   {
@@ -30,7 +30,7 @@ const areas = [
   {
     href: "/admin/races",
     title: "Rennkalender",
-    description: "Rennen, Termine, Status und Sonderformate",
+    description: "Gemeinsame Rennwochenenden und automatische Liga-Termine",
     icon: CalendarDays,
   },
   {
@@ -48,7 +48,7 @@ const areas = [
   {
     href: "/admin/attendance",
     title: "Rennanmeldung",
-    description: "Teilnahme, Fristen und Ersatzfahrer",
+    description: "Teilnahme, Teamchef-Eingriffe, Fristen und Audit-Historie",
     icon: ClipboardCheck,
   },
   {

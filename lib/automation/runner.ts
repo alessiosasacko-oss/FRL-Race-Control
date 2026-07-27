@@ -65,52 +65,50 @@ async function upcomingRaceReminders() {
   const prisma = getPrismaClient();
   const now = new Date();
   const until = new Date(now.getTime() + 36 * 60 * 60 * 1000);
-  const races = await prisma.race.findMany({
+  const schedules = await prisma.raceLeagueSchedule.findMany({
     where: {
-      status: "SCHEDULED",
       scheduledAt: { gt: now, lte: until },
+      race: { status: "SCHEDULED" },
     },
     include: {
-      season: {
+      league: true,
+      race: {
         include: {
-          participatingLeagues: {
-            where: { active: true },
-            orderBy: { code: "asc" },
-          },
+          season: { select: { name: true } },
         },
       },
     },
   });
 
-  for (const race of races) {
+  for (const schedule of schedules) {
+    const race = schedule.race;
+    const league = schedule.league;
     const track = publicRaceTrack(race, now);
-    for (const league of race.season.participatingLeagues) {
-      const recipients = await leagueUserIds(prisma, league.id);
-      await createNotifications(
-        prisma,
-        recipients,
-        {
-          type: NotificationType.RaceReminder,
-          priority: NotificationPriority.High,
-          title: `${league.name}: Rennwochenende`,
-          message: `${track.name}${track.circuit ? ` auf ${track.circuit}` : ""} startet am ${new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: race.timezone }).format(race.scheduledAt)}.`,
-          href: `/calendar?raceId=${race.id}&leagueId=${league.id}`,
-          relatedEntity: { type: "Race", id: race.id },
-          dedupeKey: `race-weekend:${race.id}:${league.id}`,
+    const recipients = await leagueUserIds(prisma, league.id);
+    await createNotifications(
+      prisma,
+      recipients,
+      {
+        type: NotificationType.RaceReminder,
+        priority: NotificationPriority.High,
+        title: `${league.name}: Rennwochenende`,
+        message: `${track.name}${track.circuit ? ` auf ${track.circuit}` : ""} startet am ${new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: schedule.timezone }).format(schedule.scheduledAt)}.`,
+        href: `/calendar?raceId=${race.id}&leagueId=${league.id}`,
+        relatedEntity: { type: "Race", id: race.id },
+        dedupeKey: `race-weekend:${race.id}:${league.id}`,
+      },
+      {
+        leagueId: league.id,
+        discordContext: {
+          league: league.name,
+          season: race.season.name,
+          race: track.name,
+          track: track.circuit ?? "Mystery Track",
         },
-        {
-          leagueId: league.id,
-          discordContext: {
-            league: league.name,
-            season: race.season.name,
-            race: track.name,
-            track: track.circuit ?? "Mystery Track",
-          },
-        },
-      );
-    }
+      },
+    );
   }
-  return { races: races.length };
+  return { races: schedules.length };
 }
 
 async function verifyChampionships() {

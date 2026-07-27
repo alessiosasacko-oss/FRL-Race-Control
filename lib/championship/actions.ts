@@ -10,6 +10,8 @@ import {
   ResultStatus as PrismaResultStatus,
 } from "@/generated/prisma/client";
 import {
+  AttendanceChangeSource,
+  AttendanceStatus,
   ChampionshipAdjustmentTarget,
   DiscordChannelPurpose,
   NotificationPriority,
@@ -18,7 +20,6 @@ import {
   WebhookEventType,
 } from "@/domain";
 import {
-  hasPermission,
   Permission,
 } from "@/lib/auth/permissions";
 import {
@@ -43,6 +44,12 @@ import {
   createNotifications,
   leagueUserIds,
 } from "@/lib/notifications/service";
+import {
+  attendanceChangeIsAllowed,
+  attendanceNotificationRecipients,
+  authorizeAttendanceChange,
+  shouldPersistAttendanceChange,
+} from "./attendance-policy";
 
 function errorState(
   message: string,
@@ -99,6 +106,8 @@ export async function updateAttendanceAction(
     status: formData.get("status"),
     substituteDriverId: formData.get("substituteDriverId"),
     representedTeamId: formData.get("representedTeamId"),
+    changeMode: formData.get("changeMode") ?? undefined,
+    reason: formData.get("reason"),
   });
 
   if (!parsed.success) return validationState(parsed);
@@ -134,47 +143,62 @@ export async function updateAttendanceAction(
     !race.season.participatingLeagues.some(
       (league) => league.id === driver.leagueId,
     ) ||
-    driver.team?.seasonId !== race.seasonId
+    (driver.team !== null && driver.team.seasonId !== race.seasonId)
   ) {
     return errorState("Rennen oder Fahrer wurde nicht gefunden.");
   }
 
-  const canManageAll = hasPermission(
-    user.roles,
-    Permission.ManageAttendance,
+  const authorization = authorizeAttendanceChange(
+    { userId: user.id, roles: user.roles },
+    {
+      driverUserId: driver.userId,
+      driverLeagueId: driver.leagueId,
+      teamId: driver.team?.id ?? null,
+      teamPrincipalUserId: driver.team?.principalUserId ?? null,
+    },
+    parsed.data.changeMode,
   );
-  const canManageOwn =
-    hasPermission(user.roles, Permission.ManageOwnAttendance) &&
-    driver.userId === user.id;
-  const canManageTeam =
-    hasPermission(user.roles, Permission.ManageTeamAttendance) &&
-    driver.team?.principalUserId === user.id &&
-    driver.team.seasonId === race.seasonId;
+  const leagueSchedule = await prisma.raceLeagueSchedule.findUnique({
+    where: {
+      raceId_leagueId: {
+        raceId: race.id,
+        leagueId: driver.leagueId,
+      },
+    },
+    include: {
+      league: { select: { code: true, name: true } },
+    },
+  });
 
-  if (!canManageAll && !canManageOwn && !canManageTeam) {
+  if (!authorization.allowed || !leagueSchedule) {
     return errorState(
       "Du darfst die Rennanmeldung dieses Fahrers nicht ändern.",
     );
   }
 
   if (
-    !canManageAll &&
-    race.attendanceDeadline &&
-    race.attendanceDeadline <= new Date()
+    !attendanceChangeIsAllowed(
+      authorization,
+      leagueSchedule.attendanceDeadline,
+      parsed.data.reason,
+    )
   ) {
+    if (authorization.reasonRequired && !parsed.data.reason) {
+      return errorState("Bitte gib einen Grund für die Änderung an.", {
+        reason: ["Ein Grund ist für Teamchef- und Adminänderungen Pflicht."],
+      });
+    }
     return errorState("Der Anmeldeschluss ist bereits abgelaufen.");
   }
 
   if (
-    !canManageAll &&
+    authorization.source !== AttendanceChangeSource.Admin &&
     (parsed.data.substituteDriverId ||
       parsed.data.representedTeamId !== null)
   ) {
-    if (!canManageTeam) {
-      return errorState(
-        "Ersatzfahrer dürfen nur Team Principals oder Administratoren zuweisen.",
-      );
-    }
+    return errorState(
+      "Ersatzfahrer dürfen nur Administratoren zuweisen.",
+    );
   }
 
   if (parsed.data.status === "REGISTERED") {
@@ -265,6 +289,23 @@ export async function updateAttendanceAction(
       },
     },
   });
+  if (
+    existing &&
+    !shouldPersistAttendanceChange(
+      existing.status as AttendanceStatus,
+      parsed.data.status,
+    ) &&
+    existing.substituteDriverId === parsed.data.substituteDriverId &&
+    existing.representedTeamId === representedTeamId
+  ) {
+    return successState("Der Anmeldestatus ist bereits aktuell.");
+  }
+  const source = authorization.source;
+  const actorRole = authorization.actorRole;
+  if (!source || !actorRole) {
+    return errorState("Die Änderung konnte nicht autorisiert werden.");
+  }
+  const track = publicRaceTrack(race);
 
   try {
     await prisma.$transaction(async (transaction) => {
@@ -277,22 +318,46 @@ export async function updateAttendanceAction(
         },
         update: {
           status: parsed.data.status as PrismaAttendanceStatus,
+          leagueScheduleId: leagueSchedule.id,
           substituteDriverId: parsed.data.substituteDriverId,
           representedTeamId,
           submittedByUserId: user.id,
+          changeSource: source,
+          changeReason: parsed.data.reason,
           changedAt: new Date(),
         },
         create: {
           raceId: race.id,
+          leagueScheduleId: leagueSchedule.id,
           driverId: driver.id,
           status: parsed.data.status as PrismaAttendanceStatus,
           substituteDriverId: parsed.data.substituteDriverId,
           representedTeamId,
           submittedByUserId: user.id,
+          changeSource: source,
+          changeReason: parsed.data.reason,
+        },
+      });
+      const audit = await transaction.attendanceAudit.create({
+        data: {
+          attendanceId: attendance.id,
+          leagueScheduleId: leagueSchedule.id,
+          raceId: race.id,
+          leagueId: driver.leagueId,
+          driverId: driver.id,
+          changedByUserId: user.id,
+          actorRole,
+          source,
+          previousStatus:
+            (existing?.status as AttendanceStatus | undefined) ??
+            AttendanceStatus.NoResponse,
+          newStatus: parsed.data.status,
+          reason: parsed.data.reason,
         },
       });
       await transaction.championshipAudit.create({
         data: {
+          leagueId: driver.leagueId,
           seasonId: race.seasonId,
           raceId: race.id,
           actorId: user.id,
@@ -313,16 +378,42 @@ export async function updateAttendanceAction(
           driverId: driver.id,
           status: parsed.data.status,
           actorId: user.id,
+          source,
+          reason: parsed.data.reason,
         },
       });
-      if (driver.userId && driver.userId !== user.id) {
-        await createNotifications(transaction, [driver.userId], {
+      const notificationRecipients = attendanceNotificationRecipients({
+        source,
+        actorUserId: user.id,
+        driverUserId: driver.userId,
+        teamPrincipalUserId: driver.team?.principalUserId ?? null,
+      });
+      if (notificationRecipients.driver.length > 0) {
+        await createNotifications(transaction, notificationRecipients.driver, {
           type: NotificationType.Attendance,
           title: "Rennanmeldung geändert",
-          message: `Dein Status wurde auf ${parsed.data.status === "REGISTERED" ? "angemeldet" : "abgemeldet"} gesetzt.`,
-          href: `/attendance?raceId=${race.id}`,
+          message: `${source === AttendanceChangeSource.TeamPrincipal ? "Dein Teamchef" : "Die Administration"} hat dich für den ${track.name} in ${leagueSchedule.league.code} ${parsed.data.status === AttendanceStatus.Registered ? "angemeldet" : "abgemeldet"}.`,
+          href: `/attendance?raceId=${race.id}&leagueId=${driver.leagueId}`,
           relatedEntity: { type: "RaceAttendance", id: attendance.id },
+          dedupeKey: `attendance-actor-change:${audit.id}`,
         });
+      }
+      if (notificationRecipients.teamPrincipal.length > 0) {
+        await createNotifications(
+          transaction,
+          notificationRecipients.teamPrincipal,
+          {
+            type: NotificationType.Attendance,
+            title: `${driver.name} hat die Rennanmeldung geändert`,
+            message: `${driver.name} ist für den ${track.name} jetzt ${parsed.data.status === AttendanceStatus.Registered ? "angemeldet" : "abgemeldet"}.`,
+            href: `/attendance?raceId=${race.id}&leagueId=${driver.leagueId}`,
+            relatedEntity: {
+              type: "RaceAttendance",
+              id: attendance.id,
+            },
+            dedupeKey: `attendance-driver-change:${audit.id}`,
+          },
+        );
       }
     });
   } catch {

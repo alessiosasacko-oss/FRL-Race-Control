@@ -67,7 +67,20 @@ export type LeagueAdminItem = LeagueOption & {
   description: string | null;
   active: boolean;
   currentSeasonId: number | null;
+  raceWeekday: number;
+  raceStartMinute: number;
+  raceTimezone: string;
+  defaultAttendanceDeadlineMinutes: number | null;
+  displayOrder: number;
   seasons: SeasonOption[];
+  futureSchedules: Array<{
+    id: number;
+    raceId: number;
+    raceName: string;
+    round: number;
+    weekendDate: string;
+    scheduledAt: string;
+  }>;
   counts: {
     drivers: number;
     teams: number;
@@ -95,6 +108,7 @@ export type RaceItem = {
   circuit: string | null;
   countryCode: string | null;
   round: number;
+  weekendDate: string;
   scheduledAt: string;
   localStart: string;
   timezone: string;
@@ -106,6 +120,15 @@ export type RaceItem = {
   trackRevealed: boolean;
   attendanceDeadline: string | null;
   attendanceDeadlineLocal: string;
+  leagueSchedules: Array<{
+    id: number;
+    league: LeagueOption;
+    scheduledAt: string;
+    localStart: string;
+    timezone: string;
+    attendanceDeadline: string | null;
+    attendanceDeadlineLocal: string;
+  }>;
   season: {
     id: number;
     name: string;

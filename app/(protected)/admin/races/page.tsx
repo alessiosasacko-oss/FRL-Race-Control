@@ -30,7 +30,8 @@ export default async function RaceAdminPage() {
             Rennkalender verwalten
           </h1>
           <p className="mt-2 text-slate-400">
-            Termine werden mit lokaler Startzeit und IANA-Zeitzone gespeichert.
+            Ein Rennwochenende erzeugt automatisch je aktiver Liga einen
+            eigenen Termin.
           </p>
         </div>
         <section className="master-card">
@@ -52,7 +53,8 @@ export default async function RaceAdminPage() {
                       {race.name}
                     </h2>
                     <p className="mt-1 text-sm text-slate-400">
-                      {race.localStart.replace("T", " ")} · {race.timezone}
+                      {race.weekendDate} · {race.leagueSchedules.length}{" "}
+                      Liga-Termine
                     </p>
                   </div>
                   <p className="text-xs text-slate-500">
