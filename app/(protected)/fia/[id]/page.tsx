@@ -60,6 +60,9 @@ export default async function InvestigationPage({ params }: Props) {
     userId: user.id,
     assignedStewardIds: ticket.assignedStewards.map((steward) => steward.id),
   });
+  const proposals = ticket.discussionMessages.flatMap((message) =>
+    message.proposal ? [message.proposal] : [],
+  );
   return (
     <AppLayout>
       <div className="page-stack">
@@ -165,15 +168,22 @@ export default async function InvestigationPage({ params }: Props) {
                 currentUserId={user.id}
                 readOnly
               />
+            ) : canReview && proposals.length === 0 ? (
+              <section className="rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-6">
+                <h2 className="text-xl font-bold text-white">
+                  Steward-Abstimmungen
+                </h2>
+                <p className="mt-5 text-slate-400">
+                  Noch keine Abstimmung vorhanden.
+                </p>
+              </section>
             ) : null}
             <DecisionCard
               ticketId={ticket.id}
               status={ticket.status}
               decision={ticket.decision}
               drivers={ticket.drivers}
-              proposals={ticket.discussionMessages.flatMap((message) =>
-                message.proposal ? [message.proposal] : [],
-              )}
+              proposals={proposals}
               canFinalize={canVote}
               readOnly={ticket.archivedAt !== null}
             />

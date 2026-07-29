@@ -60,7 +60,12 @@ export async function GET(
   try {
     const signedUrl = await createSignedVideoViewUrl(evidence.storagePath);
     return NextResponse.redirect(signedUrl);
-  } catch {
+  } catch (error: unknown) {
+    logger.warn("Unable to create signed FIA evidence URL", {
+      evidenceId: evidence.id,
+      ticketId: evidence.ticketId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return new Response("Der Beweis ist aktuell nicht verfügbar.", {
       status: 503,
     });

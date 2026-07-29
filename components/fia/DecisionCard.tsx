@@ -308,7 +308,7 @@ export default function DecisionCard({
         </form>
       ) : (
         <p className="mt-5 text-slate-400">
-          Noch keine finale Entscheidung veröffentlicht.
+          Noch keine finale Entscheidung.
         </p>
       )}
     </section>
