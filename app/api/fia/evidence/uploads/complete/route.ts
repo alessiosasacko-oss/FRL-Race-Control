@@ -83,6 +83,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           where: { id: ticketId },
           select: {
             status: true,
+            archivedAt: true,
             reportedByUserId: true,
             drivers: {
               select: { driver: { select: { userId: true } } },

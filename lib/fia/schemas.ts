@@ -60,6 +60,32 @@ export const fiaTicketListParamsSchema = z.object({
     .catch("desc"),
 });
 
+export const fiaArchiveListParamsSchema = z.object({
+  q: z
+    .preprocess(firstValue, z.string().trim().max(100).optional())
+    .catch("")
+    .transform((value) => value ?? ""),
+  leagueId: optionalIdQuerySchema,
+  seasonId: optionalIdQuerySchema,
+  raceId: optionalIdQuerySchema,
+  driverId: optionalIdQuerySchema,
+  decision: z
+    .preprocess(firstValue, optionalEnumQuerySchema(penaltyTypeSchema))
+    .catch(undefined),
+  archivedFrom: z
+    .preprocess(firstValue, z.iso.date().optional())
+    .catch(undefined),
+  archivedTo: z
+    .preprocess(firstValue, z.iso.date().optional())
+    .catch(undefined),
+  page: z
+    .preprocess(firstValue, z.coerce.number().int().positive())
+    .catch(1),
+  pageSize: z
+    .preprocess(firstValue, z.coerce.number().int().min(6).max(48))
+    .catch(20),
+});
+
 const optionalLapSchema = z.preprocess(
   (value) => (value === "" || value === null ? undefined : value),
   z.coerce.number().int().positive().max(999).optional(),

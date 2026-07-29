@@ -9,6 +9,7 @@ import type { AuthenticatedUser } from "@/lib/auth/session";
 
 type EvidenceTicketAccess = {
   status: string;
+  archivedAt: Date | string | null;
   reportedByUserId: number | null;
   drivers: Array<{ driver: { userId: number | null } }>;
 };
@@ -29,6 +30,7 @@ export function canModifyFiaEvidence(
   ticket: EvidenceTicketAccess,
 ): boolean {
   return (
+    ticket.archivedAt === null &&
     ticket.status !== TicketStatus.Resolved &&
     canAccessFiaEvidence(user, ticket)
   );

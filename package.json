@@ -9,7 +9,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test lib/championship/result-engine.test.ts lib/championship/attendance-policy.test.ts lib/fia/proposal-policy.test.ts lib/storage/evidence-constants.test.ts",
+    "test": "tsx --test lib/championship/result-engine.test.ts lib/championship/attendance-policy.test.ts lib/fia/proposal-policy.test.ts lib/fia/archive-policy.test.ts lib/storage/evidence-constants.test.ts",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",

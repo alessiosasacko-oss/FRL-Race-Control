@@ -409,7 +409,11 @@ export async function startFiaReviewAction(
 
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.fiaTicket.updateMany({
-      where: { id: ticketId, status: PrismaTicketStatus.OPEN },
+      where: {
+        id: ticketId,
+        archivedAt: null,
+        status: PrismaTicketStatus.OPEN,
+      },
       data: { status: PrismaTicketStatus.IN_REVIEW },
     });
 
@@ -469,6 +473,7 @@ export async function addFiaEvidenceAction(
         where: { id: ticketId },
         select: {
           status: true,
+          archivedAt: true,
           reportedByUserId: true,
           drivers: { select: { driver: { select: { userId: true } } } },
         },
@@ -484,6 +489,7 @@ export async function addFiaEvidenceAction(
 
       if (
         !ticket ||
+        ticket.archivedAt !== null ||
         ticket.status === PrismaTicketStatus.RESOLVED ||
         (!isRelated && !canReview)
       ) {
@@ -547,11 +553,12 @@ export async function addFiaDiscussionMessageAction(
     await prisma.$transaction(async (transaction) => {
       const ticket = await transaction.fiaTicket.findUnique({
         where: { id: ticketId },
-        select: { status: true },
+        select: { status: true, archivedAt: true },
       });
 
       if (
         !ticket ||
+        ticket.archivedAt !== null ||
         ticket.status === PrismaTicketStatus.RESOLVED
       ) {
         throw new Error("CLOSED");
@@ -621,11 +628,13 @@ export async function castFiaVoteAction(
         where: { id: ticketId },
         select: {
           status: true,
+          archivedAt: true,
           stewardAssignments: { select: { userId: true } },
         },
       });
 
       if (
+        ticket?.archivedAt !== null ||
         ticket?.status !== PrismaTicketStatus.IN_REVIEW ||
         !canParticipateInProposal({
           roles: user.roles,
@@ -718,6 +727,7 @@ export async function publishFiaDecisionAction(
           leagueId: true,
           league: { select: { name: true } },
           status: true,
+          archivedAt: true,
           reportedByUserId: true,
           season: {
             select: {
@@ -749,6 +759,7 @@ export async function publishFiaDecisionAction(
 
       if (
         !ticket ||
+        ticket.archivedAt !== null ||
         ticket.status !== PrismaTicketStatus.IN_REVIEW ||
         ticket.decision ||
         ticket.votes.length === 0 ||

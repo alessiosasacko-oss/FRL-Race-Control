@@ -21,6 +21,7 @@ type DecisionCardProps = {
   voteCount: number;
   canDecide: boolean;
   canUseLegacyDecision: boolean;
+  readOnly?: boolean;
 };
 
 export default function DecisionCard({
@@ -30,6 +31,7 @@ export default function DecisionCard({
   voteCount,
   canDecide,
   canUseLegacyDecision,
+  readOnly = false,
 }: DecisionCardProps) {
   const action = publishFiaDecisionAction.bind(null, ticketId);
   const [state, formAction, pending] = useActionState(
@@ -77,6 +79,7 @@ export default function DecisionCard({
           </p>
         </div>
       ) : canDecide &&
+        !readOnly &&
         canUseLegacyDecision &&
         status === TicketStatus.InReview ? (
         <form action={formAction} className="mt-5 space-y-3">

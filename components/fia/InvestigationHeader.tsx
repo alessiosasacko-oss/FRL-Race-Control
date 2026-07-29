@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { Archive, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { FiaTicketDetail } from "@/lib/fia/types";
 import StatusBadge from "./StatusBadge";
@@ -17,10 +17,11 @@ export default function InvestigationHeader({
         className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_10%,rgba(139,92,246,0.22),transparent_28%),linear-gradient(115deg,transparent_0_68%,rgba(255,255,255,0.025)_68%_69%,transparent_69%_100%)]"
       />
       <Link
-        href="/fia"
+        href={ticket.archivedAt ? "/fia/archive" : "/fia"}
         className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm text-slate-400 transition hover:text-white"
       >
-        <ArrowLeft size={16} /> Alle Untersuchungen
+        <ArrowLeft size={16} />{" "}
+        {ticket.archivedAt ? "FIA-Archiv" : "Alle Untersuchungen"}
       </Link>
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -36,6 +37,12 @@ export default function InvestigationHeader({
         </div>
         <div className="flex flex-wrap gap-2">
           <StatusBadge status={ticket.status} />
+          {ticket.archivedAt ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/30 bg-blue-500/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-blue-200">
+              <Archive size={14} />
+              Archiviert
+            </span>
+          ) : null}
         </div>
       </div>
     </header>

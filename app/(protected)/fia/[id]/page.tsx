@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
+import ArchiveTicketControls from "@/components/fia/ArchiveTicketControls";
 import DecisionCard from "@/components/fia/DecisionCard";
 import DescriptionCard from "@/components/fia/DescriptionCard";
 import DiscussionCard from "@/components/fia/DiscussionCard";
@@ -43,12 +44,18 @@ export default async function InvestigationPage({ params }: Props) {
   }
 
   const canDecide = hasPermission(user.roles, Permission.DecideFiaTicket);
+  const canArchive = hasPermission(
+    user.roles,
+    Permission.ArchiveFiaTicket,
+  );
   const isRelated =
     ticket.reportedBy?.id === user.id ||
     ticket.drivers.some((driver) => driver.userId === user.id);
   const canViewEvidence = canReview || isRelated;
   const canAddEvidence =
-    ticket.status !== TicketStatus.Resolved && (canReview || isRelated);
+    !ticket.archivedAt &&
+    ticket.status !== TicketStatus.Resolved &&
+    (canReview || isRelated);
   const canVote = canParticipateInProposal({
     roles: user.roles,
     userId: user.id,
@@ -62,6 +69,38 @@ export default async function InvestigationPage({ params }: Props) {
     <AppLayout>
       <div className="page-stack">
         <InvestigationHeader ticket={ticket} />
+
+        {ticket.archivedAt ? (
+          <section className="flex flex-col gap-4 rounded-2xl border border-blue-500/25 bg-blue-500/10 p-5 text-blue-100 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-bold">Archivierter FIA-Fall</p>
+              <p className="mt-1 text-sm text-blue-100/75">
+                Archiviert am{" "}
+                {new Intl.DateTimeFormat("de-DE", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }).format(new Date(ticket.archivedAt))}{" "}
+                von {ticket.archivedBy?.displayName ?? "Unbekannt"}. Alle
+                Inhalte sind schreibgeschützt.
+              </p>
+            </div>
+            <div className="sm:w-72">
+              <ArchiveTicketControls
+                ticketId={ticket.id}
+                archived
+                canArchive={canArchive}
+              />
+            </div>
+          </section>
+        ) : ticket.status === TicketStatus.Resolved ? (
+          <div className="ml-auto w-full sm:w-72">
+            <ArchiveTicketControls
+              ticketId={ticket.id}
+              archived={false}
+              canArchive={canArchive}
+            />
+          </div>
+        ) : null}
 
         <div className="grid items-start gap-5 xl:grid-cols-12">
           <aside className="space-y-5 xl:col-span-3">
@@ -83,8 +122,8 @@ export default async function InvestigationPage({ params }: Props) {
                   id: user.id,
                   displayName: user.displayName,
                 }}
-                canVote={canVote}
-                canDecide={canDecide}
+                canVote={canVote && !ticket.archivedAt}
+                canDecide={canDecide && !ticket.archivedAt}
               />
             ) : (
               <section className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-6 text-sm leading-6 text-slate-300">
@@ -137,6 +176,7 @@ export default async function InvestigationPage({ params }: Props) {
               decision={ticket.decision}
               voteCount={ticket.votes.length}
               canDecide={canDecide}
+              readOnly={ticket.archivedAt !== null}
               canUseLegacyDecision={!hasProposals}
             />
           </div>

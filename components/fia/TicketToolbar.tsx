@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  Archive,
   Plus,
   Search,
   SlidersHorizontal,
@@ -41,15 +42,24 @@ export default function TicketToolbar({
             </p>
           </div>
 
-          {canCreate ? (
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Link
-              href="/fia/new"
-              className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-500"
+              href="/fia/archive"
+              className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-5 py-3 font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white"
             >
-              <Plus size={18} />
-              Neues Ticket
+              <Archive size={18} />
+              FIA-Archiv öffnen
             </Link>
-          ) : null}
+            {canCreate ? (
+              <Link
+                href="/fia/new"
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-500"
+              >
+                <Plus size={18} />
+                Neues Ticket
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         <form action="/fia" className="mt-6 space-y-4">

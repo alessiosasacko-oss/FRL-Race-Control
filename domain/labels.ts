@@ -201,4 +201,6 @@ export const ticketAuditActionLabels: Record<TicketAuditAction, string> = {
   [TicketAuditAction.ProposalReviewed]:
     "Strafenvorschlag geprüft",
   [TicketAuditAction.DecisionPublished]: "Entscheidung veröffentlicht",
+  [TicketAuditAction.Archived]: "Ticket archiviert",
+  [TicketAuditAction.Restored]: "Ticket wiederhergestellt",
 };

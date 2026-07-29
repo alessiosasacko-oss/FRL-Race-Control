@@ -97,10 +97,15 @@ async function closeProposal(
       id: true,
       ticketId: true,
       status: true,
+      ticket: { select: { archivedAt: true } },
       votes: { select: { choice: true } },
     },
   });
-  if (!proposal || proposal.status !== PenaltyProposalStatus.OPEN) {
+  if (
+    !proposal ||
+    proposal.ticket.archivedAt !== null ||
+    proposal.status !== PenaltyProposalStatus.OPEN
+  ) {
     throw new Error("PROPOSAL_CLOSED");
   }
 
@@ -226,6 +231,7 @@ export async function createPenaltyProposalAction(
           where: { id: ticketId },
           select: {
             status: true,
+            archivedAt: true,
             decision: { select: { id: true } },
             drivers: { select: { driverId: true } },
             evidence: { select: { id: true } },
@@ -234,6 +240,7 @@ export async function createPenaltyProposalAction(
         });
         if (
           !ticket ||
+          ticket.archivedAt !== null ||
           ticket.status !== TicketStatus.IN_REVIEW ||
           ticket.decision
         ) {
@@ -424,6 +431,7 @@ export async function castPenaltyProposalVoteAction(
               ticket: {
                 select: {
                   status: true,
+                  archivedAt: true,
                   stewardAssignments: {
                     select: { userId: true },
                   },
@@ -447,6 +455,7 @@ export async function castPenaltyProposalVoteAction(
         }
         if (
           proposal.status !== PenaltyProposalStatus.OPEN ||
+          proposal.ticket.archivedAt !== null ||
           proposal.ticket.status !== TicketStatus.IN_REVIEW
         ) {
           throw new Error("PROPOSAL_CLOSED");
@@ -708,6 +717,7 @@ export async function reviewPenaltyProposalAction(
               votes: { select: { voterId: true, choice: true } },
               ticket: {
                 select: {
+                  archivedAt: true,
                   status: true,
                   decision: { select: { id: true } },
                   stewardAssignments: {
@@ -721,6 +731,7 @@ export async function reviewPenaltyProposalAction(
           !proposal ||
           proposal.status !==
             PenaltyProposalStatus.AWAITING_APPROVAL ||
+          proposal.ticket.archivedAt !== null ||
           proposal.ticket.status !== TicketStatus.IN_REVIEW ||
           proposal.ticket.decision
         ) {

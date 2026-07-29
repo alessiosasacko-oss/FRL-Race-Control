@@ -92,6 +92,48 @@ export type FiaTicketListData = {
   pageCount: number;
 };
 
+export type FiaArchiveListParams = {
+  q: string;
+  leagueId?: number;
+  seasonId?: number;
+  raceId?: number;
+  driverId?: number;
+  decision?: PenaltyType;
+  archivedFrom?: string;
+  archivedTo?: string;
+  page: number;
+  pageSize: number;
+};
+
+export type FiaArchiveListItem = {
+  id: number;
+  title: string;
+  archivedAt: string;
+  archivedBy: { id: number; displayName: string } | null;
+  completedAt: string;
+  league: { id: number; code: string };
+  season: { id: number; name: string };
+  race: { id: number; name: string };
+  drivers: Array<Pick<FiaDriverSummary, "id" | "name" | "number" | "flag">>;
+  decision: {
+    penaltyType: PenaltyType;
+    penaltyValue: number | null;
+    reason: string;
+  };
+};
+
+export type FiaArchiveListData = {
+  items: FiaArchiveListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
+export type FiaArchiveFilterOptions = FiaListFilterOptions & {
+  drivers: Array<{ id: number; name: string; number: number }>;
+};
+
 export type FiaListFilterOptions = {
   leagues: Array<{ id: number; name: string; code: string }>;
   seasons: Array<{ id: number; leagueId: number; name: string }>;
@@ -118,6 +160,8 @@ export type FiaTicketDetail = {
   title: string;
   description: string;
   status: TicketStatus;
+  archivedAt: string | null;
+  archivedBy: { id: number; displayName: string } | null;
   session: RaceSession;
   lap: number | null;
   createdAt: string;

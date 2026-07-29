@@ -15,11 +15,17 @@ import {
   RaceSession as PrismaRaceSession,
 } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/lib/db/prisma";
-import { fiaTicketListParamsSchema } from "@/lib/fia/schemas";
+import {
+  fiaArchiveListParamsSchema,
+  fiaTicketListParamsSchema,
+} from "@/lib/fia/schemas";
 import { getVideoUploadLimits } from "@/lib/storage/evidence-config";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import type {
   FiaListFilterOptions,
+  FiaArchiveFilterOptions,
+  FiaArchiveListData,
+  FiaArchiveListParams,
   FiaTicketDetail,
   FiaTicketListData,
   FiaTicketListItem,
@@ -34,6 +40,12 @@ export function parseFiaTicketListParams(
   searchParams: RawSearchParams,
 ): FiaTicketListParams {
   return fiaTicketListParamsSchema.parse(searchParams);
+}
+
+export function parseFiaArchiveListParams(
+  searchParams: RawSearchParams,
+): FiaArchiveListParams {
+  return fiaArchiveListParamsSchema.parse(searchParams);
 }
 
 function buildTicketWhere(
@@ -98,6 +110,7 @@ function buildTicketWhere(
   }
 
   return {
+    archivedAt: null,
     leagueId: query.leagueId,
     seasonId: query.seasonId,
     raceId: query.raceId,
@@ -222,17 +235,212 @@ export async function getFiaTicketList(
 export async function getFiaTicketStats(): Promise<FiaTicketStatsData> {
   const prisma = getPrismaClient();
   const [open, inReview, resolved, total] = await Promise.all([
-    prisma.fiaTicket.count({ where: { status: PrismaTicketStatus.OPEN } }),
     prisma.fiaTicket.count({
-      where: { status: PrismaTicketStatus.IN_REVIEW },
+      where: { archivedAt: null, status: PrismaTicketStatus.OPEN },
     }),
     prisma.fiaTicket.count({
-      where: { status: PrismaTicketStatus.RESOLVED },
+      where: {
+        archivedAt: null,
+        status: PrismaTicketStatus.IN_REVIEW,
+      },
     }),
-    prisma.fiaTicket.count(),
+    prisma.fiaTicket.count({
+      where: {
+        archivedAt: null,
+        status: PrismaTicketStatus.RESOLVED,
+      },
+    }),
+    prisma.fiaTicket.count({ where: { archivedAt: null } }),
   ]);
 
   return { open, inReview, resolved, total };
+}
+
+function archiveDateRange(
+  query: FiaArchiveListParams,
+): Prisma.DateTimeNullableFilter<"FiaTicket"> {
+  const end = query.archivedTo
+    ? new Date(`${query.archivedTo}T23:59:59.999Z`)
+    : undefined;
+  return {
+    not: null,
+    gte: query.archivedFrom
+      ? new Date(`${query.archivedFrom}T00:00:00.000Z`)
+      : undefined,
+    lte: end,
+  };
+}
+
+function archiveWhere(
+  query: FiaArchiveListParams,
+): Prisma.FiaTicketWhereInput {
+  const numericId = Number(query.q);
+  const search: Prisma.FiaTicketWhereInput[] = query.q
+    ? [
+        { title: { contains: query.q, mode: "insensitive" as const } },
+        {
+          description: {
+            contains: query.q,
+            mode: "insensitive" as const,
+          },
+        },
+        {
+          race: {
+            AND: [
+              {
+                OR: [
+                  { mystery: false },
+                  {
+                    scheduledAt: {
+                      lte: new Date(Date.now() + 60 * 60 * 1000),
+                    },
+                  },
+                ],
+              },
+              {
+                name: {
+                  contains: query.q,
+                  mode: "insensitive" as const,
+                },
+              },
+            ],
+          },
+        },
+        {
+          drivers: {
+            some: {
+              driver: {
+                name: {
+                  contains: query.q,
+                  mode: "insensitive" as const,
+                },
+              },
+            },
+          },
+        },
+      ]
+    : [];
+  if (query.q && Number.isSafeInteger(numericId) && numericId > 0) {
+    search.push({ id: numericId });
+  }
+
+  return {
+    archivedAt: archiveDateRange(query),
+    leagueId: query.leagueId,
+    seasonId: query.seasonId,
+    raceId: query.raceId,
+    drivers: query.driverId
+      ? { some: { driverId: query.driverId } }
+      : undefined,
+    decision: query.decision
+      ? { penaltyType: query.decision }
+      : { isNot: null },
+    OR: search.length > 0 ? search : undefined,
+  };
+}
+
+export async function getFiaArchiveList(
+  query: FiaArchiveListParams,
+): Promise<FiaArchiveListData> {
+  const prisma = getPrismaClient();
+  const where = archiveWhere(query);
+  const total = await prisma.fiaTicket.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / query.pageSize));
+  const page = Math.min(query.page, pageCount);
+  const rows = await prisma.fiaTicket.findMany({
+    where,
+    orderBy: [{ archivedAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * query.pageSize,
+    take: query.pageSize,
+    select: {
+      id: true,
+      title: true,
+      archivedAt: true,
+      archivedBy: { select: { id: true, displayName: true } },
+      league: { select: { id: true, code: true } },
+      season: { select: { id: true, name: true } },
+      race: {
+        select: {
+          id: true,
+          name: true,
+          circuit: true,
+          countryCode: true,
+          mystery: true,
+          scheduledAt: true,
+        },
+      },
+      drivers: {
+        orderBy: { driver: { number: "asc" } },
+        select: {
+          driver: {
+            select: {
+              id: true,
+              name: true,
+              number: true,
+              flag: true,
+            },
+          },
+        },
+      },
+      decision: {
+        select: {
+          penaltyType: true,
+          penaltyValue: true,
+          reason: true,
+          decidedAt: true,
+        },
+      },
+    },
+  });
+
+  return {
+    items: rows.flatMap((ticket) =>
+      ticket.archivedAt && ticket.decision
+        ? [
+            {
+              id: ticket.id,
+              title: ticket.title,
+              archivedAt: ticket.archivedAt.toISOString(),
+              archivedBy: ticket.archivedBy,
+              completedAt: ticket.decision.decidedAt.toISOString(),
+              league: ticket.league,
+              season: ticket.season,
+              race: {
+                id: ticket.race.id,
+                name: publicRaceTrack(ticket.race).name,
+              },
+              drivers: ticket.drivers.map(({ driver }) => driver),
+              decision: {
+                penaltyType:
+                  ticket.decision.penaltyType as PenaltyType,
+                penaltyValue: ticket.decision.penaltyValue,
+                reason: ticket.decision.reason,
+              },
+            },
+          ]
+        : [],
+    ),
+    total,
+    page,
+    pageSize: query.pageSize,
+    pageCount,
+  };
+}
+
+export async function getFiaArchiveFilterOptions(): Promise<FiaArchiveFilterOptions> {
+  const [base, drivers] = await Promise.all([
+    getFiaListFilterOptions(),
+    getPrismaClient().driver.findMany({
+      where: {
+        ticketLinks: {
+          some: { ticket: { archivedAt: { not: null } } },
+        },
+      },
+      orderBy: [{ name: "asc" }, { number: "asc" }],
+      select: { id: true, name: true, number: true },
+    }),
+  ]);
+  return { ...base, drivers };
 }
 
 export async function getFiaListFilterOptions(): Promise<FiaListFilterOptions> {
@@ -381,6 +589,9 @@ export async function getFiaTicketById(
       reportedBy: {
         select: { id: true, displayName: true, avatarUrl: true },
       },
+      archivedBy: {
+        select: { id: true, displayName: true },
+      },
       stewardAssignments: {
         orderBy: { createdAt: "asc" },
         select: {
@@ -517,6 +728,8 @@ export async function getFiaTicketById(
     title: ticket.title,
     description: ticket.description,
     status: ticket.status as TicketStatus,
+    archivedAt: ticket.archivedAt?.toISOString() ?? null,
+    archivedBy: ticket.archivedBy,
     session: ticket.session as RaceSession,
     lap: ticket.lap,
     createdAt: ticket.createdAt.toISOString(),

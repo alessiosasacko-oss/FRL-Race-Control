@@ -239,6 +239,8 @@ enum TicketAuditAction {
   PROPOSAL_REVIEWED
   DECISION_PUBLISHED
   EVIDENCE_REMOVED
+  ARCHIVED
+  RESTORED
 }
 
 enum DiscussionMessageType {
@@ -278,6 +280,7 @@ model User {
   active                   Boolean                    @default(true)
   driver                   Driver?
   reportedTickets          FiaTicket[]                @relation("TicketReporter")
+  archivedTickets          FiaTicket[]                @relation("TicketArchiver")
   ticketAssignments        FiaTicketSteward[]
   submittedEvidence        Evidence[]                 @relation("EvidenceSubmitter")
   discussionMessages       DiscussionMessage[]
@@ -850,10 +853,13 @@ model FiaTicket {
   lap                     Int?
   corner                  String?                  @db.VarChar(80)
   status                  TicketStatus             @default(OPEN)
+  archivedAt              DateTime?
+  archivedById            Int?
   league                  League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   season                  Season                   @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   race                    Race                     @relation(fields: [raceId], references: [id], onDelete: Restrict)
   reportedBy              User?                    @relation("TicketReporter", fields: [reportedByUserId], references: [id], onDelete: SetNull)
+  archivedBy              User?                    @relation("TicketArchiver", fields: [archivedById], references: [id], onDelete: SetNull)
   drivers                 FiaTicketDriver[]
   stewardAssignments      FiaTicketSteward[]
   evidence                Evidence[]
@@ -870,6 +876,8 @@ model FiaTicket {
   @@index([seasonId, status])
   @@index([raceId, status])
   @@index([status, createdAt])
+  @@index([archivedAt])
+  @@index([archivedById])
   @@index([reportedByUserId])
 }
 

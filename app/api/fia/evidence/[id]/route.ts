@@ -24,9 +24,10 @@ async function loadEvidence(id: number) {
       label: true,
       storagePath: true,
       ticketId: true,
-      ticket: {
-        select: {
-          status: true,
+        ticket: {
+          select: {
+            status: true,
+            archivedAt: true,
           reportedByUserId: true,
           drivers: {
             select: { driver: { select: { userId: true } } },

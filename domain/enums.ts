@@ -232,6 +232,8 @@ export enum TicketAuditAction {
   ProposalClosed = "PROPOSAL_CLOSED",
   ProposalReviewed = "PROPOSAL_REVIEWED",
   DecisionPublished = "DECISION_PUBLISHED",
+  Archived = "ARCHIVED",
+  Restored = "RESTORED",
 }
 
 export enum DiscussionMessageType {
