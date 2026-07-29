@@ -15,6 +15,7 @@ import {
   ResultGapMode,
   ResultPublicationStatus,
   PenaltyProposalStatus,
+  ProposalKind,
   ProposalVoteChoice,
   Role,
   TicketAuditAction,
@@ -145,6 +146,11 @@ export const penaltyProposalStatusLabels: Record<
   [PenaltyProposalStatus.Approved]: "Historisch genehmigt",
   [PenaltyProposalStatus.Rejected]: "Abgelehnt",
   [PenaltyProposalStatus.ChangesRequested]: "Abstimmung geschlossen",
+};
+
+export const proposalKindLabels: Record<ProposalKind, string> = {
+  [ProposalKind.Penalty]: "Strafenvorschlag",
+  [ProposalKind.General]: "Steward-Abstimmung",
 };
 
 export const proposalVoteChoiceLabels: Record<

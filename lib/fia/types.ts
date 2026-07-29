@@ -4,8 +4,10 @@ import type {
   EvidenceType,
   PenaltyProposalStatus,
   PenaltyType,
+  ProposalKind,
   ProposalVoteChoice,
   RaceSession,
+  Role,
   TicketAuditAction,
   TicketStatus,
 } from "@/domain";
@@ -198,6 +200,14 @@ export type FiaTicketDetail = {
     createdAt: string;
     submittedBy: { id: number; displayName: string } | null;
   }>;
+  mentionCandidates: Array<{
+    id: number;
+    displayName: string;
+    avatarUrl: string | null;
+    roles: Role[];
+    league: { id: number; code: string; name: string } | null;
+    team: { id: number; name: string; color: string } | null;
+  }>;
   discussionMessages: Array<{
     id: number;
     type: DiscussionMessageType;
@@ -205,6 +215,10 @@ export type FiaTicketDetail = {
     createdAt: string;
     updatedAt: string;
     author: { id: number; displayName: string };
+    mentions: Array<{
+      id: number;
+      displayName: string;
+    }>;
     proposal: {
       id: number;
       affectedDriver: {
@@ -214,6 +228,9 @@ export type FiaTicketDetail = {
         flag: string;
       };
       creator: { id: number; displayName: string };
+      kind: ProposalKind;
+      title: string;
+      proposedOutcome: DecisionOutcome;
       penaltyType: PenaltyType;
       penaltyValue: number | null;
       reason: string;

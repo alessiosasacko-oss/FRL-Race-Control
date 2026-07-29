@@ -5,6 +5,7 @@ import {
   fiaRaceSessionSchema,
   PenaltyType,
   penaltyTypeSchema,
+  ProposalKind,
   proposalVoteChoiceSchema,
   ticketStatusSchema,
 } from "@/domain";
@@ -127,6 +128,14 @@ export const addEvidenceSchema = externalEvidenceInputSchema;
 
 export const discussionMessageSchema = z.object({
   message: z.string().trim().min(2).max(5000),
+  clientMessageId: z.uuid(),
+  mentionUserIds: z
+    .array(z.coerce.number().int().positive())
+    .max(20)
+    .refine(
+      (ids) => new Set(ids).size === ids.length,
+      "Erwähnungen dürfen nicht doppelt vorkommen.",
+    ),
 });
 
 export const voteSchema = z.object({
@@ -245,6 +254,16 @@ const proposalPenaltyTypeSchema = penaltyTypeSchema.refine(
 
 export const createPenaltyProposalSchema = z
   .object({
+    kind: z.nativeEnum(ProposalKind).default(ProposalKind.Penalty),
+    title: z
+      .string()
+      .trim()
+      .min(3)
+      .max(160)
+      .default("Strafenvorschlag"),
+    proposedOutcome: z
+      .nativeEnum(DecisionOutcome)
+      .default(DecisionOutcome.Penalty),
     affectedDriverId: z.coerce.number().int().positive(),
     penaltyType: proposalPenaltyTypeSchema,
     penaltyValue: optionalProposalValueSchema,

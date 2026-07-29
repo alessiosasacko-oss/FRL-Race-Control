@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DecisionOutcome,
   PenaltyProposalStatus,
   PenaltyType,
+  ProposalKind,
   ProposalVoteChoice,
   Role,
 } from "@/domain";
@@ -150,6 +152,20 @@ test("proposal schemas enforce penalty values and vote choices", () => {
     evidenceIds: [1, 2],
   };
   assert.equal(createPenaltyProposalSchema.safeParse(base).success, true);
+  const structuredVote = createPenaltyProposalSchema.safeParse({
+    ...base,
+    kind: ProposalKind.General,
+    title: "Weitere Untersuchung erforderlich",
+    proposedOutcome: DecisionOutcome.NoFurtherInvestigation,
+  });
+  assert.equal(structuredVote.success, true);
+  if (structuredVote.success) {
+    assert.equal(structuredVote.data.kind, ProposalKind.General);
+    assert.equal(
+      structuredVote.data.proposedOutcome,
+      DecisionOutcome.NoFurtherInvestigation,
+    );
+  }
   assert.equal(
     createPenaltyProposalSchema.safeParse({
       ...base,

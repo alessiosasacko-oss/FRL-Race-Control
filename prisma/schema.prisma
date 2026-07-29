@@ -277,6 +277,11 @@ enum PenaltyProposalStatus {
   CHANGES_REQUESTED
 }
 
+enum ProposalKind {
+  PENALTY
+  GENERAL
+}
+
 enum ProposalVoteChoice {
   FOR
   AGAINST
@@ -305,6 +310,7 @@ model User {
   submittedEvidence        Evidence[]                 @relation("EvidenceSubmitter")
   evidenceUploads          EvidenceUpload[]
   discussionMessages       DiscussionMessage[]
+  discussionMentions       DiscussionMention[]
   votes                    Vote[]
   createdPenaltyProposals  PenaltyProposal[]          @relation("ProposalCreator")
   closedPenaltyProposals   PenaltyProposal[]          @relation("ProposalCloser")
@@ -1010,21 +1016,34 @@ model EvidenceStorageCleanup {
 }
 
 model DiscussionMessage {
-  id        Int                   @id @default(autoincrement())
-  ticketId  Int
-  authorId  Int
-  type      DiscussionMessageType @default(NORMAL)
-  eventKey  String?               @unique @db.VarChar(190)
-  message   String                @db.Text
-  ticket    FiaTicket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author    User                  @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  proposal  PenaltyProposal?
-  createdAt DateTime              @default(now())
-  updatedAt DateTime              @updatedAt
+  id              Int                   @id @default(autoincrement())
+  ticketId        Int
+  authorId        Int
+  type            DiscussionMessageType @default(NORMAL)
+  eventKey        String?               @unique @db.VarChar(190)
+  clientMessageId String?               @unique @db.VarChar(36)
+  message         String                @db.Text
+  ticket          FiaTicket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author          User                  @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  proposal        PenaltyProposal?
+  mentions        DiscussionMention[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   @@index([ticketId, createdAt])
   @@index([ticketId, type, createdAt])
   @@index([authorId])
+}
+
+model DiscussionMention {
+  messageId Int
+  userId    Int
+  message   DiscussionMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  createdAt DateTime          @default(now())
+
+  @@id([messageId, userId])
+  @@index([userId, createdAt])
 }
 
 model Vote {
@@ -1070,6 +1089,9 @@ model PenaltyProposal {
   creatorId         Int
   affectedDriverId  Int
   supersedesId      Int?
+  kind              ProposalKind              @default(PENALTY)
+  title             String                    @default("Strafenvorschlag") @db.VarChar(160)
+  proposedOutcome   DecisionOutcome           @default(PENALTY)
   penaltyType       PenaltyType
   penaltyValue      Float?
   reason            String                    @db.Text

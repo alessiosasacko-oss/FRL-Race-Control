@@ -113,6 +113,7 @@ export default async function InvestigationPage({ params }: Props) {
                 messages={ticket.discussionMessages}
                 drivers={ticket.drivers}
                 evidence={ticket.evidence}
+                mentionCandidates={ticket.mentionCandidates}
                 currentUser={{
                   id: user.id,
                   displayName: user.displayName,

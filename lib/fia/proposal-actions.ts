@@ -6,16 +6,19 @@ import {
   PenaltyProposalStatus,
   PenaltyType as PrismaPenaltyType,
   Prisma,
+  ProposalKind as PrismaProposalKind,
   ProposalVoteChoice as PrismaProposalVoteChoice,
   TicketAuditAction,
   TicketStatus,
 } from "@/generated/prisma/client";
 import {
   DecisionOutcome,
+  decisionOutcomeLabels,
   NotificationPriority,
   NotificationType,
   PenaltyProposalStatus as DomainProposalStatus,
   penaltyTypeLabels,
+  ProposalKind,
   ProposalVoteChoice,
   proposalVoteChoiceLabels,
 } from "@/domain";
@@ -188,6 +191,9 @@ export async function createPenaltyProposalAction(
   const user = await requirePermission(Permission.ReviewFiaTicket);
   const ticketIdResult = ticketIdSchema.safeParse(ticketIdInput);
   const parsed = createPenaltyProposalSchema.safeParse({
+    kind: formData.get("kind"),
+    title: formData.get("title"),
+    proposedOutcome: formData.get("proposedOutcome"),
     affectedDriverId: formData.get("affectedDriverId"),
     penaltyType: formData.get("penaltyType"),
     penaltyValue: formData.get("penaltyValue"),
@@ -288,12 +294,16 @@ export async function createPenaltyProposalAction(
           parsed.data.penaltyType as PrismaPenaltyType,
           parsed.data.penaltyValue ?? null,
         );
+        const proposalLabel =
+          parsed.data.kind === ProposalKind.General
+            ? "Steward-Abstimmung"
+            : "Strafenvorschlag";
         const message = await transaction.discussionMessage.create({
           data: {
             ticketId,
             authorId: user.id,
             type: DiscussionMessageType.PENALTY_PROPOSAL,
-            message: `Strafenvorschlag: ${summary}`,
+            message: `${proposalLabel}: ${parsed.data.title}`,
           },
           select: { id: true },
         });
@@ -303,6 +313,9 @@ export async function createPenaltyProposalAction(
               ticketId,
               messageId: message.id,
               creatorId: user.id,
+              kind: parsed.data.kind as PrismaProposalKind,
+              title: parsed.data.title,
+              proposedOutcome: parsed.data.proposedOutcome,
               affectedDriverId:
                 parsed.data.affectedDriverId,
               supersedesId: parsed.data.supersedesId,
@@ -333,7 +346,7 @@ export async function createPenaltyProposalAction(
             authorId: user.id,
             type: DiscussionMessageType.SYSTEM,
             eventKey: `proposal:${proposal.id}:created`,
-            message: `Strafenvorschlag #${proposal.id} wurde erstellt und die Abstimmung gestartet.`,
+            message: `${proposalLabel} #${proposal.id} „${parsed.data.title}“ wurde erstellt und die Abstimmung gestartet.`,
           },
         });
         await transaction.fiaTicketAuditLog.create({
@@ -341,7 +354,7 @@ export async function createPenaltyProposalAction(
             ticketId,
             actorId: user.id,
             action: TicketAuditAction.PROPOSAL_CREATED,
-            details: `Strafenvorschlag #${proposal.id}: ${summary}`,
+            details: `${proposalLabel} #${proposal.id}: ${parsed.data.title}; Entscheidung: ${decisionOutcomeLabels[parsed.data.proposedOutcome]}; Strafe: ${summary}`,
           },
         });
       },

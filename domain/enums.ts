@@ -262,6 +262,11 @@ export enum PenaltyProposalStatus {
   ChangesRequested = "CHANGES_REQUESTED",
 }
 
+export enum ProposalKind {
+  Penalty = "PENALTY",
+  General = "GENERAL",
+}
+
 export enum ProposalVoteChoice {
   For = "FOR",
   Against = "AGAINST",

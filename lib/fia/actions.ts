@@ -42,6 +42,7 @@ import {
 } from "@/lib/fia/schemas";
 import type { FiaActionState } from "@/lib/fia/types";
 import { canParticipateInProposal } from "@/lib/fia/proposal-policy";
+import { mentionsAreValid } from "@/lib/fia/chat-policy";
 import { getVideoUploadLimits } from "@/lib/storage/evidence-config";
 import type {
   TicketEvidenceInput,
@@ -536,6 +537,8 @@ export async function addFiaDiscussionMessageAction(
   const ticketIdResult = ticketIdSchema.safeParse(ticketIdInput);
   const parsed = discussionMessageSchema.safeParse({
     message: formData.get("message"),
+    clientMessageId: formData.get("clientMessageId"),
+    mentionUserIds: formData.getAll("mentionUserId"),
   });
 
   if (!ticketIdResult.success || !parsed.success) {
@@ -562,20 +565,56 @@ export async function addFiaDiscussionMessageAction(
         throw new Error("CLOSED");
       }
 
-      await transaction.discussionMessage.create({
+      const existing = await transaction.discussionMessage.findUnique({
+        where: { clientMessageId: parsed.data.clientMessageId },
+        select: { ticketId: true, authorId: true },
+      });
+      if (existing) {
+        if (existing.ticketId !== ticketId || existing.authorId !== user.id) {
+          throw new Error("DUPLICATE_MESSAGE_ID");
+        }
+        return;
+      }
+
+      const mentionedUsers = await transaction.user.findMany({
+        where: {
+          id: { in: parsed.data.mentionUserIds },
+          active: true,
+          roles: {
+            hasSome: [
+              PrismaRole.SUPER_ADMIN,
+              PrismaRole.ADMIN,
+              PrismaRole.FIA_PRESIDENT,
+              PrismaRole.STEWARD,
+            ],
+          },
+        },
+        select: { id: true, displayName: true },
+      });
+      if (mentionedUsers.length !== parsed.data.mentionUserIds.length) {
+        throw new Error("INVALID_MENTION");
+      }
+      if (
+        !mentionsAreValid(
+          parsed.data.message,
+          parsed.data.mentionUserIds,
+          mentionedUsers,
+        )
+      ) {
+        throw new Error("INVALID_MENTION");
+      }
+
+      const message = await transaction.discussionMessage.create({
         data: {
           ticketId,
           authorId: user.id,
+          clientMessageId: parsed.data.clientMessageId,
           message: parsed.data.message,
+          mentions: {
+            create: mentionedUsers.map(({ id }) => ({ userId: id })),
+          },
         },
-      });
-
-      await transaction.fiaTicketSteward.upsert({
-        where: {
-          ticketId_userId: { ticketId, userId: user.id },
-        },
-        update: {},
-        create: { ticketId, userId: user.id },
+        select: { id: true },
       });
 
       await transaction.fiaTicketAuditLog.create({
@@ -586,8 +625,39 @@ export async function addFiaDiscussionMessageAction(
           details: "Steward-Kommentar hinzugefügt",
         },
       });
+
+      await createNotifications(
+        transaction,
+        mentionedUsers
+          .map(({ id }) => id)
+          .filter((id) => id !== user.id),
+        {
+          type: NotificationType.FiaTicket,
+          priority: NotificationPriority.Normal,
+          title: `${user.displayName} hat dich in Ticket #${ticketId} erwähnt`,
+          message: parsed.data.message.slice(0, 300),
+          href: `/fia/${ticketId}#message-${message.id}`,
+          relatedEntity: {
+            type: "DiscussionMessage",
+            id: message.id,
+          },
+          dedupeKey: `fia-mention:${message.id}`,
+        },
+        { allowDiscord: false },
+      );
     });
-  } catch {
+  } catch (error: unknown) {
+    const code = error instanceof Error ? error.message : "";
+    if (code === "INVALID_MENTION") {
+      return validationFailure(
+        "Mindestens eine Erwähnung ist für diesen internen Chat nicht zulässig.",
+      );
+    }
+    if (code === "DUPLICATE_MESSAGE_ID") {
+      return validationFailure(
+        "Diese Nachricht konnte nicht eindeutig zugeordnet werden.",
+      );
+    }
     return mutationFailure();
   }
 

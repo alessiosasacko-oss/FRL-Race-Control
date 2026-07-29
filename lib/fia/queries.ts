@@ -5,13 +5,16 @@ import {
   EvidenceType,
   PenaltyProposalStatus,
   PenaltyType,
+  ProposalKind,
   ProposalVoteChoice,
   RaceSession,
+  Role,
   TicketAuditAction,
   TicketStatus,
 } from "@/domain";
 import {
   Prisma,
+  Role as PrismaRole,
   TicketStatus as PrismaTicketStatus,
   RaceSession as PrismaRaceSession,
 } from "@/generated/prisma/client";
@@ -633,6 +636,12 @@ export async function getFiaTicketById(
         orderBy: { createdAt: "asc" },
         include: {
           author: { select: { id: true, displayName: true } },
+          mentions: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              user: { select: { id: true, displayName: true } },
+            },
+          },
           proposal: {
             include: {
               creator: { select: { id: true, displayName: true } },
@@ -727,6 +736,38 @@ export async function getFiaTicketById(
   }
 
   const track = publicRaceTrack(ticket.race);
+  const mentionCandidates = includeInternal
+    ? await prisma.user.findMany({
+        where: {
+          active: true,
+          roles: {
+            hasSome: [
+              PrismaRole.SUPER_ADMIN,
+              PrismaRole.ADMIN,
+              PrismaRole.FIA_PRESIDENT,
+              PrismaRole.STEWARD,
+            ],
+          },
+        },
+        orderBy: [{ displayName: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          displayName: true,
+          avatarUrl: true,
+          roles: true,
+          driver: {
+            select: {
+              league: {
+                select: { id: true, code: true, name: true },
+              },
+              team: {
+                select: { id: true, name: true, color: true },
+              },
+            },
+          },
+        },
+      })
+    : [];
 
   return {
     id: ticket.id,
@@ -767,6 +808,14 @@ export async function getFiaTicketById(
       createdAt: evidence.createdAt.toISOString(),
       submittedBy: evidence.submittedBy,
     })),
+    mentionCandidates: mentionCandidates.map((candidate) => ({
+      id: candidate.id,
+      displayName: candidate.displayName,
+      avatarUrl: candidate.avatarUrl,
+      roles: candidate.roles as Role[],
+      league: candidate.driver?.league ?? null,
+      team: candidate.driver?.team ?? null,
+    })),
     discussionMessages: ticket.discussionMessages.map((message) => ({
       id: message.id,
       type: message.type as DiscussionMessageType,
@@ -774,9 +823,14 @@ export async function getFiaTicketById(
       createdAt: message.createdAt.toISOString(),
       updatedAt: message.updatedAt.toISOString(),
       author: message.author,
+      mentions: message.mentions.map(({ user }) => user),
       proposal: message.proposal
         ? {
             id: message.proposal.id,
+            kind: message.proposal.kind as ProposalKind,
+            title: message.proposal.title,
+            proposedOutcome:
+              message.proposal.proposedOutcome as DecisionOutcome,
             affectedDriver: message.proposal.affectedDriver,
             creator: message.proposal.creator,
             penaltyType:

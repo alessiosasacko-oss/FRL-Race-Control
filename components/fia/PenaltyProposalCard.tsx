@@ -13,7 +13,9 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import {
+  decisionOutcomeLabels,
   PenaltyProposalStatus,
+  proposalKindLabels,
   ProposalVoteChoice,
   proposalVoteChoiceLabels,
 } from "@/domain";
@@ -180,14 +182,15 @@ export default function PenaltyProposalCard({
           <div className="flex flex-wrap items-center gap-2">
             <Scale size={20} className="text-blue-300" />
             <h3 className="font-bold text-white">
-              Strafenvorschlag
+              {proposal.title}
             </h3>
             <span className="text-xs text-slate-500">
               Revision {proposal.revision}
             </span>
           </div>
           <p className="mt-2 text-xs text-slate-400">
-            Erstellt von {proposal.creator.displayName}
+            {proposalKindLabels[proposal.kind]} · Erstellt von{" "}
+            {proposal.creator.displayName}
           </p>
         </div>
         <span
@@ -198,6 +201,14 @@ export default function PenaltyProposalCard({
       </div>
 
       <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-slate-500">
+            Mögliche Entscheidung
+          </dt>
+          <dd className="mt-1 font-semibold text-white">
+            {decisionOutcomeLabels[proposal.proposedOutcome]}
+          </dd>
+        </div>
         <div>
           <dt className="text-slate-500">Fahrer</dt>
           <dd className="mt-1 font-semibold text-white">
