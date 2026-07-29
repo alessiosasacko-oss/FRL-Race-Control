@@ -19,8 +19,6 @@ export type FiaArchiveBlockReason =
 
 const unfinishedProposalStatuses = new Set<PenaltyProposalStatus>([
   PenaltyProposalStatus.Open,
-  PenaltyProposalStatus.AwaitingApproval,
-  PenaltyProposalStatus.ChangesRequested,
 ]);
 
 export function fiaArchiveBlockReason(

@@ -54,6 +54,10 @@ type ApplicableDecision = {
   penaltyValue: number | null;
   reason: string;
   updatedAt: Date;
+  penalties: Array<{
+    penaltyType: PrismaPenaltyType;
+    penaltyValue: number | null;
+  }>;
   ticket: {
     id: number;
     drivers: Array<{ driverId: number }>;
@@ -91,6 +95,7 @@ function decisionVersion(decisions: readonly ApplicableDecision[]): string {
       id: decision.id,
       penaltyType: decision.penaltyType,
       penaltyValue: decision.penaltyValue,
+      penalties: decision.penalties,
       updatedAt: decision.updatedAt.toISOString(),
       drivers: decision.ticket.drivers
         .map(({ driverId }) => driverId)
@@ -393,6 +398,10 @@ export async function saveResultsAction(
       penaltyValue: true,
       reason: true,
       updatedAt: true,
+      penalties: {
+        orderBy: { id: "asc" },
+        select: { penaltyType: true, penaltyValue: true },
+      },
       ticket: {
         select: {
           id: true,
@@ -491,11 +500,21 @@ export async function saveResultsAction(
             ({ driverId }) => driverId === result.driverId,
           ),
         )
-        .map((decision) => ({
-          decisionId: decision.id,
-          penaltyType: decision.penaltyType as PenaltyType,
-          penaltyValue: decision.penaltyValue,
-        })),
+        .flatMap((decision) =>
+          (decision.penalties.length > 0
+            ? decision.penalties
+            : [
+                {
+                  penaltyType: decision.penaltyType,
+                  penaltyValue: decision.penaltyValue,
+                },
+              ]
+          ).map((penalty) => ({
+            decisionId: decision.id,
+            penaltyType: penalty.penaltyType as PenaltyType,
+            penaltyValue: penalty.penaltyValue,
+          })),
+        ),
     );
     const storedFiaApplications =
       existingResultByDriver
@@ -719,26 +738,43 @@ export async function saveResultsAction(
           );
           if (driverDecisions.length > 0) {
             await transaction.resultPenaltyApplication.createMany({
-              data: driverDecisions.map((decision) => ({
-                resultId: row.id,
-                decisionId: decision.id,
-                source: ResultPenaltySource.FIA,
-                penaltyType: decision.penaltyType,
-                penaltyMilliseconds:
-                  decision.penaltyType ===
-                  PrismaPenaltyType.TIME_PENALTY
-                    ? Math.max(
-                        0,
-                        Math.round(
-                          (decision.penaltyValue ?? 0) * 1000,
-                        ),
-                      )
-                    : 0,
-                disqualified:
-                  decision.penaltyType ===
-                  PrismaPenaltyType.DISQUALIFICATION,
-                reason: decision.reason.slice(0, 1000),
-              })),
+              data: driverDecisions.map((decision) => {
+                const penalties =
+                  decision.penalties.length > 0
+                    ? decision.penalties
+                    : [
+                        {
+                          penaltyType: decision.penaltyType,
+                          penaltyValue: decision.penaltyValue,
+                        },
+                      ];
+                return {
+                  resultId: row.id,
+                  decisionId: decision.id,
+                  source: ResultPenaltySource.FIA,
+                  penaltyType: penalties[0].penaltyType,
+                  penaltyMilliseconds: penalties.reduce(
+                    (total, penalty) =>
+                      penalty.penaltyType ===
+                      PrismaPenaltyType.TIME_PENALTY
+                        ? total +
+                          Math.max(
+                            0,
+                            Math.round(
+                              (penalty.penaltyValue ?? 0) * 1000,
+                            ),
+                          )
+                        : total,
+                    0,
+                  ),
+                  disqualified: penalties.some(
+                    ({ penaltyType }) =>
+                      penaltyType ===
+                      PrismaPenaltyType.DISQUALIFICATION,
+                  ),
+                  reason: decision.reason.slice(0, 1000),
+                };
+              }),
             });
           }
         }

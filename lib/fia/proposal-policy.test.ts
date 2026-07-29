@@ -34,7 +34,7 @@ test("proposal vote tally separates approval, rejection and abstention", () => {
   });
   assert.equal(
     proposalOutcome(
-      PenaltyProposalStatus.AwaitingApproval,
+      PenaltyProposalStatus.Closed,
       tally,
     ),
     "MAJORITY_FOR",
@@ -54,7 +54,7 @@ test("open votes remain visually open and closed ties are explicit", () => {
   );
   assert.equal(
     proposalOutcome(
-      PenaltyProposalStatus.AwaitingApproval,
+      PenaltyProposalStatus.Closed,
       tie,
     ),
     "TIE",
@@ -154,6 +154,14 @@ test("proposal schemas enforce penalty values and vote choices", () => {
     createPenaltyProposalSchema.safeParse({
       ...base,
       penaltyValue: undefined,
+    }).success,
+    false,
+  );
+  assert.equal(
+    createPenaltyProposalSchema.safeParse({
+      ...base,
+      penaltyType: PenaltyType.GridPenalty,
+      penaltyValue: 3,
     }).success,
     false,
   );

@@ -7,11 +7,11 @@ import {
   PenaltyType as PrismaPenaltyType,
   Prisma,
   ProposalVoteChoice as PrismaProposalVoteChoice,
-  Role as PrismaRole,
   TicketAuditAction,
   TicketStatus,
 } from "@/generated/prisma/client";
 import {
+  DecisionOutcome,
   NotificationPriority,
   NotificationType,
   PenaltyProposalStatus as DomainProposalStatus,
@@ -21,7 +21,6 @@ import {
 } from "@/domain";
 import {
   Permission,
-  hasPermission,
 } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
@@ -29,8 +28,8 @@ import { createNotifications } from "@/lib/notifications/service";
 import { createOfficialFiaDecision } from "./decision-service";
 import {
   createPenaltyProposalSchema,
-  penaltyProposalReviewSchema,
   penaltyProposalVoteSchema,
+  finalizeFiaTicketSchema,
   proposalIdSchema,
   ticketIdSchema,
 } from "./schemas";
@@ -74,9 +73,6 @@ function penaltySummary(
   if (penaltyType === PrismaPenaltyType.PENALTY_POINTS) {
     return `${penaltyValue} Strafpunkt${penaltyValue === 1 ? "" : "e"}`;
   }
-  if (penaltyType === PrismaPenaltyType.GRID_PENALTY) {
-    return `${penaltyValue} Startplatz${penaltyValue === 1 ? "" : "plätze"}`;
-  }
   if (penaltyType === PrismaPenaltyType.POINTS_DEDUCTION) {
     return `-${penaltyValue} Meisterschaftspunkte`;
   }
@@ -97,7 +93,12 @@ async function closeProposal(
       id: true,
       ticketId: true,
       status: true,
-      ticket: { select: { archivedAt: true } },
+      ticket: {
+        select: {
+          archivedAt: true,
+          stewardAssignments: { select: { userId: true } },
+        },
+      },
       votes: { select: { choice: true } },
     },
   });
@@ -117,7 +118,7 @@ async function closeProposal(
     ),
   );
   const outcome = proposalOutcome(
-    DomainProposalStatus.AwaitingApproval,
+    DomainProposalStatus.Closed,
     tally,
   );
   const resultLabel =
@@ -130,7 +131,7 @@ async function closeProposal(
   await transaction.penaltyProposal.update({
     where: { id: proposal.id },
     data: {
-      status: PenaltyProposalStatus.AWAITING_APPROVAL,
+      status: PenaltyProposalStatus.CLOSED,
       closedAt: new Date(),
       closedByUserId: actorId,
     },
@@ -157,35 +158,22 @@ async function closeProposal(
     },
   });
 
-  const reviewers = await transaction.user.findMany({
-    where: {
-      active: true,
-      roles: {
-        hasSome: [
-          PrismaRole.SUPER_ADMIN,
-          PrismaRole.ADMIN,
-          PrismaRole.FIA_PRESIDENT,
-        ],
-      },
-    },
-    select: { id: true },
-  });
   await createNotifications(
     transaction,
-    reviewers
-      .map(({ id }) => id)
+    proposal.ticket.stewardAssignments
+      .map(({ userId }) => userId)
       .filter((userId) => userId !== actorId),
     {
       type: NotificationType.FiaTicket,
-      priority: NotificationPriority.High,
-      title: `Strafenvorschlag #${proposal.id} wartet auf Freigabe`,
+      priority: NotificationPriority.Normal,
+      title: `Abstimmung #${proposal.id} geschlossen`,
       message: resultLabel,
       href: `/fia/${proposal.ticketId}`,
       relatedEntity: {
         type: "PenaltyProposal",
         id: proposal.id,
       },
-      dedupeKey: `fia-proposal-review:${proposal.id}`,
+      dedupeKey: `fia-proposal-closed:${proposal.id}`,
     },
   );
 
@@ -555,19 +543,11 @@ export async function castPenaltyProposalVoteAction(
           },
         });
 
-        const presidents = await transaction.user.findMany({
-          where: {
-            active: true,
-            roles: { has: PrismaRole.FIA_PRESIDENT },
-          },
-          select: { id: true },
-        });
         const eligibleVoterIds = Array.from(
           new Set([
             ...proposal.ticket.stewardAssignments.map(
               ({ userId }) => userId,
             ),
-            ...presidents.map(({ id }) => id),
           ]),
         );
         if (
@@ -633,7 +613,6 @@ export async function closePenaltyProposalAction(
           await transaction.penaltyProposal.findUnique({
             where: { id: proposalId.data },
             select: {
-              creatorId: true,
               ticket: {
                 select: {
                   stewardAssignments: {
@@ -644,11 +623,15 @@ export async function closePenaltyProposalAction(
             },
           });
         if (!proposal) throw new Error("NOT_FOUND");
-        const canDecide = hasPermission(
-          user.roles,
-          Permission.DecideFiaTicket,
-        );
-        if (proposal.creatorId !== user.id && !canDecide) {
+        if (
+          !canParticipateInProposal({
+            roles: user.roles,
+            userId: user.id,
+            assignedStewardIds: proposal.ticket.stewardAssignments.map(
+              ({ userId }) => userId,
+            ),
+          })
+        ) {
           throw new Error("FORBIDDEN");
         }
         return closeProposal(
@@ -667,7 +650,7 @@ export async function closePenaltyProposalAction(
     const code = error instanceof Error ? error.message : "";
     if (code === "FORBIDDEN") {
       return failure(
-        "Nur der Ersteller oder die FIA-Leitung darf die Abstimmung schließen.",
+        "Nur zugewiesene Stewards und die FIA-Leitung dürfen die Abstimmung schließen.",
       );
     }
     if (code === "PROPOSAL_CLOSED") {
@@ -682,20 +665,32 @@ export async function closePenaltyProposalAction(
   return success("Abstimmung wurde geschlossen.");
 }
 
-export async function reviewPenaltyProposalAction(
-  proposalIdInput: number,
+export async function finalizeFiaTicketAction(
+  ticketIdInput: number,
   _previousState: FiaActionState,
   formData: FormData,
 ): Promise<FiaActionState> {
-  const user = await requirePermission(Permission.DecideFiaTicket);
-  const proposalId = proposalIdSchema.safeParse(proposalIdInput);
-  const parsed = penaltyProposalReviewSchema.safeParse({
-    action: formData.get("reviewAction"),
-    reason: formData.get("reviewReason"),
+  const user = await requirePermission(Permission.ReviewFiaTicket);
+  const ticketId = ticketIdSchema.safeParse(ticketIdInput);
+  const parsed = finalizeFiaTicketSchema.safeParse({
+    outcome: formData.get("outcome"),
+    affectedDriverId: formData.get("affectedDriverId"),
+    reason: formData.get("reason"),
+    internalNote: formData.get("internalNote"),
+    proposalId: formData.get("proposalId"),
+    confirmOpenVotes: formData.get("confirmOpenVotes") === "on",
+    penalties: formData.getAll("penaltyType").map((penaltyType) => {
+      const rawValue = formData.get(`penaltyValue_${String(penaltyType)}`);
+      return {
+        penaltyType,
+        penaltyValue:
+          rawValue === null || rawValue === "" ? null : Number(rawValue),
+      };
+    }),
   });
-  if (!proposalId.success || !parsed.success) {
+  if (!ticketId.success || !parsed.success) {
     return failure(
-      "Bitte vervollständige die Prüfung des Vorschlags.",
+      "Bitte vervollständige die finale FIA-Entscheidung.",
       parsed.success
         ? undefined
         : (parsed.error.flatten().fieldErrors as Record<
@@ -706,140 +701,131 @@ export async function reviewPenaltyProposalAction(
   }
 
   const prisma = getPrismaClient();
-  let ticketId = 0;
+  let alreadyFinalized = false;
   try {
     await prisma.$transaction(
       async (transaction) => {
-        const proposal =
-          await transaction.penaltyProposal.findUnique({
-            where: { id: proposalId.data },
-            include: {
-              votes: { select: { voterId: true, choice: true } },
-              ticket: {
-                select: {
-                  archivedAt: true,
-                  status: true,
-                  decision: { select: { id: true } },
-                  stewardAssignments: {
-                    select: { userId: true },
-                  },
-                },
+        const ticket = await transaction.fiaTicket.findUnique({
+          where: { id: ticketId.data },
+          select: {
+            archivedAt: true,
+            status: true,
+            decision: { select: { id: true } },
+            drivers: { select: { driverId: true } },
+            stewardAssignments: { select: { userId: true } },
+            penaltyProposals: {
+              select: {
+                id: true,
+                status: true,
+                votes: { select: { voterId: true } },
               },
             },
-          });
+          },
+        });
+        if (!ticket) throw new Error("NOT_FOUND");
+        if (ticket.decision) {
+          alreadyFinalized = true;
+          return;
+        }
         if (
-          !proposal ||
-          proposal.status !==
-            PenaltyProposalStatus.AWAITING_APPROVAL ||
-          proposal.ticket.archivedAt !== null ||
-          proposal.ticket.status !== TicketStatus.IN_REVIEW ||
-          proposal.ticket.decision
+          ticket.archivedAt !== null ||
+          ticket.status !== TicketStatus.IN_REVIEW
         ) {
           throw new Error("INVALID_WORKFLOW");
         }
-        const tally = tallyProposalVotes(
-          proposal.votes.flatMap((vote) =>
-            vote.choice
-              ? [
-                  {
-                    choice:
-                      vote.choice as ProposalVoteChoice,
-                  },
-                ]
-              : [],
-          ),
-        );
         if (
-          parsed.data.action === "APPROVE" &&
-          proposalOutcome(
-            DomainProposalStatus.AwaitingApproval,
-            tally,
-          ) !== "MAJORITY_FOR"
-        ) {
-          throw new Error("NO_MAJORITY");
-        }
-
-        const reviewedAt = new Date();
-        const nextStatus =
-          parsed.data.action === "APPROVE"
-            ? PenaltyProposalStatus.APPROVED
-            : parsed.data.action === "REJECT"
-              ? PenaltyProposalStatus.REJECTED
-              : PenaltyProposalStatus.CHANGES_REQUESTED;
-        await transaction.penaltyProposal.update({
-          where: { id: proposal.id },
-          data: {
-            status: nextStatus,
-            reviewedAt,
-            reviewedByUserId: user.id,
-            reviewReason: parsed.data.reason,
-          },
-        });
-        const reviewLabel =
-          parsed.data.action === "APPROVE"
-            ? "genehmigt"
-            : parsed.data.action === "REJECT"
-              ? "abgelehnt"
-              : "zur Überarbeitung zurückgegeben";
-        await transaction.discussionMessage.create({
-          data: {
-            ticketId: proposal.ticketId,
-            authorId: user.id,
-            type: DiscussionMessageType.SYSTEM,
-            eventKey: `proposal:${proposal.id}:review`,
-            message: `Der FIA-Präsident hat Strafenvorschlag #${proposal.id} ${reviewLabel}.${parsed.data.reason ? ` Begründung: ${parsed.data.reason}` : ""}`,
-          },
-        });
-        await transaction.fiaTicketAuditLog.create({
-          data: {
-            ticketId: proposal.ticketId,
-            actorId: user.id,
-            action: TicketAuditAction.PROPOSAL_REVIEWED,
-            details: `Strafenvorschlag #${proposal.id} ${reviewLabel}`,
-          },
-        });
-
-        if (parsed.data.action === "APPROVE") {
-          await createOfficialFiaDecision(transaction, {
-            ticketId: proposal.ticketId,
-            actorId: user.id,
-            proposalId: proposal.id,
-            affectedDriverId: proposal.affectedDriverId,
-            penaltyType: proposal.penaltyType,
-            penaltyValue: proposal.penaltyValue,
-            reason: proposal.reason,
-            stewardIds: proposal.votes.map(
-              ({ voterId }) => voterId,
-            ),
-          });
-        } else {
-          const recipientIds = new Set([
-            proposal.creatorId,
-            ...proposal.ticket.stewardAssignments.map(
+          !canParticipateInProposal({
+            roles: user.roles,
+            userId: user.id,
+            assignedStewardIds: ticket.stewardAssignments.map(
               ({ userId }) => userId,
             ),
-          ]);
-          recipientIds.delete(user.id);
-          await createNotifications(
-            transaction,
-            [...recipientIds],
-            {
-              type: NotificationType.FiaTicket,
-              priority: NotificationPriority.High,
-              title: `Strafenvorschlag #${proposal.id} ${reviewLabel}`,
-              message:
-                parsed.data.reason ??
-                "Der Vorschlag wurde geprüft.",
-              href: `/fia/${proposal.ticketId}`,
-              relatedEntity: {
-                type: "PenaltyProposal",
-                id: proposal.id,
-              },
-              dedupeKey: `fia-proposal-reviewed:${proposal.id}`,
-            },
-          );
+          })
+        ) {
+          throw new Error("FORBIDDEN");
         }
-        ticketId = proposal.ticketId;
+        if (
+          parsed.data.affectedDriverId &&
+          !ticket.drivers.some(
+            ({ driverId }) => driverId === parsed.data.affectedDriverId,
+          )
+        ) {
+          throw new Error("INVALID_DRIVER");
+        }
+
+        const selectedProposal = parsed.data.proposalId
+          ? ticket.penaltyProposals.find(
+              ({ id }) => id === parsed.data.proposalId,
+            )
+          : undefined;
+        if (
+          parsed.data.proposalId &&
+          (!selectedProposal ||
+            selectedProposal.status === PenaltyProposalStatus.OPEN)
+        ) {
+          throw new Error("INVALID_PROPOSAL");
+        }
+        const openProposals = ticket.penaltyProposals.filter(
+          ({ status }) => status === PenaltyProposalStatus.OPEN,
+        );
+        if (openProposals.length > 0 && !parsed.data.confirmOpenVotes) {
+          throw new Error("OPEN_VOTES");
+        }
+        if (openProposals.length > 0) {
+          const now = new Date();
+          await transaction.penaltyProposal.updateMany({
+            where: {
+              ticketId: ticketId.data,
+              status: PenaltyProposalStatus.OPEN,
+            },
+            data: {
+              status: PenaltyProposalStatus.CANCELLED,
+              closedAt: now,
+              closedByUserId: user.id,
+            },
+          });
+          await transaction.discussionMessage.create({
+            data: {
+              ticketId: ticketId.data,
+              authorId: user.id,
+              type: DiscussionMessageType.SYSTEM,
+              eventKey: `ticket:${ticketId.data}:open-votes-cancelled`,
+              message: `${openProposals.length} noch offene Abstimmung(en) wurden beim expliziten Ticketabschluss beendet.`,
+            },
+          });
+          await transaction.fiaTicketAuditLog.create({
+            data: {
+              ticketId: ticketId.data,
+              actorId: user.id,
+              action: TicketAuditAction.PROPOSAL_CLOSED,
+              details: `Ticket trotz ${openProposals.length} offener Abstimmung(en) explizit abgeschlossen.`,
+            },
+          });
+        }
+
+        const stewardIds = Array.from(
+          new Set([
+            user.id,
+            ...ticket.penaltyProposals.flatMap((proposal) =>
+              proposal.votes.map(({ voterId }) => voterId),
+            ),
+          ]),
+        );
+        const penalties = parsed.data.penalties.map((penalty) => ({
+          penaltyType: penalty.penaltyType as PrismaPenaltyType,
+          penaltyValue: penalty.penaltyValue,
+        }));
+        await createOfficialFiaDecision(transaction, {
+          ticketId: ticketId.data,
+          actorId: user.id,
+          proposalId: parsed.data.proposalId,
+          affectedDriverId: parsed.data.affectedDriverId,
+          outcome: parsed.data.outcome as DecisionOutcome,
+          penalties,
+          reason: parsed.data.reason,
+          internalNote: parsed.data.internalNote,
+          stewardIds,
+        });
       },
       {
         isolationLevel:
@@ -848,28 +834,41 @@ export async function reviewPenaltyProposalAction(
     );
   } catch (error: unknown) {
     const code = error instanceof Error ? error.message : "";
-    if (code === "NO_MAJORITY") {
+    if (code === "FORBIDDEN") {
       return failure(
-        "Eine Genehmigung erfordert eine Mehrheit dafür. Der Vorschlag kann abgelehnt oder zur Überarbeitung zurückgegeben werden.",
+        "Nur zugewiesene Stewards und die FIA-Leitung dürfen ein Ticket abschließen.",
       );
     }
-    if (code === "INVALID_WORKFLOW") {
+    if (code === "OPEN_VOTES") {
       return failure(
-        "Dieser Vorschlag wartet nicht mehr auf eine Entscheidung.",
+        "Es läuft noch mindestens eine Abstimmung. Bestätige den bewussten Abschluss ausdrücklich.",
       );
     }
-    return failure(
-      "Die Prüfung des Vorschlags konnte nicht gespeichert werden.",
-    );
+    if (code === "INVALID_DRIVER") {
+      return failure("Der betroffene Fahrer gehört nicht zu diesem Ticket.");
+    }
+    if (code === "INVALID_PROPOSAL") {
+      return failure(
+        "Der verknüpfte Vorschlag gehört nicht zum Ticket oder ist noch offen.",
+      );
+    }
+    if (code === "NOT_FOUND" || code === "INVALID_WORKFLOW") {
+      return failure(
+        "Dieses Ticket kann nicht abgeschlossen werden.",
+      );
+    }
+    console.error("[fia-finalize] Ticket finalization failed.", {
+      ticketId: ticketId.data,
+      error: code || "Unknown",
+    });
+    return failure("Die FIA-Entscheidung konnte nicht gespeichert werden.");
   }
 
-  revalidateProposal(ticketId);
+  revalidateProposal(ticketId.data);
   revalidatePath("/championship");
   return success(
-    parsed.data.action === "APPROVE"
-      ? "Vorschlag genehmigt und als offizielle FIA-Entscheidung veröffentlicht."
-      : parsed.data.action === "REJECT"
-        ? "Vorschlag wurde abgelehnt."
-        : "Änderungen wurden angefordert.",
+    alreadyFinalized
+      ? "Das Ticket war bereits abgeschlossen."
+      : "Ticket abgeschlossen und FIA-Entscheidung veröffentlicht.",
   );
 }

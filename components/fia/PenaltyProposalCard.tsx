@@ -1,15 +1,12 @@
 "use client";
 
 import {
-  useActionState,
   useOptimistic,
   useState,
   useTransition,
 } from "react";
 import {
-  Check,
   ExternalLink,
-  Gavel,
   Minus,
   Scale,
   ThumbsDown,
@@ -23,18 +20,13 @@ import {
 import {
   castPenaltyProposalVoteAction,
   closePenaltyProposalAction,
-  reviewPenaltyProposalAction,
 } from "@/lib/fia/proposal-actions";
 import {
   formatPenaltyProposal,
   proposalOutcome,
   tallyProposalVotes,
 } from "@/lib/fia/proposal-policy";
-import {
-  initialFiaActionState,
-  type FiaTicketDetail,
-} from "@/lib/fia/types";
-import ActionMessage from "./ActionMessage";
+import type { FiaTicketDetail } from "@/lib/fia/types";
 
 type Proposal = NonNullable<
   FiaTicketDetail["discussionMessages"][number]["proposal"]
@@ -58,7 +50,7 @@ function visualState(
     return {
       border: "border-green-500/70 bg-green-500/5",
       badge: "bg-green-500/20 text-green-200",
-      label: "Finalisiert · Genehmigt",
+      label: "Historisch genehmigt",
     };
   }
   if (proposal.status === PenaltyProposalStatus.Rejected) {
@@ -66,6 +58,13 @@ function visualState(
       border: "border-red-500/70 bg-red-500/5",
       badge: "bg-red-500/20 text-red-200",
       label: "Finalisiert · Abgelehnt",
+    };
+  }
+  if (proposal.status === PenaltyProposalStatus.Cancelled) {
+    return {
+      border: "border-slate-600 bg-slate-800/30",
+      badge: "bg-slate-700 text-slate-200",
+      label: "Abstimmung abgebrochen",
     };
   }
   if (
@@ -88,20 +87,20 @@ function visualState(
     return {
       border: "border-green-500/60 bg-green-500/5",
       badge: "bg-green-500/20 text-green-200",
-      label: "Mehrheit dafür · FIA-Freigabe ausstehend",
+      label: "Mehrheit dafür",
     };
   }
   if (outcome === "MAJORITY_AGAINST") {
     return {
       border: "border-red-500/60 bg-red-500/5",
       badge: "bg-red-500/20 text-red-200",
-      label: "Mehrheit dagegen · FIA-Prüfung ausstehend",
+      label: "Mehrheit dagegen",
     };
   }
   return {
     border: "border-orange-500/60 bg-orange-500/5",
     badge: "bg-orange-500/20 text-orange-200",
-    label: "Unentschieden · FIA-Prüfung ausstehend",
+    label: "Unentschieden",
   };
 }
 
@@ -135,12 +134,6 @@ export default function PenaltyProposalCard({
       voter: currentUser,
     },
   ]);
-  const reviewAction = reviewPenaltyProposalAction.bind(
-    null,
-    proposal.id,
-  );
-  const [reviewState, reviewFormAction, reviewPending] =
-    useActionState(reviewAction, initialFiaActionState);
   const tally = tallyProposalVotes(optimisticVotes);
   const outcome = proposalOutcome(proposal.status, tally);
   const visual = visualState(proposal, outcome);
@@ -150,8 +143,7 @@ export default function PenaltyProposalCard({
   const open =
     proposal.status === PenaltyProposalStatus.Open;
   const canClose =
-    open &&
-    (proposal.creator.id === currentUser.id || canDecide);
+    open && (canVote || canDecide);
 
   function vote(choice: ProposalVoteChoice): void {
     setVoteMessage("");
@@ -371,57 +363,6 @@ export default function PenaltyProposalCard({
             ) : null}
           </div>
         </div>
-      ) : null}
-
-      {canDecide &&
-      proposal.status ===
-        PenaltyProposalStatus.AwaitingApproval ? (
-        <form
-          action={reviewFormAction}
-          className="mt-5 space-y-3 border-t border-slate-700/80 pt-4"
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold text-white">
-            <Gavel size={17} className="text-blue-300" />
-            Prüfung durch FIA-Präsident
-          </div>
-          <textarea
-            name="reviewReason"
-            rows={3}
-            maxLength={5000}
-            placeholder="Begründung bei Ablehnung oder Änderungswunsch…"
-            className="form-control"
-          />
-          <ActionMessage state={reviewState} />
-          <div className="grid gap-2 sm:grid-cols-3">
-            <button
-              name="reviewAction"
-              value="APPROVE"
-              disabled={
-                reviewPending || outcome !== "MAJORITY_FOR"
-              }
-              className="min-h-12 rounded-xl bg-green-600 px-3 text-sm font-bold text-white disabled:opacity-50"
-            >
-              <Check className="mr-2 inline" size={16} />
-              Genehmigen
-            </button>
-            <button
-              name="reviewAction"
-              value="REJECT"
-              disabled={reviewPending}
-              className="min-h-12 rounded-xl bg-red-600 px-3 text-sm font-bold text-white disabled:opacity-50"
-            >
-              Ablehnen
-            </button>
-            <button
-              name="reviewAction"
-              value="REQUEST_CHANGES"
-              disabled={reviewPending}
-              className="min-h-12 rounded-xl bg-orange-600 px-3 text-sm font-bold text-white disabled:opacity-50"
-            >
-              Änderungen
-            </button>
-          </div>
-        </form>
       ) : null}
 
       {(proposal.status === PenaltyProposalStatus.Rejected ||

@@ -1,13 +1,15 @@
 "use client";
 
-import { useActionState } from "react";
-import { Gavel } from "lucide-react";
+import { useActionState, useState } from "react";
+import { AlertTriangle, Gavel } from "lucide-react";
 import {
+  DecisionOutcome,
   PenaltyType,
   TicketStatus,
+  decisionOutcomeLabels,
   penaltyTypeLabels,
 } from "@/domain";
-import { publishFiaDecisionAction } from "@/lib/fia/actions";
+import { finalizeFiaTicketAction } from "@/lib/fia/proposal-actions";
 import {
   initialFiaActionState,
   type FiaTicketDetail,
@@ -18,26 +20,87 @@ type DecisionCardProps = {
   ticketId: number;
   status: FiaTicketDetail["status"];
   decision: FiaTicketDetail["decision"];
-  voteCount: number;
-  canDecide: boolean;
-  canUseLegacyDecision: boolean;
+  drivers: FiaTicketDetail["drivers"];
+  proposals: Array<
+    NonNullable<
+      FiaTicketDetail["discussionMessages"][number]["proposal"]
+    >
+  >;
+  canFinalize: boolean;
   readOnly?: boolean;
 };
+
+const penaltyChoices = [
+  PenaltyType.Warning,
+  PenaltyType.Reprimand,
+  PenaltyType.TimePenalty,
+  PenaltyType.PenaltyPoints,
+  PenaltyType.QualifyingBan,
+  PenaltyType.RaceBan,
+  PenaltyType.SeasonBan,
+  PenaltyType.DriveThrough,
+  PenaltyType.StopAndGo,
+  PenaltyType.Disqualification,
+  PenaltyType.PointsDeduction,
+] as const;
+
+const valuePenalties = new Set<PenaltyType>([
+  PenaltyType.TimePenalty,
+  PenaltyType.PenaltyPoints,
+  PenaltyType.PointsDeduction,
+]);
+
+function formatPenalty(
+  penaltyType: PenaltyType,
+  penaltyValue: number | null,
+): string {
+  if (penaltyType === PenaltyType.TimePenalty && penaltyValue !== null) {
+    return `+${penaltyValue} Sekunden`;
+  }
+  if (penaltyType === PenaltyType.PenaltyPoints && penaltyValue !== null) {
+    return `${penaltyValue} Strafpunkte`;
+  }
+  if (penaltyType === PenaltyType.PointsDeduction && penaltyValue !== null) {
+    return `-${penaltyValue} Meisterschaftspunkte`;
+  }
+  return penaltyTypeLabels[penaltyType];
+}
 
 export default function DecisionCard({
   ticketId,
   status,
   decision,
-  voteCount,
-  canDecide,
-  canUseLegacyDecision,
+  drivers,
+  proposals,
+  canFinalize,
   readOnly = false,
 }: DecisionCardProps) {
-  const action = publishFiaDecisionAction.bind(null, ticketId);
+  const [outcome, setOutcome] = useState<DecisionOutcome>(
+    DecisionOutcome.NoFurtherInvestigation,
+  );
+  const [selectedPenalties, setSelectedPenalties] = useState<
+    Set<PenaltyType>
+  >(new Set());
+  const action = finalizeFiaTicketAction.bind(null, ticketId);
   const [state, formAction, pending] = useActionState(
     action,
     initialFiaActionState,
   );
+  const openProposalCount = proposals.filter(
+    (proposal) => proposal.status === "OPEN",
+  ).length;
+  const closedProposals = proposals.filter(
+    (proposal) => proposal.status !== "OPEN",
+  );
+
+  function togglePenalty(penaltyType: PenaltyType): void {
+    setSelectedPenalties((current) => {
+      const next = new Set(current);
+      if (next.has(penaltyType)) next.delete(penaltyType);
+      else next.add(penaltyType);
+      return next;
+    });
+  }
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-6">
@@ -51,13 +114,25 @@ export default function DecisionCard({
       {decision ? (
         <div className="mt-5 rounded-xl border border-green-500/30 bg-green-500/10 p-5">
           <p className="text-lg font-semibold text-green-200">
-            {penaltyTypeLabels[decision.penaltyType]}
-            {decision.penaltyValue !== null
-              ? ` · ${decision.penaltyValue}`
-              : ""}
+            {decisionOutcomeLabels[decision.outcome]}
           </p>
+          {decision.penalties.length > 0 ? (
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {decision.penalties.map((penalty) => (
+                <li
+                  key={penalty.penaltyType}
+                  className="rounded-full bg-red-500/15 px-3 py-1 text-sm font-semibold text-red-100"
+                >
+                  {formatPenalty(
+                    penalty.penaltyType,
+                    penalty.penaltyValue,
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {decision.affectedDriver ? (
-            <p className="mt-2 text-sm font-medium text-slate-300">
+            <p className="mt-3 text-sm font-medium text-slate-300">
               Fahrer: {decision.affectedDriver.name} · #
               {decision.affectedDriver.number}
             </p>
@@ -78,62 +153,158 @@ export default function DecisionCard({
               : ""}
           </p>
         </div>
-      ) : canDecide &&
+      ) : canFinalize &&
         !readOnly &&
-        canUseLegacyDecision &&
         status === TicketStatus.InReview ? (
-        <form action={formAction} className="mt-5 space-y-3">
-          <p className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-blue-200">
-            Nur der FIA-Präsident oder eine Rolle mit Entscheidungsrecht kann
-            diese finale, danach unveränderliche Entscheidung veröffentlichen.
+        <form action={formAction} className="mt-5 space-y-5">
+          <p className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-blue-100">
+            Ein berechtigter Steward schließt das Ticket mit dieser
+            unveränderlichen, offiziellen Entscheidung ab.
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
+
+          <label className="block">
+            <span className="form-label">Entscheidung</span>
             <select
-              name="penaltyType"
-              defaultValue={PenaltyType.NoFurtherAction}
+              name="outcome"
+              value={outcome}
+              onChange={(event) =>
+                setOutcome(event.target.value as DecisionOutcome)
+              }
               className="form-control"
             >
-              {Object.values(PenaltyType).map((penalty) => (
-                <option key={penalty} value={penalty}>
-                  {penaltyTypeLabels[penalty]}
+              {Object.values(DecisionOutcome).map((value) => (
+                <option key={value} value={value}>
+                  {decisionOutcomeLabels[value]}
                 </option>
               ))}
             </select>
-            <input
-              name="penaltyValue"
-              type="number"
-              min={0}
-              step="0.01"
-              placeholder="Wert (optional)"
+          </label>
+
+          <label className="block">
+            <span className="form-label">Betroffener Fahrer</span>
+            <select name="affectedDriverId" className="form-control">
+              <option value="">Kein Fahrer / nicht erforderlich</option>
+              {drivers.map((driver) => (
+                <option key={driver.id} value={driver.id}>
+                  #{driver.number} · {driver.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <fieldset>
+            <legend className="form-label">
+              Strafkomponenten (optional, bei „Strafe“ erforderlich)
+            </legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {penaltyChoices.map((penaltyType) => {
+                const selected = selectedPenalties.has(penaltyType);
+                return (
+                  <div
+                    key={penaltyType}
+                    className={`rounded-xl border p-3 ${
+                      selected
+                        ? "border-blue-500/60 bg-blue-500/10"
+                        : "border-slate-700 bg-slate-950/30"
+                    }`}
+                  >
+                    <label className="flex min-h-10 cursor-pointer items-center gap-3 text-sm font-semibold text-slate-100">
+                      <input
+                        type="checkbox"
+                        name="penaltyType"
+                        value={penaltyType}
+                        checked={selected}
+                        onChange={() => togglePenalty(penaltyType)}
+                      />
+                      {penaltyTypeLabels[penaltyType]}
+                    </label>
+                    {selected && valuePenalties.has(penaltyType) ? (
+                      <input
+                        name={`penaltyValue_${penaltyType}`}
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        required
+                        placeholder={
+                          penaltyType === PenaltyType.TimePenalty
+                            ? "Sekunden"
+                            : "Wert"
+                        }
+                        className="form-control mt-2"
+                      />
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {closedProposals.length > 0 ? (
+            <label className="block">
+              <span className="form-label">
+                Verknüpfter Abstimmungsvorschlag
+              </span>
+              <select name="proposalId" className="form-control">
+                <option value="">Kein Vorschlag verknüpfen</option>
+                {closedProposals.map((proposal) => (
+                  <option key={proposal.id} value={proposal.id}>
+                    #{proposal.id} · {proposal.affectedDriver.name} ·{" "}
+                    {penaltyTypeLabels[proposal.penaltyType]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <label className="block">
+            <span className="form-label">Begründung</span>
+            <textarea
+              name="reason"
+              rows={5}
+              required
+              minLength={5}
+              maxLength={5000}
+              className="form-control"
+              placeholder="Verbindliche Entscheidungsbegründung…"
+            />
+          </label>
+
+          <label className="block">
+            <span className="form-label">Interne Notiz (optional)</span>
+            <textarea
+              name="internalNote"
+              rows={3}
+              maxLength={5000}
               className="form-control"
             />
-          </div>
-          <textarea
-            name="reason"
-            rows={5}
-            required
-            maxLength={5000}
-            placeholder="Verbindliche Entscheidungsbegründung…"
-            className="form-control"
-          />
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              {state.message ? (
-                <ActionMessage state={state} />
-              ) : (
-                <p className="text-sm text-slate-500">
-                  {voteCount} Steward-Bewertung(en) vorhanden
-                </p>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={pending || voteCount === 0}
-              className="wizard-primary-button"
-            >
-              {pending ? "Veröffentlicht…" : "Entscheidung veröffentlichen"}
-            </button>
-          </div>
+          </label>
+
+          {openProposalCount > 0 ? (
+            <label className="flex gap-3 rounded-xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm text-orange-100">
+              <input
+                name="confirmOpenVotes"
+                type="checkbox"
+                className="mt-1"
+              />
+              <span>
+                <strong className="flex items-center gap-2">
+                  <AlertTriangle size={16} />
+                  {openProposalCount} offene Abstimmung(en)
+                </strong>
+                Ich bestätige, dass sie beim Ticketabschluss nachvollziehbar
+                beendet werden.
+              </span>
+            </label>
+          ) : null}
+
+          <ActionMessage state={state} />
+          <button
+            type="submit"
+            disabled={pending}
+            className="wizard-primary-button w-full sm:w-auto"
+          >
+            {pending ? "Schließt ab…" : "Ticket abschließen"}
+          </button>
         </form>
       ) : (
         <p className="mt-5 text-slate-400">

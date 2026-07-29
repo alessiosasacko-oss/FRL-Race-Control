@@ -7,6 +7,7 @@ import {
 } from "./common";
 import {
   evidenceTypeSchema,
+  decisionOutcomeSchema,
   penaltyTypeSchema,
   RaceSession,
   raceSessionSchema,
@@ -49,8 +50,17 @@ export const ticketEvidenceSchema = z
 
 export const ticketDecisionSchema = z
   .object({
+    outcome: decisionOutcomeSchema,
     penaltyType: penaltyTypeSchema,
     penaltyValue: z.number().nonnegative().nullable(),
+    penalties: z.array(
+      z
+        .object({
+          penaltyType: penaltyTypeSchema,
+          penaltyValue: z.number().nonnegative().nullable(),
+        })
+        .strict(),
+    ),
     reason: descriptionSchema,
     decidedByUserIds: z.array(entityIdSchema),
     decidedAt: isoDateTimeSchema,

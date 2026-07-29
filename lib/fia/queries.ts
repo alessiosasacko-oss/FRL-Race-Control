@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  DecisionOutcome,
   DiscussionMessageType,
   EvidenceType,
   PenaltyProposalStatus,
@@ -693,6 +694,10 @@ export async function getFiaTicketById(
               user: { select: { id: true, displayName: true } },
             },
           },
+          penalties: {
+            orderBy: { id: "asc" },
+            select: { penaltyType: true, penaltyValue: true },
+          },
         },
       },
       auditLog: {
@@ -830,8 +835,13 @@ export async function getFiaTicketById(
     decision: ticket.decision
       ? {
           id: ticket.decision.id,
+          outcome: ticket.decision.outcome as DecisionOutcome,
           penaltyType: ticket.decision.penaltyType as PenaltyType,
           penaltyValue: ticket.decision.penaltyValue,
+          penalties: ticket.decision.penalties.map((penalty) => ({
+            penaltyType: penalty.penaltyType as PenaltyType,
+            penaltyValue: penalty.penaltyValue,
+          })),
           affectedDriver: ticket.decision.affectedDriver,
           reason: ticket.decision.reason,
           decidedAt: ticket.decision.decidedAt.toISOString(),

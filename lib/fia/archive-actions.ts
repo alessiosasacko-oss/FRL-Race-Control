@@ -27,7 +27,7 @@ const archiveBlockMessages: Record<FiaArchiveBlockReason, string> = {
   FINAL_DECISION_MISSING:
     "Vor der Archivierung muss eine finale FIA-Entscheidung vorliegen.",
   PROPOSAL_STILL_ACTIVE:
-    "Eine laufende Abstimmung oder offene Freigabe verhindert die Archivierung.",
+    "Eine laufende Abstimmung verhindert die Archivierung.",
 };
 
 function failure(message: string): FiaActionState {

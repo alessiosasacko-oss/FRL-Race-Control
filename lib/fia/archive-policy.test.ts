@@ -62,23 +62,23 @@ test("an open proposal blocks archiving", () => {
   );
 });
 
-test("a proposal awaiting approval blocks archiving", () => {
+test("a historical proposal awaiting approval no longer blocks archiving", () => {
   assert.equal(
     fiaArchiveBlockReason({
       ...completedTicket,
       proposalStatuses: [PenaltyProposalStatus.AwaitingApproval],
     }),
-    "PROPOSAL_STILL_ACTIVE",
+    null,
   );
 });
 
-test("a proposal requiring changes blocks archiving", () => {
+test("a historical proposal requiring changes no longer blocks archiving", () => {
   assert.equal(
     fiaArchiveBlockReason({
       ...completedTicket,
       proposalStatuses: [PenaltyProposalStatus.ChangesRequested],
     }),
-    "PROPOSAL_STILL_ACTIVE",
+    null,
   );
 });
 

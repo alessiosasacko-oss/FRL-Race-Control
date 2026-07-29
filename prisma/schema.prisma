@@ -46,6 +46,16 @@ enum PenaltyType {
   POINTS_DEDUCTION
 }
 
+enum DecisionOutcome {
+  NO_FURTHER_INVESTIGATION
+  NO_OFFENSE
+  WARNING
+  PENALTY
+  RACING_INCIDENT
+  INADMISSIBLE
+  WITHDRAWN
+}
+
 enum RaceSession {
   PRACTICE
   QUALIFYING
@@ -259,6 +269,8 @@ enum DiscussionMessageType {
 
 enum PenaltyProposalStatus {
   OPEN
+  CLOSED
+  CANCELLED
   AWAITING_APPROVAL
   APPROVED
   REJECTED
@@ -1109,6 +1121,7 @@ model Decision {
   ticketId                  Int                        @unique
   proposalId                Int?                       @unique
   affectedDriverId          Int?
+  outcome                   DecisionOutcome            @default(PENALTY)
   penaltyType               PenaltyType
   penaltyValue              Float?
   reason                    String                     @db.Text
@@ -1117,6 +1130,7 @@ model Decision {
   proposal                  PenaltyProposal?           @relation(fields: [proposalId], references: [id], onDelete: Restrict)
   affectedDriver            Driver?                    @relation(fields: [affectedDriverId], references: [id], onDelete: Restrict)
   stewards                  DecisionSteward[]
+  penalties                 DecisionPenalty[]
   resultPenaltyApplications ResultPenaltyApplication[]
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
@@ -1124,6 +1138,19 @@ model Decision {
   @@index([penaltyType])
   @@index([decidedAt])
   @@index([affectedDriverId])
+  @@index([outcome, decidedAt])
+}
+
+model DecisionPenalty {
+  id           Int         @id @default(autoincrement())
+  decisionId   Int
+  penaltyType  PenaltyType
+  penaltyValue Float?
+  decision     Decision    @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+
+  @@unique([decisionId, penaltyType])
+  @@index([penaltyType])
 }
 
 model DecisionSteward {

@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  DecisionOutcome,
+  decisionOutcomeSchema,
   fiaRaceSessionSchema,
   PenaltyType,
   penaltyTypeSchema,
@@ -138,6 +140,88 @@ export const voteSchema = z.object({
 
 export const decisionSchema = voteSchema;
 
+const finalDecisionPenaltyTypeSchema = penaltyTypeSchema.refine(
+  (penaltyType) =>
+    penaltyType !== PenaltyType.NoFurtherAction &&
+    penaltyType !== PenaltyType.GridPenalty,
+  "Diese Strafart ist für FIA-Entscheidungen nicht verfügbar.",
+);
+
+export const finalizeFiaTicketSchema = z
+  .object({
+    outcome: decisionOutcomeSchema,
+    affectedDriverId: z.preprocess(
+      (value) => (value === "" || value === null ? undefined : value),
+      z.coerce.number().int().positive().optional(),
+    ),
+    reason: z.string().trim().min(5).max(5000),
+    internalNote: z.preprocess(
+      (value) => (value === "" || value === null ? null : value),
+      z.string().trim().max(5000).nullable(),
+    ),
+    proposalId: z.preprocess(
+      (value) => (value === "" || value === null ? undefined : value),
+      z.coerce.number().int().positive().optional(),
+    ),
+    confirmOpenVotes: z.boolean(),
+    penalties: z
+      .array(
+        z.object({
+          penaltyType: finalDecisionPenaltyTypeSchema,
+          penaltyValue: z.number().nonnegative().max(9999).nullable(),
+        }),
+      )
+      .max(10)
+      .refine(
+        (penalties) =>
+          new Set(penalties.map(({ penaltyType }) => penaltyType)).size ===
+          penalties.length,
+        "Jede Strafkomponente darf nur einmal vorkommen.",
+      ),
+  })
+  .superRefine((decision, context) => {
+    if (
+      decision.outcome === DecisionOutcome.Penalty &&
+      decision.penalties.length === 0
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["penalties"],
+        message: "Eine Strafentscheidung benötigt mindestens eine Strafe.",
+      });
+    }
+    if (
+      decision.penalties.length > 0 &&
+      decision.affectedDriverId === undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["affectedDriverId"],
+        message: "Für eine Strafe muss ein betroffener Fahrer gewählt werden.",
+      });
+    }
+    for (const [index, penalty] of decision.penalties.entries()) {
+      const requiresValue =
+        penalty.penaltyType === PenaltyType.TimePenalty ||
+        penalty.penaltyType === PenaltyType.PenaltyPoints ||
+        penalty.penaltyType === PenaltyType.PointsDeduction;
+      if (requiresValue && penalty.penaltyValue === null) {
+        context.addIssue({
+          code: "custom",
+          path: ["penalties", index, "penaltyValue"],
+          message: "Für diese Strafe ist ein Wert erforderlich.",
+        });
+      }
+      if (!requiresValue && penalty.penaltyValue !== null) {
+        context.addIssue({
+          code: "custom",
+          path: ["penalties", index, "penaltyValue"],
+          message: "Für diese Strafe ist kein Zahlenwert vorgesehen.",
+        });
+      }
+    }
+  });
+
 export const ticketIdSchema = z.coerce.number().int().positive();
 export const proposalIdSchema = z.coerce.number().int().positive();
 
@@ -149,14 +233,20 @@ const optionalProposalValueSchema = z.preprocess(
 const proposalValuePenaltyTypes = new Set<PenaltyType>([
   PenaltyType.TimePenalty,
   PenaltyType.PenaltyPoints,
-  PenaltyType.GridPenalty,
   PenaltyType.PointsDeduction,
 ]);
+
+const proposalPenaltyTypeSchema = penaltyTypeSchema.refine(
+  (penaltyType) =>
+    penaltyType !== PenaltyType.GridPenalty &&
+    penaltyType !== PenaltyType.NoFurtherAction,
+  "Diese Strafart ist für Vorschläge nicht verfügbar.",
+);
 
 export const createPenaltyProposalSchema = z
   .object({
     affectedDriverId: z.coerce.number().int().positive(),
-    penaltyType: penaltyTypeSchema,
+    penaltyType: proposalPenaltyTypeSchema,
     penaltyValue: optionalProposalValueSchema,
     reason: z.string().trim().min(5).max(5000),
     durationMinutes: z.preprocess(
@@ -205,26 +295,3 @@ export const createPenaltyProposalSchema = z
 export const penaltyProposalVoteSchema = z.object({
   choice: proposalVoteChoiceSchema,
 });
-
-export const penaltyProposalReviewSchema = z
-  .object({
-    action: z.enum(["APPROVE", "REJECT", "REQUEST_CHANGES"]),
-    reason: z
-      .preprocess(
-        (value) => (value === "" || value === null ? null : value),
-        z.string().trim().max(5000).nullable(),
-      ),
-  })
-  .superRefine((review, context) => {
-    if (
-      review.action !== "APPROVE" &&
-      (!review.reason || review.reason.length < 5)
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["reason"],
-        message:
-          "Ablehnung und Änderungswunsch benötigen eine Begründung.",
-      });
-    }
-  });

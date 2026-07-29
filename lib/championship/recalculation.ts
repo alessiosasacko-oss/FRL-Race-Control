@@ -209,7 +209,19 @@ export async function recalculateChampionship(
         where: {
           leagueId,
           decision: {
-            is: { penaltyType: PrismaPenaltyType.POINTS_DEDUCTION },
+            is: {
+              OR: [
+                { penaltyType: PrismaPenaltyType.POINTS_DEDUCTION },
+                {
+                  penalties: {
+                    some: {
+                      penaltyType:
+                        PrismaPenaltyType.POINTS_DEDUCTION,
+                    },
+                  },
+                },
+              ],
+            },
           },
         },
         include: {

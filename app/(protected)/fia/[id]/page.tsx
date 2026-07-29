@@ -43,7 +43,6 @@ export default async function InvestigationPage({ params }: Props) {
     notFound();
   }
 
-  const canDecide = hasPermission(user.roles, Permission.DecideFiaTicket);
   const canArchive = hasPermission(
     user.roles,
     Permission.ArchiveFiaTicket,
@@ -61,10 +60,6 @@ export default async function InvestigationPage({ params }: Props) {
     userId: user.id,
     assignedStewardIds: ticket.assignedStewards.map((steward) => steward.id),
   });
-  const hasProposals = ticket.discussionMessages.some(
-    (message) => message.proposal !== null,
-  );
-
   return (
     <AppLayout>
       <div className="page-stack">
@@ -123,7 +118,7 @@ export default async function InvestigationPage({ params }: Props) {
                   displayName: user.displayName,
                 }}
                 canVote={canVote && !ticket.archivedAt}
-                canDecide={canDecide && !ticket.archivedAt}
+                canDecide={canVote && !ticket.archivedAt}
               />
             ) : (
               <section className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-6 text-sm leading-6 text-slate-300">
@@ -157,7 +152,7 @@ export default async function InvestigationPage({ params }: Props) {
               Abstimmung & Entscheidung
             </h2>
             <p className="mt-1 text-sm text-slate-400">
-              Vorschläge, Freigabe und offizieller Abschluss des Vorgangs.
+              Steward-Abstimmungen und offizieller Abschluss des Vorgangs.
             </p>
           </div>
           <div className="grid items-start gap-5 xl:grid-cols-2">
@@ -174,10 +169,12 @@ export default async function InvestigationPage({ params }: Props) {
               ticketId={ticket.id}
               status={ticket.status}
               decision={ticket.decision}
-              voteCount={ticket.votes.length}
-              canDecide={canDecide}
+              drivers={ticket.drivers}
+              proposals={ticket.discussionMessages.flatMap((message) =>
+                message.proposal ? [message.proposal] : [],
+              )}
+              canFinalize={canVote}
               readOnly={ticket.archivedAt !== null}
-              canUseLegacyDecision={!hasProposals}
             />
           </div>
         </section>

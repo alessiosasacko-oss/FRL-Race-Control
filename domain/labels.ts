@@ -3,6 +3,7 @@ import {
   AttendanceStatus,
   ChampionshipAdjustmentTarget,
   ChampionshipAuditAction,
+  DecisionOutcome,
   EvidenceType,
   NotificationPriority,
   NotificationType,
@@ -123,15 +124,27 @@ export const penaltyTypeLabels: Record<PenaltyType, string> = {
   [PenaltyType.PointsDeduction]: "Punktabzug",
 };
 
+export const decisionOutcomeLabels: Record<DecisionOutcome, string> = {
+  [DecisionOutcome.NoFurtherInvestigation]: "Keine weitere Untersuchung",
+  [DecisionOutcome.NoOffense]: "Kein Verstoß",
+  [DecisionOutcome.Warning]: "Verwarnung",
+  [DecisionOutcome.Penalty]: "Strafe",
+  [DecisionOutcome.RacingIncident]: "Rennunfall",
+  [DecisionOutcome.Inadmissible]: "Unzulässig",
+  [DecisionOutcome.Withdrawn]: "Zurückgezogen",
+};
+
 export const penaltyProposalStatusLabels: Record<
   PenaltyProposalStatus,
   string
 > = {
   [PenaltyProposalStatus.Open]: "Abstimmung läuft",
-  [PenaltyProposalStatus.AwaitingApproval]: "FIA-Freigabe ausstehend",
-  [PenaltyProposalStatus.Approved]: "Genehmigt",
+  [PenaltyProposalStatus.Closed]: "Abstimmung geschlossen",
+  [PenaltyProposalStatus.Cancelled]: "Abstimmung abgebrochen",
+  [PenaltyProposalStatus.AwaitingApproval]: "Abstimmung geschlossen",
+  [PenaltyProposalStatus.Approved]: "Historisch genehmigt",
   [PenaltyProposalStatus.Rejected]: "Abgelehnt",
-  [PenaltyProposalStatus.ChangesRequested]: "Änderungen angefordert",
+  [PenaltyProposalStatus.ChangesRequested]: "Abstimmung geschlossen",
 };
 
 export const proposalVoteChoiceLabels: Record<

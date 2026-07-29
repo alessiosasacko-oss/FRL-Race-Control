@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  DecisionOutcome,
   DiscussionMessageType,
   PenaltyType,
   type Prisma,
@@ -8,6 +9,7 @@ import {
   TicketStatus,
 } from "@/generated/prisma/client";
 import {
+  decisionOutcomeLabels,
   NotificationPriority,
   NotificationType,
   penaltyTypeLabels,
@@ -24,9 +26,13 @@ export type OfficialFiaDecisionInput = {
   ticketId: number;
   actorId: number;
   affectedDriverId?: number;
-  penaltyType: PenaltyType;
-  penaltyValue: number | null;
+  outcome: DecisionOutcome;
+  penalties: readonly {
+    penaltyType: PenaltyType;
+    penaltyValue: number | null;
+  }[];
   reason: string;
+  internalNote?: string | null;
   stewardIds: readonly number[];
   proposalId?: number;
   requireLegacyVote?: boolean;
@@ -87,6 +93,13 @@ export async function createOfficialFiaDecision(
     throw new Error("INVALID_AFFECTED_DRIVER");
   }
 
+  const primaryPenalty = input.penalties[0] ?? {
+    penaltyType:
+      input.outcome === DecisionOutcome.WARNING
+        ? PenaltyType.WARNING
+        : PenaltyType.NO_FURTHER_ACTION,
+    penaltyValue: null,
+  };
   const stewardIds = Array.from(
     new Set([
       ...input.stewardIds,
@@ -99,9 +112,16 @@ export async function createOfficialFiaDecision(
       ticketId: input.ticketId,
       proposalId: input.proposalId,
       affectedDriverId: input.affectedDriverId,
-      penaltyType: input.penaltyType,
-      penaltyValue: input.penaltyValue,
+      outcome: input.outcome,
+      penaltyType: primaryPenalty.penaltyType,
+      penaltyValue: primaryPenalty.penaltyValue,
       reason: input.reason,
+      penalties: {
+        create: input.penalties.map((penalty) => ({
+          penaltyType: penalty.penaltyType,
+          penaltyValue: penalty.penaltyValue,
+        })),
+      },
       decidedAt: new Date(),
       stewards: {
         create: stewardIds.map((userId) => ({ userId })),
@@ -121,7 +141,9 @@ export async function createOfficialFiaDecision(
         ticketId: input.ticketId,
         actorId: input.actorId,
         action: TicketAuditAction.DECISION_PUBLISHED,
-        details: `Entscheidung: ${penaltyTypeLabels[input.penaltyType]}`,
+        details: `Entscheidung: ${decisionOutcomeLabels[input.outcome]}${
+          input.internalNote ? ` · Interne Notiz: ${input.internalNote}` : ""
+        }`,
       },
       {
         ticketId: input.ticketId,
@@ -141,7 +163,7 @@ export async function createOfficialFiaDecision(
         authorId: input.actorId,
         type: DiscussionMessageType.SYSTEM,
         eventKey: `proposal:${input.proposalId}:official-decision`,
-        message: `Offizielle FIA-Entscheidung veröffentlicht: ${penaltyTypeLabels[input.penaltyType]}.`,
+        message: `Offizielle FIA-Entscheidung veröffentlicht: ${decisionOutcomeLabels[input.outcome]}.`,
       },
     });
   }
@@ -166,7 +188,7 @@ export async function createOfficialFiaDecision(
       type: NotificationType.FiaDecision,
       priority: NotificationPriority.High,
       title: `Entscheidung zu Ticket #${input.ticketId}`,
-      message: `${ticket.title}: ${penaltyTypeLabels[input.penaltyType]}`,
+      message: `${ticket.title}: ${decisionOutcomeLabels[input.outcome]}`,
       href: `/fia/${input.ticketId}`,
       relatedEntity: { type: "FiaTicket", id: input.ticketId },
       dedupeKey: `fia-decision:${input.ticketId}`,
@@ -191,13 +213,13 @@ export async function createOfficialFiaDecision(
       ticketId: input.ticketId,
       decisionId: decision.id,
       proposalId: input.proposalId ?? null,
-      penaltyType: input.penaltyType,
-      penaltyValue: input.penaltyValue,
+      outcome: input.outcome,
+      penalties: input.penalties,
       actorId: input.actorId,
     },
   });
 
-  if (input.penaltyType !== PenaltyType.NO_FURTHER_ACTION) {
+  if (input.penalties.length > 0) {
     const affectedUsers = ticket.drivers.flatMap(
       ({ driverId, driver }) =>
         (!input.affectedDriverId ||
@@ -214,7 +236,9 @@ export async function createOfficialFiaDecision(
         type: NotificationType.Penalty,
         priority: NotificationPriority.Urgent,
         title: `Strafe aus Ticket #${input.ticketId}`,
-        message: `${ticket.title}: ${penaltyTypeLabels[input.penaltyType]}`,
+        message: `${ticket.title}: ${input.penalties
+          .map(({ penaltyType }) => penaltyTypeLabels[penaltyType])
+          .join(", ")}`,
         href: `/fia/${input.ticketId}`,
         relatedEntity: { type: "Decision", id: decision.id },
         dedupeKey: `fia-penalty:${decision.id}`,
@@ -231,7 +255,11 @@ export async function createOfficialFiaDecision(
     );
   }
 
-  if (input.penaltyType === PenaltyType.POINTS_DEDUCTION) {
+  if (
+    input.penalties.some(
+      ({ penaltyType }) => penaltyType === PenaltyType.POINTS_DEDUCTION,
+    )
+  ) {
     await recalculateChampionship(
       transaction,
       ticket.leagueId,

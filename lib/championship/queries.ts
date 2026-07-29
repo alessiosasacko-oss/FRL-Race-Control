@@ -1059,6 +1059,10 @@ export async function getResultAdminData(
               penaltyValue: true,
               reason: true,
               updatedAt: true,
+              penalties: {
+                orderBy: { id: "asc" },
+                select: { penaltyType: true, penaltyValue: true },
+              },
             },
           },
         },
@@ -1158,21 +1162,30 @@ export async function getResultAdminData(
           : null,
     })),
     teams,
-    fiaPenalties: fiaTickets.flatMap((ticket) =>
-      ticket.decision
-        ? ticket.drivers.map(({ driverId }) => ({
-            decisionId: ticket.decision!.id,
-            ticketId: ticket.id,
-            driverId,
-            penaltyType:
-              ticket.decision!.penaltyType as PenaltyType,
-            penaltyValue: ticket.decision!.penaltyValue,
-            reason: ticket.decision!.reason,
-            updatedAt: ticket.decision!.updatedAt.toISOString(),
-            session: ticket.session as RaceSession,
-          }))
-        : [],
-    ),
+    fiaPenalties: fiaTickets.flatMap((ticket) => {
+      if (!ticket.decision) return [];
+      const penalties =
+        ticket.decision.penalties.length > 0
+          ? ticket.decision.penalties
+          : [
+              {
+                penaltyType: ticket.decision.penaltyType,
+                penaltyValue: ticket.decision.penaltyValue,
+              },
+            ];
+      return ticket.drivers.flatMap(({ driverId }) =>
+        penalties.map((penalty) => ({
+          decisionId: ticket.decision!.id,
+          ticketId: ticket.id,
+          driverId,
+          penaltyType: penalty.penaltyType as PenaltyType,
+          penaltyValue: penalty.penaltyValue,
+          reason: ticket.decision!.reason,
+          updatedAt: ticket.decision!.updatedAt.toISOString(),
+          session: ticket.session as RaceSession,
+        })),
+      );
+    }),
     scoring: scoringConfiguration
       ? {
           fastestLapPoint: scoringConfiguration.fastestLapPoint,

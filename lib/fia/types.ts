@@ -1,4 +1,5 @@
 import type {
+  DecisionOutcome,
   DiscussionMessageType,
   EvidenceType,
   PenaltyProposalStatus,
@@ -251,8 +252,13 @@ export type FiaTicketDetail = {
   }>;
   decision: {
     id: number;
+    outcome: DecisionOutcome;
     penaltyType: PenaltyType;
     penaltyValue: number | null;
+    penalties: Array<{
+      penaltyType: PenaltyType;
+      penaltyValue: number | null;
+    }>;
     affectedDriver: {
       id: number;
       name: string;

@@ -31,6 +31,16 @@ export enum PenaltyType {
   PointsDeduction = "POINTS_DEDUCTION",
 }
 
+export enum DecisionOutcome {
+  NoFurtherInvestigation = "NO_FURTHER_INVESTIGATION",
+  NoOffense = "NO_OFFENSE",
+  Warning = "WARNING",
+  Penalty = "PENALTY",
+  RacingIncident = "RACING_INCIDENT",
+  Inadmissible = "INADMISSIBLE",
+  Withdrawn = "WITHDRAWN",
+}
+
 export enum RaceSession {
   Practice = "PRACTICE",
   Qualifying = "QUALIFYING",
@@ -244,6 +254,8 @@ export enum DiscussionMessageType {
 
 export enum PenaltyProposalStatus {
   Open = "OPEN",
+  Closed = "CLOSED",
+  Cancelled = "CANCELLED",
   AwaitingApproval = "AWAITING_APPROVAL",
   Approved = "APPROVED",
   Rejected = "REJECTED",
@@ -259,6 +271,7 @@ export enum ProposalVoteChoice {
 export const roleSchema = z.enum(Role);
 export const ticketStatusSchema = z.enum(TicketStatus);
 export const penaltyTypeSchema = z.enum(PenaltyType);
+export const decisionOutcomeSchema = z.enum(DecisionOutcome);
 export const raceSessionSchema = z.enum(RaceSession);
 export const raceStatusSchema = z.enum(RaceStatus);
 export const attendanceStatusSchema = z.enum(AttendanceStatus);

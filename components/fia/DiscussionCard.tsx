@@ -54,9 +54,14 @@ type DiscussionCardProps = {
 const valuePenaltyTypes = new Set<PenaltyType>([
   PenaltyType.TimePenalty,
   PenaltyType.PenaltyPoints,
-  PenaltyType.GridPenalty,
   PenaltyType.PointsDeduction,
 ]);
+
+const proposalPenaltyTypes = Object.values(PenaltyType).filter(
+  (penalty) =>
+    penalty !== PenaltyType.NoFurtherAction &&
+    penalty !== PenaltyType.GridPenalty,
+);
 
 type EvidenceAction =
   | "file"
@@ -299,7 +304,7 @@ export default function DiscussionCard({
                     }
                     className="form-control min-h-12"
                   >
-                    {Object.values(PenaltyType).map((penalty) => (
+                    {proposalPenaltyTypes.map((penalty) => (
                       <option key={penalty} value={penalty}>
                         {penaltyTypeLabels[penalty]}
                       </option>
@@ -315,9 +320,7 @@ export default function DiscussionCard({
                       ? "Strafwert in Sekunden"
                       : penaltyType === PenaltyType.PenaltyPoints
                         ? "Strafpunkte"
-                        : penaltyType === PenaltyType.GridPenalty
-                          ? "Anzahl Startplätze"
-                          : "Punktabzug"}
+                        : "Punktabzug"}
                   </span>
                   <input
                     name="penaltyValue"
