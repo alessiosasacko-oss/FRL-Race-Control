@@ -1,15 +1,16 @@
 import "server-only";
 
 import type { VideoUploadLimits } from "@/lib/storage/evidence-types";
+import {
+  FIA_VIDEO_MIME_TYPES,
+  MAX_FIA_VIDEO_FILES,
+  MAX_FIA_VIDEO_SIZE_BYTES,
+} from "@/lib/storage/evidence-constants";
 
-const DEFAULT_MAX_FILE_SIZE_MB = 100;
-const DEFAULT_MAX_FILES = 3;
+const DEFAULT_MAX_FILE_SIZE_MB =
+  MAX_FIA_VIDEO_SIZE_BYTES / (1024 * 1024);
+const DEFAULT_MAX_FILES = MAX_FIA_VIDEO_FILES;
 const DEFAULT_SIGNED_URL_TTL_SECONDS = 300;
-const DEFAULT_ALLOWED_MIME_TYPES = [
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-] as const;
 
 function positiveInteger(
   value: string | undefined,
@@ -29,11 +30,11 @@ function allowedMimeTypes(): string[] {
 
   return configured?.length
     ? configured.filter((value) =>
-        DEFAULT_ALLOWED_MIME_TYPES.includes(
-          value as (typeof DEFAULT_ALLOWED_MIME_TYPES)[number],
+        FIA_VIDEO_MIME_TYPES.includes(
+          value as (typeof FIA_VIDEO_MIME_TYPES)[number],
         ),
       )
-    : [...DEFAULT_ALLOWED_MIME_TYPES];
+    : [...FIA_VIDEO_MIME_TYPES];
 }
 
 export function getVideoUploadLimits(): VideoUploadLimits {

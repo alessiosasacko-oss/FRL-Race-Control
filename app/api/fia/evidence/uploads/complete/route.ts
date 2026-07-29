@@ -38,7 +38,12 @@ async function requestBody(
 
 export async function POST(request: Request): Promise<NextResponse> {
   const user = await getCurrentUser();
-  if (!user) return errorResponse("Nicht angemeldet.", 401);
+  if (!user) {
+    return errorResponse(
+      "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+      401,
+    );
+  }
   if (!hasPermission(user.roles, Permission.SubmitFiaTicket)) {
     return errorResponse("Keine Berechtigung für FIA-Beweise.", 403);
   }
@@ -141,6 +146,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (code === "LIMIT_REACHED") {
       return errorResponse("Das Datei-Limit für dieses Ticket ist erreicht.", 409);
     }
-    return errorResponse("Das Video konnte nicht gespeichert werden.", 500);
+    return errorResponse("Die Datei konnte nicht hochgeladen werden.", 500);
   }
 }

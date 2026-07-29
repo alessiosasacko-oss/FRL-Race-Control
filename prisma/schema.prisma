@@ -839,6 +839,7 @@ model ChampionshipAudit {
 
 model FiaTicket {
   id                      Int                      @id @default(autoincrement())
+  submissionKey           String?                  @unique @db.VarChar(36)
   leagueId                Int
   seasonId                Int
   raceId                  Int

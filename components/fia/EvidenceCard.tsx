@@ -40,6 +40,13 @@ function formatBytes(bytes: number): string {
   }).format(bytes / (bytes >= 1024 * 1024 ? 1024 * 1024 : 1024));
 }
 
+function formatTimestamp(value: string): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 export default function EvidenceCard({
   ticketId,
   evidence,
@@ -58,7 +65,7 @@ export default function EvidenceCard({
   const linkLabelRef = useRef<HTMLInputElement>(null);
   const linkUrlRef = useRef<HTMLInputElement>(null);
   const uploadedFileCount = evidence.filter(
-    (item) => item.storagePath !== null,
+    (item) => item.isStoredVideo,
   ).length;
 
   useEffect(() => {
@@ -128,54 +135,79 @@ export default function EvidenceCard({
         {evidence.map((item) => (
           <div
             key={item.id}
-            className="flex items-start gap-3 rounded-xl border border-slate-700 bg-slate-900/70 p-4 transition hover:border-cyan-500"
+            className="rounded-xl border border-slate-700 bg-slate-900/70 p-4 transition hover:border-cyan-500"
           >
-            {item.storagePath ? (
-              <FileVideo
-                size={19}
-                className="mt-0.5 shrink-0 text-blue-400"
-              />
-            ) : null}
-            {item.viewUrl ? (
-              <a
-                href={item.viewUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="min-w-0 flex-1"
-              >
-                <p className="truncate font-semibold text-white">
-                  {item.label}
-                </p>
-                <p className="mt-1 text-sm text-slate-400">
-                  {item.originalFilename ?? evidenceTypeLabels[item.type]}
-                  {item.fileSize ? ` · ${formatBytes(item.fileSize)}` : ""}
-                  {" · "}
-                  {item.submittedBy?.displayName ?? "System"}
-                </p>
-              </a>
-            ) : (
+            <div className="flex items-start gap-3">
+              {item.isStoredVideo ? (
+                <FileVideo
+                  size={19}
+                  className="mt-0.5 shrink-0 text-blue-400"
+                />
+              ) : null}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-white">
                   {item.label}
                 </p>
                 <p className="mt-1 text-sm text-slate-400">
-                  Beweis nicht verfügbar
+                  {item.originalFilename ?? evidenceTypeLabels[item.type]}
+                  {item.fileSize
+                    ? ` · ${formatBytes(item.fileSize)}`
+                    : ""}
+                  {" · "}
+                  {item.submittedBy?.displayName ?? "System"}
+                  {" · "}
+                  {formatTimestamp(item.createdAt)}
                 </p>
               </div>
-            )}
-            {item.viewUrl ? (
-              <ExternalLink size={17} className="shrink-0 text-blue-400" />
-            ) : null}
-            {canAddEvidence ? (
-              <button
-                type="button"
-                disabled={removalPending}
-                onClick={() => removeEvidence(item.id)}
-                aria-label={`${item.label} entfernen`}
-                className="min-h-10 min-w-10 rounded-lg p-2 text-red-300 transition hover:bg-red-500/10"
+              {item.viewUrl ? (
+                <a
+                  href={item.viewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${item.label} in neuem Tab öffnen`}
+                  className="grid min-h-10 min-w-10 place-items-center rounded-lg text-blue-400 transition hover:bg-blue-500/10"
+                >
+                  <ExternalLink size={17} />
+                </a>
+              ) : null}
+              {canAddEvidence ? (
+                <button
+                  type="button"
+                  disabled={removalPending}
+                  onClick={() => removeEvidence(item.id)}
+                  aria-label={`${item.label} entfernen`}
+                  className="min-h-10 min-w-10 rounded-lg p-2 text-red-300 transition hover:bg-red-500/10"
+                >
+                  <Trash2 size={17} />
+                </button>
+              ) : null}
+            </div>
+
+            {item.isStoredVideo && item.viewUrl ? (
+              <video
+                controls
+                preload="metadata"
+                src={item.viewUrl}
+                className="mt-4 aspect-video w-full rounded-lg bg-black object-contain"
               >
-                <Trash2 size={17} />
-              </button>
+                Dein Browser unterstützt die Videowiedergabe nicht.
+              </video>
+            ) : null}
+            {!item.isStoredVideo && item.viewUrl ? (
+              <a
+                href={item.viewUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-blue-500/30 px-3 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/10"
+              >
+                <ExternalLink size={16} />
+                Externen Beweis öffnen
+              </a>
+            ) : null}
+            {!item.viewUrl ? (
+              <p className="mt-3 text-sm text-amber-300">
+                Beweis nicht verfügbar.
+              </p>
             ) : null}
           </div>
         ))}

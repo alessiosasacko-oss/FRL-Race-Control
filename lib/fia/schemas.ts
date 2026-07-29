@@ -66,6 +66,7 @@ const optionalLapSchema = z.preprocess(
 );
 
 export const createFiaTicketSchema = z.object({
+  submissionKey: z.uuid(),
   leagueId: z.coerce.number().int().positive(),
   raceId: z.coerce.number().int().positive(),
   title: z.string().trim().min(3).max(160),

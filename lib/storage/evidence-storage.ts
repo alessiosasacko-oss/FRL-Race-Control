@@ -2,6 +2,10 @@ import "server-only";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getEvidenceStorageConfig } from "@/lib/storage/evidence-config";
+import {
+  safeEvidenceFilename,
+  validateVideoMetadata,
+} from "@/lib/storage/evidence-constants";
 import type { UploadedVideoMetadata } from "@/lib/storage/evidence-types";
 
 type VideoUploadInput = {
@@ -50,15 +54,13 @@ export function isOwnedPendingStoragePath(
 
 export function validateVideoUploadInput(input: VideoUploadInput): void {
   const { limits } = getEvidenceStorageConfig();
-  const normalizedMimeType = input.mimeType.toLowerCase();
-
-  if (!limits.allowedMimeTypes.includes(normalizedMimeType)) {
-    throw new Error("UNSUPPORTED_VIDEO_TYPE");
-  }
-
-  if (input.fileSize > limits.maxFileSizeBytes) {
-    throw new Error("VIDEO_TOO_LARGE");
-  }
+  const validationError = validateVideoMetadata(
+    input.mimeType,
+    input.fileSize,
+    limits.maxFileSizeBytes,
+    limits.allowedMimeTypes,
+  );
+  if (validationError) throw new Error(validationError);
 }
 
 export async function createSignedVideoUpload(
@@ -163,7 +165,7 @@ export async function verifyStoredVideo(
   return {
     kind: "upload",
     storagePath: input.storagePath,
-    originalFilename: input.originalFilename,
+    originalFilename: safeEvidenceFilename(input.originalFilename),
     mimeType: storedMimeType,
     fileSize: data.size,
     label: input.label,

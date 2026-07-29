@@ -1,7 +1,9 @@
 "use client";
 
 import { Link2, Plus, Trash2 } from "lucide-react";
-import VideoEvidenceUploader from "@/components/fia/VideoEvidenceUploader";
+import VideoEvidenceUploader, {
+  type VideoEvidenceUploaderHandle,
+} from "@/components/fia/VideoEvidenceUploader";
 import type { TicketWizardOptions } from "@/lib/fia/types";
 import type { UploadedVideoMetadata } from "@/lib/storage/evidence-types";
 import type {
@@ -13,12 +15,14 @@ type EvidenceStepProps = {
   data: TicketWizardDraft;
   options: Pick<TicketWizardOptions, "uploadLimits">;
   setData: React.Dispatch<React.SetStateAction<TicketWizardDraft>>;
+  uploaderRef: React.Ref<VideoEvidenceUploaderHandle>;
 };
 
 export default function EvidenceStep({
   data,
   options,
   setData,
+  uploaderRef,
 }: EvidenceStepProps) {
   const links = data.evidence.filter(
     (evidence): evidence is ExternalEvidenceDraft =>
@@ -102,6 +106,7 @@ export default function EvidenceStep({
           </p>
         </div>
         <VideoEvidenceUploader
+          ref={uploaderRef}
           limits={options.uploadLimits}
           uploads={uploads}
           onUploadsChange={updateUploads}

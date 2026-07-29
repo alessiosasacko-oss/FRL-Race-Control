@@ -17,6 +17,7 @@ export type FiaActionState = {
   status: "idle" | "success" | "error";
   message: string;
   fieldErrors?: Record<string, string[]>;
+  resetUploads?: boolean;
 };
 
 export const initialFiaActionState: FiaActionState = {
@@ -145,7 +146,7 @@ export type FiaTicketDetail = {
     url: string | null;
     viewUrl: string | null;
     label: string;
-    storagePath: string | null;
+    isStoredVideo: boolean;
     originalFilename: string | null;
     mimeType: string | null;
     fileSize: number | null;

@@ -67,12 +67,13 @@ export default function ReviewStep({ data, options }: ReviewStepProps) {
             <li
               key={
                 evidence.kind === "upload"
-                  ? evidence.storagePath
+                  ? `${evidence.originalFilename}-${evidence.uploadedAt}`
                   : evidence.key
               }
             >
-              {evidence.kind === "upload" ? "Video" : "Link"} ·{" "}
-              {evidence.label}
+              {evidence.kind === "upload"
+                ? `Video · ${evidence.label} · ${evidence.originalFilename}`
+                : `Link · ${evidence.label}`}
             </li>
           ))}
           {data.evidence.length === 0 ? <li>Keine Beweise</li> : null}

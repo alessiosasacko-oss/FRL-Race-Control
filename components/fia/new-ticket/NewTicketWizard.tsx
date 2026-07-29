@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import { RaceSession } from "@/domain";
 import { createFiaTicketAction } from "@/lib/fia/actions";
+import type { VideoEvidenceUploaderHandle } from "@/components/fia/VideoEvidenceUploader";
 import {
   initialFiaActionState,
   type TicketWizardOptions,
@@ -50,6 +51,11 @@ export default function NewTicketWizard({
 }: NewTicketWizardProps) {
   const [step, setStep] = useState(1);
   const [maxStepReached, setMaxStepReached] = useState(1);
+  const [uploadPending, setUploadPending] = useState(false);
+  const [uploadResetHandled, setUploadResetHandled] = useState(false);
+  const [workflowMessage, setWorkflowMessage] = useState("");
+  const [submissionKey] = useState(() => crypto.randomUUID());
+  const uploaderRef = useRef<VideoEvidenceUploaderHandle>(null);
   const [state, formAction, pending] = useActionState(
     createFiaTicketAction,
     initialFiaActionState,
@@ -65,8 +71,45 @@ export default function NewTicketWizard({
     evidence: [],
   });
 
-  function goForward(): void {
+  function resetFailedUploads(): void {
+    setData((previous) => ({
+      ...previous,
+      evidence: previous.evidence.filter(
+        (evidence) => evidence.kind === "external",
+      ),
+    }));
+    setStep(3);
+    setMaxStepReached(3);
+    setWorkflowMessage(
+      "Das Ticket wurde nicht vollständig erstellt. Bitte lade das Video erneut hoch.",
+    );
+    setUploadResetHandled(true);
+  }
+
+  async function goForward(): Promise<void> {
     if (!canContinue(step, data)) return;
+    if (step === 3 && uploaderRef.current?.hasPendingFiles()) {
+      setUploadPending(true);
+      setWorkflowMessage("Video wird hochgeladen …");
+      const result = await uploaderRef.current.uploadPending();
+      setUploadPending(false);
+      if (!result.success) {
+        setWorkflowMessage(
+          "Die Datei konnte nicht hochgeladen werden. Bitte versuche es erneut.",
+        );
+        return;
+      }
+      setData((previous) => ({
+        ...previous,
+        evidence: [
+          ...previous.evidence.filter(
+            (evidence) => evidence.kind === "external",
+          ),
+          ...result.uploads,
+        ],
+      }));
+      setWorkflowMessage("Videobeweis wurde sicher vorbereitet.");
+    }
     const nextStep = Math.min(lastStep, step + 1);
     setStep(nextStep);
     setMaxStepReached((current) => Math.max(current, nextStep));
@@ -78,7 +121,14 @@ export default function NewTicketWizard({
         <StepSidebar
           currentStep={step}
           maxStepReached={maxStepReached}
-          setCurrentStep={setStep}
+          setCurrentStep={(targetStep) => {
+            if (uploadPending || pending) return;
+            if (step === 3 && targetStep === 4) {
+              void goForward();
+              return;
+            }
+            setStep(targetStep);
+          }}
         />
 
         <div className="min-w-0 flex-1">
@@ -97,6 +147,7 @@ export default function NewTicketWizard({
                 data={data}
                 options={options}
                 setData={setData}
+                uploaderRef={uploaderRef}
               />
             ) : null}
             {step === 4 ? (
@@ -127,14 +178,18 @@ export default function NewTicketWizard({
             {step < lastStep ? (
               <button
                 type="button"
-                onClick={goForward}
-                disabled={!canContinue(step, data)}
+                onClick={() => void goForward()}
+                disabled={!canContinue(step, data) || uploadPending}
                 className="wizard-primary-button w-full justify-center sm:w-auto"
               >
-                Weiter <ArrowRight size={18} />
+                {uploadPending ? "Video wird hochgeladen …" : "Weiter"}
+                <ArrowRight size={18} />
               </button>
             ) : (
-              <form action={formAction}>
+              <form
+                action={formAction}
+                onSubmit={() => setUploadResetHandled(false)}
+              >
                 <input type="hidden" name="leagueId" value={data.leagueId} />
                 <input type="hidden" name="raceId" value={data.raceId} />
                 <input type="hidden" name="session" value={data.session} />
@@ -145,6 +200,11 @@ export default function NewTicketWizard({
                   value={data.description}
                 />
                 <input type="hidden" name="lap" value={data.lap} />
+                <input
+                  type="hidden"
+                  name="submissionKey"
+                  value={submissionKey}
+                />
                 <input
                   type="hidden"
                   name="evidence"
@@ -164,7 +224,9 @@ export default function NewTicketWizard({
                   className="wizard-primary-button w-full"
                 >
                   <CheckCircle2 size={18} />
-                  {pending ? "Wird erstellt…" : "Ticket erstellen"}
+                  {pending
+                    ? "Ticket und Videobeweis werden verknüpft …"
+                    : "Ticket erstellen"}
                 </button>
               </form>
             )}
@@ -177,6 +239,29 @@ export default function NewTicketWizard({
             >
               {state.message}
             </p>
+          ) : null}
+          {workflowMessage ? (
+            <p
+              role="status"
+              className="border-t border-blue-500/20 bg-blue-500/10 px-6 py-4 text-sm text-blue-100"
+            >
+              {workflowMessage}
+            </p>
+          ) : null}
+          {state.resetUploads && !uploadResetHandled ? (
+            <div className="border-t border-amber-500/25 bg-amber-500/10 px-6 py-4 text-sm text-amber-100">
+              <p>
+                Das Ticket wurde nicht vollständig erstellt. Der
+                temporäre Upload wurde sicher bereinigt.
+              </p>
+              <button
+                type="button"
+                onClick={resetFailedUploads}
+                className="wizard-secondary-button mt-3 min-h-11"
+              >
+                Video erneut auswählen
+              </button>
+            </div>
           ) : null}
         </div>
       </div>

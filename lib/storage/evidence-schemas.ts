@@ -1,7 +1,11 @@
 import { z } from "zod";
+import { safeEvidenceFilename } from "@/lib/storage/evidence-constants";
 
 export const videoUploadRequestSchema = z.object({
-  originalFilename: z.string().trim().min(1).max(255),
+  originalFilename: z
+    .string()
+    .transform(safeEvidenceFilename)
+    .pipe(z.string().min(1).max(255)),
   mimeType: z.string().trim().min(1).max(120),
   fileSize: z.coerce.number().int().positive(),
 });

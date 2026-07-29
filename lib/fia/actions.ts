@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   PenaltyType as PrismaPenaltyType,
+  Prisma,
   RaceSession as PrismaRaceSession,
   Role as PrismaRole,
   TicketAuditAction as PrismaTicketAuditAction,
@@ -41,7 +42,11 @@ import {
 import type { FiaActionState } from "@/lib/fia/types";
 import { canParticipateInProposal } from "@/lib/fia/proposal-policy";
 import { getVideoUploadLimits } from "@/lib/storage/evidence-config";
-import { verifyStoredVideo } from "@/lib/storage/evidence-storage";
+import {
+  isOwnedPendingStoragePath,
+  removeStoredEvidenceFiles,
+  verifyStoredVideo,
+} from "@/lib/storage/evidence-storage";
 import type {
   TicketEvidenceInput,
   UploadedVideoMetadata,
@@ -58,10 +63,15 @@ function validationFailure(
   };
 }
 
-function mutationFailure(): FiaActionState {
-  return validationFailure(
-    "Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.",
-  );
+function mutationFailure(resetUploads = false): FiaActionState {
+  return {
+    ...validationFailure(
+      resetUploads
+        ? "Das Ticket wurde nicht vollständig erstellt. Bitte lade den Videobeweis erneut hoch."
+        : "Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.",
+    ),
+    resetUploads,
+  };
 }
 
 function parseEvidence(formData: FormData): unknown {
@@ -72,6 +82,48 @@ function parseEvidence(formData: FormData): unknown {
     return JSON.parse(value) as unknown;
   } catch {
     return null;
+  }
+}
+
+async function cleanupUnattachedPendingUploads(
+  userId: number,
+  storagePaths: string[],
+): Promise<void> {
+  const ownedPaths = [
+    ...new Set(
+      storagePaths.filter((path) =>
+        isOwnedPendingStoragePath(path, userId),
+      ),
+    ),
+  ];
+  if (ownedPaths.length === 0) return;
+
+  const prisma = getPrismaClient();
+  const attached = await prisma.evidence.findMany({
+    where: { storagePath: { in: ownedPaths } },
+    select: { storagePath: true },
+  });
+  const attachedPaths = new Set(
+    attached.flatMap(({ storagePath }) =>
+      storagePath ? [storagePath] : [],
+    ),
+  );
+  const removablePaths = ownedPaths.filter(
+    (path) => !attachedPaths.has(path),
+  );
+  if (removablePaths.length === 0) return;
+
+  try {
+    await removeStoredEvidenceFiles(removablePaths);
+  } catch (error: unknown) {
+    console.error("[fia-upload] Temporary upload cleanup failed.", {
+      count: removablePaths.length,
+      error: error instanceof Error ? error.message : "Unknown",
+    });
+    await prisma.evidenceStorageCleanup.createMany({
+      data: removablePaths.map((storagePath) => ({ storagePath })),
+      skipDuplicates: true,
+    });
   }
 }
 
@@ -88,6 +140,7 @@ export async function createFiaTicketAction(
 ): Promise<FiaActionState> {
   const user = await requirePermission(Permission.SubmitFiaTicket);
   const parsed = createFiaTicketSchema.safeParse({
+    submissionKey: formData.get("submissionKey"),
     leagueId: formData.get("leagueId"),
     raceId: formData.get("raceId"),
     title: formData.get("title"),
@@ -110,6 +163,17 @@ export async function createFiaTicketAction(
       evidence.kind === "upload",
   );
   const uploadLimits = getVideoUploadLimits();
+  const prisma = getPrismaClient();
+  const existingTicket = await prisma.fiaTicket.findFirst({
+    where: {
+      submissionKey: parsed.data.submissionKey,
+      reportedByUserId: user.id,
+    },
+    select: { id: true },
+  });
+  if (existingTicket) {
+    redirect(`/fia/${existingTicket.id}`);
+  }
 
   if (uploadedEvidence.length > uploadLimits.maxFiles) {
     return validationFailure(
@@ -124,10 +188,21 @@ export async function createFiaTicketAction(
         verifyStoredVideo(user.id, evidence),
       ),
     );
-  } catch {
-    return validationFailure(
-      "Mindestens ein Video konnte nicht sicher geprüft werden. Entferne es und lade es erneut hoch.",
+  } catch (error: unknown) {
+    console.error("[fia-upload] Stored video verification failed.", {
+      count: uploadedEvidence.length,
+      error: error instanceof Error ? error.message : "Unknown",
+    });
+    await cleanupUnattachedPendingUploads(
+      user.id,
+      uploadedEvidence.map((evidence) => evidence.storagePath),
     );
+    return {
+      ...validationFailure(
+        "Die Datei konnte nicht sicher geprüft werden. Bitte lade sie erneut hoch.",
+      ),
+      resetUploads: uploadedEvidence.length > 0,
+    };
   }
 
   const verifiedUploadsByPath = new Map(
@@ -157,7 +232,6 @@ export async function createFiaTicketAction(
       createdAt: new Date(verified.uploadedAt),
     };
   });
-  const prisma = getPrismaClient();
   let ticketId: number;
 
   try {
@@ -197,6 +271,7 @@ export async function createFiaTicketAction(
 
       const ticket = await transaction.fiaTicket.create({
         data: {
+          submissionKey: parsed.data.submissionKey,
           leagueId: parsed.data.leagueId,
           seasonId: race.seasonId,
           raceId: parsed.data.raceId,
@@ -278,19 +353,47 @@ export async function createFiaTicketAction(
       return ticket.id;
     });
   } catch (error: unknown) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const duplicate = await prisma.fiaTicket.findFirst({
+        where: {
+          submissionKey: parsed.data.submissionKey,
+          reportedByUserId: user.id,
+        },
+        select: { id: true },
+      });
+      if (duplicate) redirect(`/fia/${duplicate.id}`);
+    }
+
+    await cleanupUnattachedPendingUploads(
+      user.id,
+      verifiedUploads.map((evidence) => evidence.storagePath),
+    );
     if (error instanceof Error && error.message === "INVALID_RACE") {
-      return validationFailure(
-        "Das gewählte Rennen gehört nicht zur Liga oder unterstützt die Session nicht.",
-      );
+      return {
+        ...validationFailure(
+          "Das gewählte Rennen gehört nicht zur Liga oder unterstützt die Session nicht.",
+        ),
+        resetUploads: verifiedUploads.length > 0,
+      };
     }
 
     if (error instanceof Error && error.message === "INVALID_DRIVERS") {
-      return validationFailure(
-        "Mindestens ein gewählter Fahrer ist für diese Liga nicht verfügbar.",
-      );
+      return {
+        ...validationFailure(
+          "Mindestens ein gewählter Fahrer ist für diese Liga nicht verfügbar.",
+        ),
+        resetUploads: verifiedUploads.length > 0,
+      };
     }
 
-    return mutationFailure();
+    console.error("[fia-ticket] Ticket creation failed.", {
+      submissionKey: parsed.data.submissionKey,
+      error: error instanceof Error ? error.message : "Unknown",
+    });
+    return mutationFailure(verifiedUploads.length > 0);
   }
 
   revalidateTicket(ticketId);

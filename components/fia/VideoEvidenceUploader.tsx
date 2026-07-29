@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  forwardRef,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
 } from "react";
@@ -19,6 +21,10 @@ import type {
   UploadedVideoMetadata,
   VideoUploadLimits,
 } from "@/lib/storage/evidence-types";
+import {
+  FIA_VIDEO_ACCEPT,
+  validateVideoMetadata,
+} from "@/lib/storage/evidence-constants";
 
 type VideoEvidenceUploaderProps = {
   limits: VideoUploadLimits;
@@ -26,6 +32,16 @@ type VideoEvidenceUploaderProps = {
   onUploadsChange: (uploads: UploadedVideoMetadata[]) => void;
   ticketId?: number;
   existingFileCount?: number;
+};
+
+export type VideoEvidenceUploaderHandle = {
+  hasPendingFiles: () => boolean;
+  uploadPending: () => Promise<UploadBatchResult>;
+};
+
+export type UploadBatchResult = {
+  success: boolean;
+  uploads: UploadedVideoMetadata[];
 };
 
 type UploadPreparation = {
@@ -100,13 +116,19 @@ function uploadFile(
   });
 }
 
-export default function VideoEvidenceUploader({
-  limits,
-  uploads,
-  onUploadsChange,
-  ticketId,
-  existingFileCount = 0,
-}: VideoEvidenceUploaderProps) {
+const VideoEvidenceUploader = forwardRef<
+  VideoEvidenceUploaderHandle,
+  VideoEvidenceUploaderProps
+>(function VideoEvidenceUploader(
+  {
+    limits,
+    uploads,
+    onUploadsChange,
+    ticketId,
+    existingFileCount = 0,
+  },
+  ref,
+) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -141,6 +163,16 @@ export default function VideoEvidenceUploader({
       );
   }, []);
 
+  useEffect(() => {
+    if (!uploading && queue.length === 0) return;
+    const warnBeforeLeaving = (event: BeforeUnloadEvent): void => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () =>
+      window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [queue.length, uploading]);
+
   function updateQueued(
     key: string,
     patch: Partial<QueuedVideo>,
@@ -153,16 +185,21 @@ export default function VideoEvidenceUploader({
   }
 
   function validateFile(file: File): string | null {
-    const mimeType = file.type.toLowerCase();
-    if (!limits.allowedMimeTypes.includes(mimeType)) {
-      return `${file.name}: Bitte eine MP4-, MOV- oder WebM-Datei wählen.`;
+    const error = validateVideoMetadata(
+      file.type,
+      file.size,
+      limits.maxFileSizeBytes,
+      limits.allowedMimeTypes,
+    );
+    if (error === "UNSUPPORTED_VIDEO_TYPE") {
+      return `${file.name}: Dieses Videoformat wird nicht unterstützt.`;
     }
-    if (file.size > limits.maxFileSizeBytes) {
-      return `${file.name}: Das Video darf höchstens ${formatBytes(
+    if (error === "VIDEO_TOO_LARGE") {
+      return `${file.name}: Die Videodatei ist zu groß. Maximal ${formatBytes(
         limits.maxFileSizeBytes,
-      )} groß sein.`;
+      )}.`;
     }
-    return null;
+    return error ? `${file.name}: Die Videodatei ist ungültig.` : null;
   }
 
   function acceptFiles(fileList: FileList | readonly File[]): void {
@@ -301,12 +338,17 @@ export default function VideoEvidenceUploader({
     }
   }
 
-  async function startUploads(): Promise<void> {
+  async function startUploads(): Promise<UploadBatchResult> {
     const pending = queue.filter(
       (item) =>
         item.status !== "success" && item.label.trim().length > 0,
     );
-    if (pending.length === 0 || uploading) return;
+    if (pending.length === 0) {
+      return { success: true, uploads };
+    }
+    if (uploading) {
+      return { success: false, uploads };
+    }
     setUploading(true);
     setMessage("");
     const completed: UploadedVideoMetadata[] = [];
@@ -316,8 +358,9 @@ export default function VideoEvidenceUploader({
       if (upload) completed.push(upload);
     }
 
+    const nextUploads = [...uploads, ...completed];
     if (ticketId === undefined && completed.length > 0) {
-      onUploadsChange([...uploads, ...completed]);
+      onUploadsChange(nextUploads);
     } else if (completed.length > 0) {
       router.refresh();
     }
@@ -330,7 +373,17 @@ export default function VideoEvidenceUploader({
         ? "Alle Videos wurden sicher hochgeladen."
         : "Mindestens ein Video konnte nicht hochgeladen werden.",
     );
+    return {
+      success: completed.length === pending.length,
+      uploads: ticketId === undefined ? nextUploads : uploads,
+    };
   }
+
+  useImperativeHandle(ref, () => ({
+    hasPendingFiles: () =>
+      queue.some((item) => item.status !== "success"),
+    uploadPending: startUploads,
+  }));
 
   async function removeUpload(storagePath: string): Promise<boolean> {
     setMessage("");
@@ -457,7 +510,7 @@ export default function VideoEvidenceUploader({
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
+        accept={FIA_VIDEO_ACCEPT}
         className="sr-only"
         onChange={(event) => {
           if (event.target.files) acceptFiles(event.target.files);
@@ -467,7 +520,7 @@ export default function VideoEvidenceUploader({
       <input
         ref={cameraInputRef}
         type="file"
-        accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
+        accept={FIA_VIDEO_ACCEPT}
         capture="environment"
         className="sr-only"
         onChange={(event) => {
@@ -673,4 +726,6 @@ export default function VideoEvidenceUploader({
       ) : null}
     </div>
   );
-}
+});
+
+export default VideoEvidenceUploader;

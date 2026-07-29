@@ -30,7 +30,12 @@ async function requestBody(request: Request): Promise<unknown> {
 
 export async function POST(request: Request): Promise<NextResponse> {
   const user = await getCurrentUser();
-  if (!user) return errorResponse("Nicht angemeldet.", 401);
+  if (!user) {
+    return errorResponse(
+      "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+      401,
+    );
+  }
   if (!hasPermission(user.roles, Permission.SubmitFiaTicket)) {
     return errorResponse("Keine Berechtigung für FIA-Beweise.", 403);
   }
@@ -65,18 +70,26 @@ export async function POST(request: Request): Promise<NextResponse> {
       return errorResponse("Dieses Videoformat wird nicht unterstützt.", 400);
     }
     if (code === "VIDEO_TOO_LARGE") {
-      return errorResponse("Die Videodatei überschreitet das Größenlimit.", 400);
+      return errorResponse(
+        "Die Videodatei ist zu groß. Bitte beachte das angezeigte Größenlimit.",
+        400,
+      );
     }
     if (code === "EVIDENCE_STORAGE_NOT_CONFIGURED") {
       return errorResponse("Der Video-Upload ist noch nicht konfiguriert.", 503);
     }
-    return errorResponse("Der Upload konnte nicht vorbereitet werden.", 502);
+    return errorResponse("Die Datei konnte nicht hochgeladen werden.", 502);
   }
 }
 
 export async function DELETE(request: Request): Promise<NextResponse> {
   const user = await getCurrentUser();
-  if (!user) return errorResponse("Nicht angemeldet.", 401);
+  if (!user) {
+    return errorResponse(
+      "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+      401,
+    );
+  }
 
   const parsed = cancelVideoUploadSchema.safeParse(
     await requestBody(request),

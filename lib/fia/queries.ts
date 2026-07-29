@@ -542,7 +542,7 @@ export async function getFiaTicketById(
         ? `/api/fia/evidence/${evidence.id}`
         : evidence.url,
       label: evidence.label,
-      storagePath: evidence.storagePath,
+      isStoredVideo: evidence.storagePath !== null,
       originalFilename: evidence.originalFilename,
       mimeType: evidence.mimeType,
       fileSize: evidence.fileSize,
