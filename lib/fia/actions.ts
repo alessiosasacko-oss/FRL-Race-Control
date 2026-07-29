@@ -30,6 +30,7 @@ import {
 import { getPrismaClient } from "@/lib/db/prisma";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import { recalculateChampionship } from "@/lib/championship/recalculation";
+import { synchronizeGlobalTeamPrincipalChampionship } from "@/lib/championship/team-principal-championship";
 import { createNotifications } from "@/lib/notifications/service";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import {
@@ -353,6 +354,11 @@ export async function createFiaTicketAction(
         dedupeKey: `fia-ticket:${ticket.id}`,
       });
 
+      await synchronizeGlobalTeamPrincipalChampionship(
+        transaction,
+        parsed.data.raceId,
+        user.id,
+      );
       return ticket.id;
     });
   } catch (error: unknown) {

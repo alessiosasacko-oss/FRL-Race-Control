@@ -98,6 +98,30 @@ export default function TeamForm({ options, team }: TeamFormProps) {
           </select>
         </label>
         <label className="master-label">
+          Globale Teamorganisation
+          <select
+            name="organizationId"
+            required
+            defaultValue={
+              team?.organization?.id ?? options.organizations[0]?.id ?? ""
+            }
+            className="form-control mt-2"
+          >
+            <option value="" disabled>
+              Organisation auswählen
+            </option>
+            {options.organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {organization.shortName} · {organization.name}
+                {organization.active ? "" : " · inaktiv"}
+              </option>
+            ))}
+          </select>
+          <span className="mt-2 block text-xs font-normal text-slate-500">
+            Diese stabile Zuordnung verbindet dasselbe Team über alle Ligen.
+          </span>
+        </label>
+        <label className="master-label">
           Team Principal
           <select
             name="principalUserId"

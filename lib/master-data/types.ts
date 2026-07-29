@@ -61,6 +61,26 @@ export type MasterDataOptions = {
   teams: TeamOption[];
   users: UserOption[];
   drivers: DriverOption[];
+  organizations: TeamOrganizationOption[];
+};
+
+export type TeamOrganizationOption = {
+  id: number;
+  name: string;
+  shortName: string;
+  color: string;
+  active: boolean;
+};
+
+export type TeamOrganizationItem = TeamOrganizationOption & {
+  seasons: Array<{
+    seasonId: number;
+    seasonName: string;
+    principal: {
+      id: number;
+      displayName: string;
+    } | null;
+  }>;
 };
 
 export type LeagueAdminItem = LeagueOption & {
@@ -173,6 +193,7 @@ export type TeamItem = {
   active: boolean;
   league: LeagueOption;
   season: { id: number; name: string };
+  organization: TeamOrganizationOption | null;
   principal: {
     id: number;
     displayName: string;

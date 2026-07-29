@@ -43,6 +43,9 @@ export default async function ChampionshipPage({
     ...contextParams.entries(),
     ["table", "teams"],
   ]).toString()}`;
+  const teamPrincipalHref = data.selectedSeason
+    ? `/championship/team-principals?seasonId=${data.selectedSeason.id}`
+    : "/championship/team-principals";
 
   return (
     <AppLayout>
@@ -75,6 +78,11 @@ export default async function ChampionshipPage({
                 href: teamHref,
                 active: query.table === "teams",
                 count: data.teams.length,
+              },
+              {
+                label: "Teamchef-WM",
+                href: teamPrincipalHref,
+                active: false,
               },
             ]}
             label="Meisterschaftstabelle"

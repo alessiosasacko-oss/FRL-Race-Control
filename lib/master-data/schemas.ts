@@ -159,10 +159,35 @@ export const teamSchema = z.object({
   color: hexColorSchema,
   leagueId: entityId,
   seasonId: entityId,
+  organizationId: entityId,
   principalUserId: optionalId,
   driverIds: z.array(entityId).max(20),
   active: checkbox,
 });
+
+export const teamOrganizationSchema = z
+  .object({
+    name,
+    shortName: z
+      .string()
+      .trim()
+      .min(2)
+      .max(12)
+      .transform((value) => value.toUpperCase()),
+    color: hexColorSchema,
+    active: checkbox,
+    seasonId: optionalId,
+    principalUserId: optionalId,
+  })
+  .refine(
+    (organization) =>
+      organization.seasonId !== null ||
+      organization.principalUserId === null,
+    {
+      path: ["seasonId"],
+      message: "Für einen Teamchef muss eine Saison gewählt werden.",
+    },
+  );
 
 const firstValue = (value: unknown) =>
   Array.isArray(value) ? value[0] : value;

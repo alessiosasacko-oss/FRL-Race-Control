@@ -1,19 +1,22 @@
 import AppLayout from "@/components/layout/AppLayout";
 import TeamForm from "@/components/master-data/TeamForm";
+import TeamOrganizationForm from "@/components/master-data/TeamOrganizationForm";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import {
   getMasterDataOptions,
   getTeamItems,
+  getTeamOrganizationItems,
 } from "@/lib/master-data/queries";
 
 const allTeamsQuery = { q: "", active: "all" as const };
 
 export default async function TeamAdminPage() {
   await requirePermission(Permission.ManageMasterData);
-  const [teams, options] = await Promise.all([
+  const [teams, options, organizations] = await Promise.all([
     getTeamItems(allTeamsQuery),
     getMasterDataOptions(),
+    getTeamOrganizationItems(),
   ]);
 
   return (
@@ -24,6 +27,44 @@ export default async function TeamAdminPage() {
           <p className="mt-2 text-slate-400">
             Saisonbezogene Teams, Team Principals und Fahreraufstellungen.
           </p>
+        </div>
+        <section className="master-card">
+          <h2 className="mb-2 text-xl font-semibold text-white">
+            Globale Teamorganisation
+          </h2>
+          <p className="mb-5 text-sm text-slate-400">
+            Stabile Identität für dasselbe Team über F1 bis F6 und
+            saisonbezogene Teamchef-Zuordnung.
+          </p>
+          <TeamOrganizationForm options={options} />
+        </section>
+        <div className="space-y-4">
+          {organizations.map((organization) => (
+            <details key={organization.id} className="master-card">
+              <summary className="cursor-pointer list-none">
+                <div className="flex items-center gap-3">
+                  <span
+                    className="h-9 w-1.5 rounded-full"
+                    style={{ backgroundColor: organization.color }}
+                  />
+                  <div>
+                    <h2 className="font-semibold text-white">
+                      {organization.name} · {organization.shortName}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {organization.seasons.length} Saison-Zuordnung(en)
+                    </p>
+                  </div>
+                </div>
+              </summary>
+              <div className="mt-5 border-t border-slate-800 pt-5">
+                <TeamOrganizationForm
+                  options={options}
+                  organization={organization}
+                />
+              </div>
+            </details>
+          ))}
         </div>
         <section className="master-card">
           <h2 className="mb-5 text-xl font-semibold text-white">
@@ -46,6 +87,9 @@ export default async function TeamAdminPage() {
                     </h2>
                     <p className="mt-1 text-sm text-slate-400">
                       {team.league.code} · {team.season?.name ?? "Keine Saison"}
+                      {team.organization
+                        ? ` · ${team.organization.shortName}`
+                        : " · keine globale Organisation"}
                     </p>
                   </div>
                   <span className={team.active ? "text-green-300" : "text-slate-500"}>

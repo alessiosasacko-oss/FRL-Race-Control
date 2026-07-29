@@ -18,6 +18,7 @@ import {
   WebhookEventType,
 } from "@/domain";
 import { recalculateChampionship } from "@/lib/championship/recalculation";
+import { synchronizeGlobalTeamPrincipalChampionship } from "@/lib/championship/team-principal-championship";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import { createNotifications } from "@/lib/notifications/service";
 import { publicRaceTrack } from "@/lib/races/visibility";
@@ -54,6 +55,7 @@ export async function createOfficialFiaDecision(
       season: { select: { name: true } },
       race: {
         select: {
+          id: true,
           name: true,
           circuit: true,
           countryCode: true,
@@ -268,5 +270,10 @@ export async function createOfficialFiaDecision(
     );
   }
 
+  await synchronizeGlobalTeamPrincipalChampionship(
+    transaction,
+    ticket.race.id,
+    input.actorId,
+  );
   return decision.id;
 }

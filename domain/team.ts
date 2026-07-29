@@ -10,6 +10,7 @@ export const teamSchema = z
     id: entityIdSchema,
     leagueId: entityIdSchema,
     seasonId: entityIdSchema,
+    organizationId: entityIdSchema.nullable(),
     principalUserId: entityIdSchema.nullable(),
     name: titleSchema,
     shortName: z.string().trim().min(2).max(12),
@@ -19,3 +20,17 @@ export const teamSchema = z
   .strict();
 
 export type Team = z.infer<typeof teamSchema>;
+
+export const teamOrganizationSchema = z
+  .object({
+    id: entityIdSchema,
+    name: titleSchema,
+    shortName: z.string().trim().min(2).max(12),
+    color: hexColorSchema,
+    active: z.boolean(),
+  })
+  .strict();
+
+export type TeamOrganization = z.infer<
+  typeof teamOrganizationSchema
+>;

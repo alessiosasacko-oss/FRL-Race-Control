@@ -5,6 +5,7 @@ import {
   ChampionshipAuditAction,
   DecisionOutcome,
   EvidenceType,
+  GlobalWeekendStatus,
   NotificationPriority,
   NotificationType,
   PenaltyType,
@@ -85,6 +86,21 @@ export const championshipAuditActionLabels: Record<
   [ChampionshipAuditAction.AdjustmentCreated]: "Punkteanpassung erstellt",
   [ChampionshipAuditAction.ChampionshipRecalculated]:
     "Meisterschaft neu berechnet",
+  [ChampionshipAuditAction.GlobalWeekendFinalized]:
+    "Globales Rennwochenende finalisiert",
+  [ChampionshipAuditAction.GlobalWeekendInvalidated]:
+    "Globales Rennwochenende invalidiert",
+  [ChampionshipAuditAction.GlobalStandingsRebuilt]:
+    "Teamchef-WM neu berechnet",
+};
+
+export const globalWeekendStatusLabels: Record<
+  GlobalWeekendStatus,
+  string
+> = {
+  [GlobalWeekendStatus.Pending]: "Wartet auf vollständige Daten",
+  [GlobalWeekendStatus.Finalized]: "Finalisiert",
+  [GlobalWeekendStatus.Invalidated]: "Neuprüfung erforderlich",
 };
 
 export const evidenceTypeLabels: Record<EvidenceType, string> = {

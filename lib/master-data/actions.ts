@@ -16,6 +16,7 @@ import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { recalculateChampionship } from "@/lib/championship/recalculation";
+import { synchronizeGlobalTeamPrincipalChampionship } from "@/lib/championship/team-principal-championship";
 import {
   createNotifications,
   leagueUserIds,
@@ -28,6 +29,7 @@ import {
   raceSchema,
   seasonSchema,
   teamSchema,
+  teamOrganizationSchema,
 } from "./schemas";
 import { zonedLocalToUtc } from "./timezone";
 import { publicRaceTrack } from "@/lib/races/visibility";
@@ -70,6 +72,7 @@ function revalidateMasterData(): void {
   revalidatePath("/calendar");
   revalidatePath("/attendance");
   revalidatePath("/championship");
+  revalidatePath("/championship/team-principals");
   revalidatePath("/results/[id]", "page");
   revalidatePath("/admin/attendance");
   revalidatePath("/admin/results");
@@ -1056,6 +1059,7 @@ function teamPayload(formData: FormData) {
     color: formData.get("color"),
     leagueId: formData.get("leagueId"),
     seasonId: formData.get("seasonId"),
+    organizationId: formData.get("organizationId"),
     principalUserId: formData.get("principalUserId"),
     driverIds: formData.getAll("driverIds"),
     active: formData.get("active"),
@@ -1188,6 +1192,11 @@ export async function updateTeamAction(
 
   try {
     await prisma.$transaction(async (transaction) => {
+      const existing = await transaction.team.findUnique({
+        where: { id: teamId.data },
+        select: { seasonId: true },
+      });
+      if (!existing) throw new Error("NOT_FOUND");
       await transaction.team.update({
         where: { id: teamId.data },
         data: teamData,
@@ -1208,6 +1217,19 @@ export async function updateTeamAction(
           },
         });
       }
+      const seasonIds = [
+        ...new Set([existing.seasonId, parsed.data.seasonId]),
+      ];
+      const races = await transaction.race.findMany({
+        where: { seasonId: { in: seasonIds } },
+        select: { id: true },
+      });
+      for (const race of races) {
+        await synchronizeGlobalTeamPrincipalChampionship(
+          transaction,
+          race.id,
+        );
+      }
     });
   } catch {
     return databaseError();
@@ -1215,4 +1237,98 @@ export async function updateTeamAction(
 
   revalidateMasterData();
   return successState("Team wurde aktualisiert.");
+}
+
+function teamOrganizationPayload(formData: FormData) {
+  return {
+    name: formData.get("name"),
+    shortName: formData.get("shortName"),
+    color: formData.get("color"),
+    active: formData.get("active"),
+    seasonId: formData.get("seasonId"),
+    principalUserId: formData.get("principalUserId"),
+  };
+}
+
+export async function createTeamOrganizationAction(
+  _previousState: MasterDataActionState,
+  formData: FormData,
+): Promise<MasterDataActionState> {
+  await authorize();
+  const parsed = teamOrganizationSchema.safeParse(
+    teamOrganizationPayload(formData),
+  );
+  if (!parsed.success) return validationState(parsed);
+  const {
+    seasonId,
+    principalUserId,
+    ...organizationData
+  } = parsed.data;
+  try {
+    await getPrismaClient().teamOrganization.create({
+      data: {
+        ...organizationData,
+        seasons: seasonId
+          ? {
+              create: {
+                seasonId,
+                principalUserId,
+              },
+            }
+          : undefined,
+      },
+    });
+  } catch {
+    return databaseError();
+  }
+  revalidateMasterData();
+  return successState("Teamorganisation wurde erstellt.");
+}
+
+export async function updateTeamOrganizationAction(
+  organizationIdInput: number,
+  _previousState: MasterDataActionState,
+  formData: FormData,
+): Promise<MasterDataActionState> {
+  await authorize();
+  const organizationId = entityIdSchema.safeParse(organizationIdInput);
+  const parsed = teamOrganizationSchema.safeParse(
+    teamOrganizationPayload(formData),
+  );
+  if (!organizationId.success || !parsed.success) {
+    return parsed.success
+      ? errorState("Ungültige Teamorganisation.")
+      : validationState(parsed);
+  }
+  const {
+    seasonId,
+    principalUserId,
+    ...organizationData
+  } = parsed.data;
+  try {
+    await getPrismaClient().teamOrganization.update({
+      where: { id: organizationId.data },
+      data: {
+        ...organizationData,
+        seasons: seasonId
+          ? {
+              upsert: {
+                where: {
+                  organizationId_seasonId: {
+                    organizationId: organizationId.data,
+                    seasonId,
+                  },
+                },
+                update: { principalUserId },
+                create: { seasonId, principalUserId },
+              },
+            }
+          : undefined,
+      },
+    });
+  } catch {
+    return databaseError();
+  }
+  revalidateMasterData();
+  return successState("Teamorganisation wurde aktualisiert.");
 }

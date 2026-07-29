@@ -9,7 +9,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test lib/championship/result-engine.test.ts lib/championship/result-workspace.test.ts lib/championship/attendance-policy.test.ts lib/fia/proposal-policy.test.ts lib/fia/archive-policy.test.ts lib/fia/chat-policy.test.ts lib/storage/evidence-constants.test.ts lib/storage/evidence-upload-client.test.ts",
+    "test": "tsx --test lib/championship/result-engine.test.ts lib/championship/result-workspace.test.ts lib/championship/attendance-policy.test.ts lib/championship/team-principal-policy.test.ts lib/fia/proposal-policy.test.ts lib/fia/archive-policy.test.ts lib/fia/chat-policy.test.ts lib/storage/evidence-constants.test.ts lib/storage/evidence-upload-client.test.ts",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
@@ -18,7 +18,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "bot:start": "node --conditions=react-server --import tsx scripts/discord-bot.ts",
-    "automation:run": "node --conditions=react-server --import tsx scripts/run-automation.ts"
+    "automation:run": "node --conditions=react-server --import tsx scripts/run-automation.ts",
+    "championship:rebuild-global": "node --conditions=react-server --import tsx scripts/rebuild-team-principal-championship.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

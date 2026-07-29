@@ -125,6 +125,15 @@ enum ChampionshipAuditAction {
   SCORING_CHANGED
   ADJUSTMENT_CREATED
   CHAMPIONSHIP_RECALCULATED
+  GLOBAL_WEEKEND_FINALIZED
+  GLOBAL_WEEKEND_INVALIDATED
+  GLOBAL_STANDINGS_REBUILT
+}
+
+enum GlobalWeekendStatus {
+  PENDING
+  FINALIZED
+  INVALIDATED
 }
 
 enum NotificationType {
@@ -319,6 +328,7 @@ model User {
   decisionMemberships      DecisionSteward[]
   ticketAuditEntries       FiaTicketAuditLog[]
   principalTeams           Team[]                     @relation("TeamPrincipal")
+  organizationSeasons      TeamOrganizationSeason[]   @relation("OrganizationSeasonPrincipal")
   attendanceChanges        RaceAttendance[]           @relation("AttendanceSubmitter")
   attendanceAuditEntries   AttendanceAudit[]          @relation("AttendanceAuditActor")
   championshipAdjustments  ChampionshipAdjustment[]
@@ -409,6 +419,7 @@ model Team {
   id                      Int                      @id @default(autoincrement())
   leagueId                Int
   seasonId                Int
+  organizationId          Int?
   principalUserId         Int?
   name                    String                   @db.VarChar(160)
   shortName               String                   @db.VarChar(12)
@@ -417,6 +428,7 @@ model Team {
   league                  League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   season                  Season                   @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   principal               User?                    @relation("TeamPrincipal", fields: [principalUserId], references: [id], onDelete: SetNull)
+  organization            TeamOrganization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   drivers                 Driver[]
   standings               TeamStanding[]
   attendanceEntries       RaceAttendance[]
@@ -428,6 +440,41 @@ model Team {
   @@unique([leagueId, seasonId, name])
   @@unique([leagueId, seasonId, shortName])
   @@index([leagueId, seasonId, active])
+  @@index([principalUserId])
+  @@index([organizationId, seasonId])
+}
+
+model TeamOrganization {
+  id            Int                      @id @default(autoincrement())
+  name          String                   @db.VarChar(160)
+  shortName     String                   @db.VarChar(12)
+  color         String                   @db.Char(7)
+  active        Boolean                  @default(true)
+  teams         Team[]
+  seasons       TeamOrganizationSeason[]
+  standings     GlobalTeamStanding[]
+  contributions GlobalTeamContribution[]
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@unique([name])
+  @@index([shortName])
+  @@index([active, name])
+}
+
+model TeamOrganizationSeason {
+  id              Int              @id @default(autoincrement())
+  organizationId  Int
+  seasonId        Int
+  principalUserId Int?
+  organization    TeamOrganization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  season          Season           @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  principal       User?            @relation("OrganizationSeasonPrincipal", fields: [principalUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([organizationId, seasonId])
+  @@index([seasonId, principalUserId])
   @@index([principalUserId])
 }
 
@@ -453,6 +500,7 @@ model League {
   resultSessions                   RaceResultSession[]
   championshipAdjustments          ChampionshipAdjustment[]
   championshipAudits               ChampionshipAudit[]
+  globalTeamContributions          GlobalTeamContribution[]
   tickets                          FiaTicket[]
   raceSchedules                    RaceLeagueSchedule[]
   attendanceAuditEntries           AttendanceAudit[]
@@ -483,6 +531,8 @@ model Season {
   scoringConfigurations   ScoringConfiguration[]
   championshipAdjustments ChampionshipAdjustment[]
   championshipAudits      ChampionshipAudit[]
+  organizationSeasons     TeamOrganizationSeason[]
+  globalTeamStandings     GlobalTeamStanding[]
   tickets                 FiaTicket[]
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
@@ -517,6 +567,8 @@ model Race {
   resultSessions          RaceResultSession[]
   championshipAdjustments ChampionshipAdjustment[]
   championshipAudits      ChampionshipAudit[]
+  globalWeekend           GlobalRaceWeekend?
+  globalTeamContributions GlobalTeamContribution[]
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 
@@ -865,6 +917,61 @@ model ChampionshipAudit {
   @@index([actorId, createdAt])
   @@index([action, createdAt])
   @@index([entityType, entityId])
+}
+
+model GlobalRaceWeekend {
+  id            Int                 @id @default(autoincrement())
+  raceId        Int                 @unique
+  status        GlobalWeekendStatus @default(PENDING)
+  reason        String?             @db.VarChar(1000)
+  version       Int                 @default(1)
+  finalizedAt   DateTime?
+  invalidatedAt DateTime?
+  race          Race                @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+model GlobalTeamContribution {
+  id             Int              @id @default(autoincrement())
+  raceId         Int
+  leagueId       Int
+  organizationId Int
+  racePoints     Float            @default(0)
+  sprintPoints   Float            @default(0)
+  points         Float            @default(0)
+  race           Race             @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  league         League           @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  organization   TeamOrganization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([raceId, leagueId, organizationId])
+  @@index([organizationId, raceId])
+  @@index([leagueId, raceId])
+}
+
+model GlobalTeamStanding {
+  id                    Int              @id @default(autoincrement())
+  seasonId              Int
+  organizationId        Int
+  position              Int
+  points                Float            @default(0)
+  racePoints            Float            @default(0)
+  sprintPoints          Float            @default(0)
+  leagueCount           Int              @default(0)
+  finalizedWeekendCount Int              @default(0)
+  season                Season           @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  organization          TeamOrganization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@unique([seasonId, organizationId])
+  @@unique([seasonId, position])
+  @@index([organizationId])
+  @@index([seasonId, points])
 }
 
 model FiaTicket {

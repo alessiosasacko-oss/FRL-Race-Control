@@ -110,6 +110,15 @@ export enum ChampionshipAuditAction {
   ScoringChanged = "SCORING_CHANGED",
   AdjustmentCreated = "ADJUSTMENT_CREATED",
   ChampionshipRecalculated = "CHAMPIONSHIP_RECALCULATED",
+  GlobalWeekendFinalized = "GLOBAL_WEEKEND_FINALIZED",
+  GlobalWeekendInvalidated = "GLOBAL_WEEKEND_INVALIDATED",
+  GlobalStandingsRebuilt = "GLOBAL_STANDINGS_REBUILT",
+}
+
+export enum GlobalWeekendStatus {
+  Pending = "PENDING",
+  Finalized = "FINALIZED",
+  Invalidated = "INVALIDATED",
 }
 
 export enum NotificationType {
@@ -296,6 +305,7 @@ export const championshipAdjustmentTargetSchema = z.enum(
 export const championshipAuditActionSchema = z.enum(
   ChampionshipAuditAction,
 );
+export const globalWeekendStatusSchema = z.enum(GlobalWeekendStatus);
 export const notificationTypeSchema = z.enum(NotificationType);
 export const notificationPrioritySchema = z.enum(NotificationPriority);
 export const emailDeliveryStatusSchema = z.enum(EmailDeliveryStatus);

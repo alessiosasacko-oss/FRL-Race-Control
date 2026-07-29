@@ -22,6 +22,7 @@ import type {
   SeasonAdminItem,
   TeamDetail,
   TeamItem,
+  TeamOrganizationItem,
 } from "./types";
 
 export type MasterDataListQuery = {
@@ -40,7 +41,7 @@ export function parseMasterDataListQuery(
 
 export async function getMasterDataOptions(): Promise<MasterDataOptions> {
   const prisma = getPrismaClient();
-  const [leagues, seasons, teams, users, drivers] =
+  const [leagues, seasons, teams, users, drivers, organizations] =
     await prisma.$transaction([
     prisma.league.findMany({
       orderBy: { code: "asc" },
@@ -92,6 +93,16 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
         team: { select: { name: true } },
       },
     }),
+    prisma.teamOrganization.findMany({
+      orderBy: [{ active: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        shortName: true,
+        color: true,
+        active: true,
+      },
+    }),
   ]);
 
   return {
@@ -110,6 +121,7 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
       teamName: driver.team?.name ?? null,
       active: driver.active,
     })),
+    organizations,
     seasons: seasons.map((season) => ({
       id: season.id,
       leagueId: season.leagueId,
@@ -556,6 +568,15 @@ export async function getTeamItems(
           active: true,
         },
       },
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          color: true,
+          active: true,
+        },
+      },
     },
   });
 
@@ -567,6 +588,7 @@ export async function getTeamItems(
     active: team.active,
     league: team.league,
     season: team.season,
+    organization: team.organization,
     principal: team.principal,
     drivers: team.drivers,
     updatedAt: team.updatedAt.toISOString(),
@@ -595,6 +617,15 @@ export async function getTeamById(
           active: true,
         },
       },
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          color: true,
+          active: true,
+        },
+      },
       _count: { select: { standings: true } },
     },
   });
@@ -609,9 +640,40 @@ export async function getTeamById(
     active: team.active,
     league: team.league,
     season: team.season,
+    organization: team.organization,
     principal: team.principal,
     drivers: team.drivers,
     updatedAt: team.updatedAt.toISOString(),
     standingCount: team._count.standings,
   };
+}
+
+export async function getTeamOrganizationItems(): Promise<
+  TeamOrganizationItem[]
+> {
+  const organizations = await getPrismaClient().teamOrganization.findMany({
+    orderBy: [{ active: "desc" }, { name: "asc" }],
+    include: {
+      seasons: {
+        orderBy: { season: { startsOn: "desc" } },
+        select: {
+          seasonId: true,
+          season: { select: { name: true } },
+          principal: { select: { id: true, displayName: true } },
+        },
+      },
+    },
+  });
+  return organizations.map((organization) => ({
+    id: organization.id,
+    name: organization.name,
+    shortName: organization.shortName,
+    color: organization.color,
+    active: organization.active,
+    seasons: organization.seasons.map((season) => ({
+      seasonId: season.seasonId,
+      seasonName: season.season.name,
+      principal: season.principal,
+    })),
+  }));
 }

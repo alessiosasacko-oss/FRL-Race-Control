@@ -42,6 +42,7 @@ import {
 } from "./result-engine";
 import { resultRowsForIntent } from "./result-editor";
 import { recalculateChampionship } from "./recalculation";
+import { synchronizeGlobalTeamPrincipalChampionship } from "./team-principal-championship";
 import {
   resultDraftSubmissionSchema,
   resultSubmissionSchema,
@@ -864,6 +865,11 @@ export async function saveResultsAction(
         },
       });
 
+      await synchronizeGlobalTeamPrincipalChampionship(
+        transaction,
+        race.id,
+        user.id,
+      );
       if (!publish) return;
 
       await recalculateChampionship(
