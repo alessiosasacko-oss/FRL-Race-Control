@@ -14,6 +14,16 @@ type VideoUploadInput = {
   fileSize: number;
 };
 
+export class EvidenceStorageError extends Error {
+  constructor(
+    public readonly code: string,
+    options?: ErrorOptions,
+  ) {
+    super(code, options);
+    this.name = "EvidenceStorageError";
+  }
+}
+
 let cachedClient: SupabaseClient | undefined;
 let cachedClientKey = "";
 
@@ -76,7 +86,9 @@ export async function createSignedVideoUpload(
     .createSignedUploadUrl(storagePath, { upsert: false });
 
   if (error || !data) {
-    throw new Error("SIGNED_UPLOAD_FAILED", { cause: error });
+    throw new EvidenceStorageError("SIGNED_UPLOAD_FAILED", {
+      cause: error,
+    });
   }
 
   return { signedUrl: data.signedUrl, storagePath };
@@ -103,27 +115,48 @@ function hasWebmSignature(bytes: Uint8Array): boolean {
 }
 
 async function readSignature(storagePath: string): Promise<Uint8Array> {
-  const signedUrl = await createSignedVideoViewUrl(storagePath, 60);
-  const response = await fetch(signedUrl, {
-    cache: "no-store",
-    headers: { Range: "bytes=0-63" },
-  });
+  const config = getEvidenceStorageConfig();
+  const encodedBucket = encodeURIComponent(config.bucket);
+  const encodedPath = storagePath
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
+  let response: Response;
 
-  if (!response.ok) {
-    throw new Error("VIDEO_SIGNATURE_READ_FAILED");
+  try {
+    response = await fetch(
+      `${config.supabaseUrl}/storage/v1/object/${encodedBucket}/${encodedPath}`,
+      {
+        cache: "no-store",
+        headers: {
+          apikey: config.serviceRoleKey,
+          Authorization: `Bearer ${config.serviceRoleKey}`,
+          Range: "bytes=0-63",
+        },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+  } catch (error: unknown) {
+    throw new EvidenceStorageError("VIDEO_SIGNATURE_READ_FAILED", {
+      cause: error,
+    });
   }
 
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("VIDEO_SIGNATURE_READ_FAILED");
-  const { value } = await reader.read();
-  await reader.cancel();
-  if (!value) throw new Error("VIDEO_SIGNATURE_READ_FAILED");
+  if (!response.ok) {
+    throw new EvidenceStorageError("VIDEO_SIGNATURE_READ_FAILED");
+  }
+
+  const value = new Uint8Array(await response.arrayBuffer());
+  if (value.length === 0) {
+    throw new EvidenceStorageError("VIDEO_SIGNATURE_READ_FAILED");
+  }
   return value.slice(0, 64);
 }
 
 export async function verifyStoredVideo(
   userId: number,
   input: VideoUploadInput & {
+    temporaryUploadId: string;
     storagePath: string;
     label: string;
   },
@@ -131,7 +164,7 @@ export async function verifyStoredVideo(
   validateVideoUploadInput(input);
 
   if (!isOwnedPendingStoragePath(input.storagePath, userId)) {
-    throw new Error("INVALID_STORAGE_PATH");
+    throw new EvidenceStorageError("INVALID_STORAGE_PATH");
   }
 
   const config = getEvidenceStorageConfig();
@@ -140,7 +173,9 @@ export async function verifyStoredVideo(
     .info(input.storagePath);
 
   if (error || !data) {
-    throw new Error("UPLOADED_VIDEO_NOT_FOUND", { cause: error });
+    throw new EvidenceStorageError("UPLOADED_VIDEO_NOT_FOUND", {
+      cause: error,
+    });
   }
 
   const storedMimeType = data.contentType?.split(";")[0]?.toLowerCase();
@@ -149,7 +184,7 @@ export async function verifyStoredVideo(
     storedMimeType !== input.mimeType.toLowerCase() ||
     !config.limits.allowedMimeTypes.includes(storedMimeType)
   ) {
-    throw new Error("UPLOADED_VIDEO_METADATA_MISMATCH");
+    throw new EvidenceStorageError("UPLOADED_VIDEO_METADATA_MISMATCH");
   }
 
   const signature = await readSignature(input.storagePath);
@@ -159,11 +194,12 @@ export async function verifyStoredVideo(
       : hasMp4FamilySignature(signature);
 
   if (!signatureIsValid) {
-    throw new Error("UPLOADED_VIDEO_SIGNATURE_INVALID");
+    throw new EvidenceStorageError("UPLOADED_VIDEO_SIGNATURE_INVALID");
   }
 
   return {
     kind: "upload",
+    temporaryUploadId: input.temporaryUploadId,
     storagePath: input.storagePath,
     originalFilename: safeEvidenceFilename(input.originalFilename),
     mimeType: storedMimeType,
@@ -186,7 +222,9 @@ export async function createSignedVideoViewUrl(
     );
 
   if (error || !data) {
-    throw new Error("SIGNED_VIEW_URL_FAILED", { cause: error });
+    throw new EvidenceStorageError("SIGNED_VIEW_URL_FAILED", {
+      cause: error,
+    });
   }
 
   return data.signedUrl;
@@ -203,6 +241,8 @@ export async function removeStoredEvidenceFiles(
     .remove(uniquePaths);
 
   if (error) {
-    throw new Error("STORAGE_CLEANUP_FAILED", { cause: error });
+    throw new EvidenceStorageError("STORAGE_CLEANUP_FAILED", {
+      cause: error,
+    });
   }
 }

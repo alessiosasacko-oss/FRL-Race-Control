@@ -8,16 +8,38 @@ export const videoUploadRequestSchema = z.object({
     .pipe(z.string().min(1).max(255)),
   mimeType: z.string().trim().min(1).max(120),
   fileSize: z.coerce.number().int().positive(),
+  submissionKey: z.uuid().optional(),
+  ticketId: z.coerce.number().int().positive().optional(),
+}).refine(
+  (value) =>
+    (value.submissionKey === undefined) !==
+    (value.ticketId === undefined),
+  "Der Upload muss einem Ticket oder einer Ticketeinreichung zugeordnet sein.",
+);
+
+export const pendingStoragePathSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(500)
+  .regex(/^pending\/\d+\/[0-9a-f-]+\.(?:mp4|mov|webm)$/);
+
+export const videoUploadPreparationSchema = z.object({
+  temporaryUploadId: z.uuid(),
+  signedUrl: z.url(),
+  storagePath: pendingStoragePathSchema,
 });
 
-export const uploadedVideoInputSchema = videoUploadRequestSchema.extend({
+export const uploadedVideoInputSchema = z.object({
   kind: z.literal("upload"),
-  storagePath: z
+  temporaryUploadId: z.uuid(),
+  storagePath: pendingStoragePathSchema,
+  originalFilename: z
     .string()
-    .trim()
-    .min(1)
-    .max(500)
-    .regex(/^pending\/\d+\/[0-9a-f-]+\.(?:mp4|mov|webm)$/),
+    .transform(safeEvidenceFilename)
+    .pipe(z.string().min(1).max(255)),
+  mimeType: z.string().trim().min(1).max(120),
+  fileSize: z.coerce.number().int().positive(),
   label: z.string().trim().min(1).max(160),
   uploadedAt: z.iso.datetime(),
 });
@@ -39,10 +61,18 @@ export const ticketEvidenceInputSchema = z.discriminatedUnion("kind", [
   uploadedVideoInputSchema,
 ]);
 
-export const completeVideoUploadSchema = uploadedVideoInputSchema.omit({
-  uploadedAt: true,
+export const completeVideoUploadSchema = z.object({
+  temporaryUploadId: z.uuid(),
+  storagePath: pendingStoragePathSchema,
+  label: z.string().trim().min(1).max(160),
 });
 
 export const cancelVideoUploadSchema = z.object({
+  temporaryUploadId: z.uuid().optional(),
   storagePath: uploadedVideoInputSchema.shape.storagePath,
+});
+
+export const videoUploadCompletionSchema = z.object({
+  upload: uploadedVideoInputSchema,
+  evidenceId: z.number().int().positive().optional(),
 });

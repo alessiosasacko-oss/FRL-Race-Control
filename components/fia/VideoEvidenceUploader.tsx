@@ -19,18 +19,30 @@ import {
 } from "lucide-react";
 import type {
   UploadedVideoMetadata,
+  VideoUploadCompletion,
   VideoUploadLimits,
+  VideoUploadPreparation,
+  VideoUploadStage,
 } from "@/lib/storage/evidence-types";
 import {
   FIA_VIDEO_ACCEPT,
   validateVideoMetadata,
 } from "@/lib/storage/evidence-constants";
+import {
+  videoUploadCompletionSchema,
+  videoUploadPreparationSchema,
+} from "@/lib/storage/evidence-schemas";
+import {
+  parseUploadResponse,
+  videoUploadRetryPlan,
+} from "@/lib/storage/evidence-upload-client";
 
 type VideoEvidenceUploaderProps = {
   limits: VideoUploadLimits;
   uploads: UploadedVideoMetadata[];
   onUploadsChange: (uploads: UploadedVideoMetadata[]) => void;
   ticketId?: number;
+  submissionKey?: string;
   existingFileCount?: number;
 };
 
@@ -44,18 +56,16 @@ export type UploadBatchResult = {
   uploads: UploadedVideoMetadata[];
 };
 
-type UploadPreparation = {
-  signedUrl: string;
-  storagePath: string;
-};
-
 type QueuedVideo = {
   key: string;
   file: File;
   label: string;
   progress: number;
-  status: "selected" | "uploading" | "success" | "error";
+  status: VideoUploadStage;
   message: string;
+  temporaryUploadId?: string;
+  storagePath?: string;
+  storageUploaded: boolean;
 };
 
 function formatBytes(bytes: number): string {
@@ -69,14 +79,6 @@ function formatBytes(bytes: number): string {
 
 function defaultLabel(filename: string): string {
   return filename.replace(/\.[^.]+$/, "").slice(0, 160);
-}
-
-async function jsonResponse<T>(response: Response): Promise<T> {
-  const body = (await response.json()) as T & { error?: string };
-  if (!response.ok) {
-    throw new Error(body.error ?? "Der Upload ist fehlgeschlagen.");
-  }
-  return body;
 }
 
 function uploadFile(
@@ -125,6 +127,7 @@ const VideoEvidenceUploader = forwardRef<
     uploads,
     onUploadsChange,
     ticketId,
+    submissionKey,
     existingFileCount = 0,
   },
   ref,
@@ -221,6 +224,9 @@ const VideoEvidenceUploader = forwardRef<
         progress: 0,
         status: "selected",
         message: "",
+        temporaryUploadId: undefined,
+        storagePath: undefined,
+        storageUploaded: false,
       });
       setMessage("");
       return;
@@ -252,6 +258,7 @@ const VideoEvidenceUploader = forwardRef<
           progress: 0,
           status: "selected",
           message: "",
+          storageUploaded: false,
         });
       }
     }
@@ -269,70 +276,117 @@ const VideoEvidenceUploader = forwardRef<
   async function uploadQueued(
     item: QueuedVideo,
   ): Promise<UploadedVideoMetadata | null> {
-    updateQueued(item.key, {
-      status: "uploading",
-      progress: 0,
-      message: "",
-    });
-    let storagePath: string | undefined;
+    let preparation: VideoUploadPreparation | undefined =
+      item.temporaryUploadId && item.storagePath
+        ? {
+            temporaryUploadId: item.temporaryUploadId,
+            storagePath: item.storagePath,
+            signedUrl: "",
+          }
+        : undefined;
+    let storageUploaded = item.storageUploaded;
 
     try {
-      const preparation = await jsonResponse<UploadPreparation>(
-        await fetch("/api/fia/evidence/uploads", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            originalFilename: item.file.name,
-            mimeType: item.file.type,
-            fileSize: item.file.size,
+      if (
+        videoUploadRetryPlan(storageUploaded) ===
+          "prepare-and-upload" &&
+        !preparation
+      ) {
+        updateQueued(item.key, {
+          status: "preparing",
+          progress: 0,
+          message: "Upload wird vorbereitet …",
+        });
+        preparation = await parseUploadResponse(
+          await fetch("/api/fia/evidence/uploads", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              originalFilename: item.file.name,
+              mimeType: item.file.type,
+              fileSize: item.file.size,
+              ticketId,
+              submissionKey,
+            }),
           }),
-        }),
-      );
-      storagePath = preparation.storagePath;
-      await uploadFile(preparation.signedUrl, item.file, (progress) =>
-        updateQueued(item.key, { progress }),
-      );
+          videoUploadPreparationSchema,
+        );
+        updateQueued(item.key, {
+          temporaryUploadId: preparation.temporaryUploadId,
+          storagePath: preparation.storagePath,
+        });
+      }
+      if (!preparation) {
+        throw new Error("Der Upload konnte nicht vorbereitet werden.");
+      }
 
-      const completed = await jsonResponse<{
-        upload: UploadedVideoMetadata;
-        evidenceId?: number;
-      }>(
+      if (!storageUploaded) {
+        updateQueued(item.key, {
+          status: "uploading",
+          progress: 0,
+          message: "Video wird hochgeladen …",
+        });
+        await uploadFile(preparation.signedUrl, item.file, (progress) =>
+          updateQueued(item.key, {
+            progress: Math.min(progress, 99),
+          }),
+        );
+        storageUploaded = true;
+        updateQueued(item.key, {
+          storageUploaded: true,
+          progress: 100,
+        });
+      }
+
+      updateQueued(item.key, {
+        status: "finalizing",
+        progress: 100,
+        message: "Video wird verarbeitet und verknüpft …",
+      });
+      const completed = await parseUploadResponse<VideoUploadCompletion>(
         await fetch("/api/fia/evidence/uploads/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            ticketId,
-            upload: {
-              kind: "upload",
-              storagePath: preparation.storagePath,
-              originalFilename: item.file.name,
-              mimeType: item.file.type,
-              fileSize: item.file.size,
-              label: item.label.trim(),
-            },
+            temporaryUploadId: preparation.temporaryUploadId,
+            storagePath: preparation.storagePath,
+            label: item.label.trim(),
           }),
         }),
+        videoUploadCompletionSchema,
       );
       updateQueued(item.key, {
-        status: "success",
+        status: "completed",
         progress: 100,
-        message: "Upload erfolgreich",
+        message: "Video erfolgreich hochgeladen",
       });
       return completed.upload;
     } catch (error: unknown) {
-      if (storagePath) {
+      if (!storageUploaded && preparation?.storagePath) {
         await fetch("/api/fia/evidence/uploads", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ storagePath }),
+          body: JSON.stringify({
+            temporaryUploadId: preparation.temporaryUploadId,
+            storagePath: preparation.storagePath,
+          }),
         }).catch(() => undefined);
       }
       updateQueued(item.key, {
-        status: "error",
+        status: "failed",
+        temporaryUploadId: storageUploaded
+          ? preparation?.temporaryUploadId
+          : undefined,
+        storagePath: storageUploaded
+          ? preparation?.storagePath
+          : undefined,
+        storageUploaded,
         message:
           error instanceof Error
             ? error.message
-            : "Das Video konnte nicht hochgeladen werden.",
+            : storageUploaded
+              ? "Das Video wurde hochgeladen, konnte aber noch nicht mit dem Ticket verknüpft werden. Versuche die Verknüpfung erneut."
+              : "Der Storage-Upload ist fehlgeschlagen.",
       });
       return null;
     }
@@ -341,7 +395,7 @@ const VideoEvidenceUploader = forwardRef<
   async function startUploads(): Promise<UploadBatchResult> {
     const pending = queue.filter(
       (item) =>
-        item.status !== "success" && item.label.trim().length > 0,
+        item.status !== "completed" && item.label.trim().length > 0,
     );
     if (pending.length === 0) {
       return { success: true, uploads };
@@ -365,7 +419,7 @@ const VideoEvidenceUploader = forwardRef<
       router.refresh();
     }
     setQueue((current) =>
-      current.filter((item) => item.status !== "success"),
+      current.filter((item) => item.status !== "completed"),
     );
     setUploading(false);
     setMessage(
@@ -381,16 +435,19 @@ const VideoEvidenceUploader = forwardRef<
 
   useImperativeHandle(ref, () => ({
     hasPendingFiles: () =>
-      queue.some((item) => item.status !== "success"),
+      queue.some((item) => item.status !== "completed"),
     uploadPending: startUploads,
   }));
 
-  async function removeUpload(storagePath: string): Promise<boolean> {
+  async function removeUpload(
+    storagePath: string,
+    temporaryUploadId?: string,
+  ): Promise<boolean> {
     setMessage("");
     const response = await fetch("/api/fia/evidence/uploads", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ storagePath }),
+      body: JSON.stringify({ storagePath, temporaryUploadId }),
     });
     if (!response.ok) {
       const body = (await response.json()) as { error?: string };
@@ -411,6 +468,41 @@ const VideoEvidenceUploader = forwardRef<
     if (await removeUpload(storagePath)) {
       fileInputRef.current?.click();
     }
+  }
+
+  async function discardQueuedItem(item: QueuedVideo): Promise<void> {
+    if (item.storagePath) {
+      const removed = await removeUpload(
+        item.storagePath,
+        item.temporaryUploadId,
+      );
+      if (!removed) return;
+    }
+    setQueue((current) =>
+      current.filter((candidate) => candidate.key !== item.key),
+    );
+  }
+
+  async function prepareQueuedReplacement(
+    item: QueuedVideo,
+  ): Promise<void> {
+    if (item.storagePath) {
+      const removed = await removeUpload(
+        item.storagePath,
+        item.temporaryUploadId,
+      );
+      if (!removed) return;
+    }
+    updateQueued(item.key, {
+      temporaryUploadId: undefined,
+      storagePath: undefined,
+      storageUploaded: false,
+      progress: 0,
+      status: "selected",
+      message: "",
+    });
+    replacementKeyRef.current = item.key;
+    fileInputRef.current?.click();
   }
 
   if (!limits.enabled) {
@@ -541,20 +633,20 @@ const VideoEvidenceUploader = forwardRef<
         <div
           key={item.key}
           className={`space-y-4 rounded-2xl border p-4 ${
-            item.status === "error"
+            item.status === "failed"
               ? "border-red-500/35 bg-red-500/5"
-              : item.status === "success"
+              : item.status === "completed"
                 ? "border-green-500/35 bg-green-500/5"
                 : "border-blue-500/30 bg-blue-500/5"
           }`}
         >
           <div className="flex min-w-0 items-start gap-3">
-            {item.status === "error" ? (
+            {item.status === "failed" ? (
               <XCircle
                 className="mt-0.5 shrink-0 text-red-400"
                 size={21}
               />
-            ) : item.status === "success" ? (
+            ) : item.status === "completed" ? (
               <CheckCircle2
                 className="mt-0.5 shrink-0 text-green-400"
                 size={21}
@@ -576,7 +668,7 @@ const VideoEvidenceUploader = forwardRef<
               {item.message ? (
                 <p
                   className={`mt-1 text-sm ${
-                    item.status === "error"
+                    item.status === "failed"
                       ? "text-red-300"
                       : "text-green-300"
                   }`}
@@ -591,7 +683,11 @@ const VideoEvidenceUploader = forwardRef<
             <input
               value={item.label}
               maxLength={160}
-              disabled={item.status === "uploading"}
+              disabled={
+                item.status === "preparing" ||
+                item.status === "uploading" ||
+                item.status === "finalizing"
+              }
               onChange={(event) =>
                 updateQueued(item.key, {
                   label: event.target.value,
@@ -602,13 +698,16 @@ const VideoEvidenceUploader = forwardRef<
             />
           </label>
           {item.status === "uploading" ||
+          item.status === "finalizing" ||
           item.progress > 0 ? (
             <div>
               <div className="mb-2 flex justify-between text-sm text-slate-300">
                 <span>
-                  {item.status === "success"
-                    ? "Upload abgeschlossen"
-                    : "Upload läuft…"}
+                  {item.status === "completed"
+                    ? "Video erfolgreich hochgeladen"
+                    : item.status === "finalizing"
+                      ? "Video wird verarbeitet und verknüpft …"
+                      : "Video wird hochgeladen …"}
                 </span>
                 <span>{item.progress}%</span>
               </div>
@@ -620,14 +719,21 @@ const VideoEvidenceUploader = forwardRef<
               </div>
             </div>
           ) : null}
+          {item.status === "failed" && item.storageUploaded ? (
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => void startUploads()}
+              className="wizard-primary-button min-h-12 w-full justify-center"
+            >
+              <RefreshCcw size={17} /> Verknüpfung erneut versuchen
+            </button>
+          ) : null}
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               type="button"
               disabled={uploading}
-              onClick={() => {
-                replacementKeyRef.current = item.key;
-                fileInputRef.current?.click();
-              }}
+              onClick={() => void prepareQueuedReplacement(item)}
               className="wizard-secondary-button min-h-12 justify-center"
             >
               <RefreshCcw size={17} /> Datei ersetzen
@@ -635,13 +741,7 @@ const VideoEvidenceUploader = forwardRef<
             <button
               type="button"
               disabled={uploading}
-              onClick={() =>
-                setQueue((current) =>
-                  current.filter(
-                    (candidate) => candidate.key !== item.key,
-                  ),
-                )
-              }
+              onClick={() => void discardQueuedItem(item)}
               className="wizard-secondary-button min-h-12 justify-center text-red-200"
             >
               <Trash2 size={17} /> Auswahl entfernen
@@ -702,7 +802,10 @@ const VideoEvidenceUploader = forwardRef<
             <button
               type="button"
               onClick={() =>
-                void removeUpload(upload.storagePath)
+                void removeUpload(
+                  upload.storagePath,
+                  upload.temporaryUploadId,
+                )
               }
               className="wizard-secondary-button min-h-11 justify-center px-3 text-red-200"
             >

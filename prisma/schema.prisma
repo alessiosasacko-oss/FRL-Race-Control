@@ -22,6 +22,14 @@ enum TicketStatus {
   RESOLVED
 }
 
+enum EvidenceUploadStatus {
+  PREPARED
+  FINALIZING
+  COMPLETED
+  FAILED
+  ORPHANED
+}
+
 enum PenaltyType {
   NO_FURTHER_ACTION
   WARNING
@@ -283,6 +291,7 @@ model User {
   archivedTickets          FiaTicket[]                @relation("TicketArchiver")
   ticketAssignments        FiaTicketSteward[]
   submittedEvidence        Evidence[]                 @relation("EvidenceSubmitter")
+  evidenceUploads          EvidenceUpload[]
   discussionMessages       DiscussionMessage[]
   votes                    Vote[]
   createdPenaltyProposals  PenaltyProposal[]          @relation("ProposalCreator")
@@ -863,6 +872,7 @@ model FiaTicket {
   drivers                 FiaTicketDriver[]
   stewardAssignments      FiaTicketSteward[]
   evidence                Evidence[]
+  evidenceUploads         EvidenceUpload[]
   discussionMessages      DiscussionMessage[]
   votes                   Vote[]
   penaltyProposals        PenaltyProposal[]
@@ -939,12 +949,41 @@ model Evidence {
   ticket            FiaTicket                 @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   submittedBy       User?                     @relation("EvidenceSubmitter", fields: [submittedByUserId], references: [id], onDelete: SetNull)
   proposalLinks     PenaltyProposalEvidence[]
+  upload            EvidenceUpload?
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
 
   @@unique([ticketId, url])
   @@index([submittedByUserId])
   @@index([ticketId, type])
+}
+
+model EvidenceUpload {
+  id               String               @id @default(uuid()) @db.Uuid
+  userId           Int
+  ticketId         Int?
+  evidenceId       Int?                 @unique
+  submissionKey    String?              @db.VarChar(36)
+  storagePath      String               @unique @db.VarChar(500)
+  originalFilename String               @db.VarChar(255)
+  mimeType         String               @db.VarChar(120)
+  fileSize         Int
+  label            String?              @db.VarChar(160)
+  status           EvidenceUploadStatus @default(PREPARED)
+  failureCode      String?              @db.VarChar(80)
+  uploadedAt       DateTime?
+  completedAt      DateTime?
+  expiresAt        DateTime
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticket           FiaTicket?           @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  evidence         Evidence?            @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([userId, status])
+  @@index([submissionKey, status])
+  @@index([ticketId, status])
+  @@index([expiresAt, status])
 }
 
 model EvidenceStorageCleanup {

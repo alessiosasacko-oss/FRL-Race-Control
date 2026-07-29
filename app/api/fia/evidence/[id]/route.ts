@@ -85,6 +85,9 @@ export async function DELETE(
 
   const prisma = getPrismaClient();
   await prisma.$transaction(async (transaction) => {
+    await transaction.evidenceUpload.deleteMany({
+      where: { evidenceId: evidence.id },
+    });
     await transaction.evidence.delete({ where: { id: evidence.id } });
     await transaction.fiaTicketAuditLog.create({
       data: {

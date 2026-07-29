@@ -5,10 +5,12 @@ import {
 } from "@/lib/auth/permissions";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { canModifyFiaEvidence } from "@/lib/fia/evidence-access";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
 import {
   cancelVideoUploadSchema,
   videoUploadRequestSchema,
+  videoUploadPreparationSchema,
 } from "@/lib/storage/evidence-schemas";
 import {
   createSignedVideoUpload,
@@ -62,8 +64,50 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
+    const prisma = getPrismaClient();
+
+    if (parsed.data.ticketId !== undefined) {
+      const ticket = await prisma.fiaTicket.findUnique({
+        where: { id: parsed.data.ticketId },
+        select: {
+          status: true,
+          archivedAt: true,
+          reportedByUserId: true,
+          drivers: {
+            select: { driver: { select: { userId: true } } },
+          },
+        },
+      });
+      if (!ticket) {
+        return errorResponse("Das Ticket konnte nicht gefunden werden.", 404);
+      }
+      if (!canModifyFiaEvidence(user, ticket)) {
+        return errorResponse(
+          "Zu diesem Ticket können keine Beweise hinzugefügt werden.",
+          403,
+        );
+      }
+    }
+
     const upload = await createSignedVideoUpload(user.id, parsed.data);
-    return NextResponse.json(upload);
+    const pendingUpload = await prisma.evidenceUpload.create({
+      data: {
+        userId: user.id,
+        ticketId: parsed.data.ticketId,
+        submissionKey: parsed.data.submissionKey,
+        storagePath: upload.storagePath,
+        originalFilename: parsed.data.originalFilename,
+        mimeType: parsed.data.mimeType.toLowerCase(),
+        fileSize: parsed.data.fileSize,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+      select: { id: true },
+    });
+    const response = videoUploadPreparationSchema.parse({
+      temporaryUploadId: pendingUpload.id,
+      ...upload,
+    });
+    return NextResponse.json(response, { status: 201 });
   } catch (error: unknown) {
     const code = error instanceof Error ? error.message : "";
     if (code === "UNSUPPORTED_VIDEO_TYPE") {
@@ -78,6 +122,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (code === "EVIDENCE_STORAGE_NOT_CONFIGURED") {
       return errorResponse("Der Video-Upload ist noch nicht konfiguriert.", 503);
     }
+    console.error("[fia-upload] Upload preparation failed.", {
+      userId: user.id,
+      code: code || "UNKNOWN",
+    });
     return errorResponse("Die Datei konnte nicht hochgeladen werden.", 502);
   }
 }
@@ -114,6 +162,16 @@ export async function DELETE(request: Request): Promise<NextResponse> {
 
   try {
     await removeStoredEvidenceFiles([parsed.data.storagePath]);
+    await getPrismaClient().evidenceUpload.deleteMany({
+      where: {
+        userId: user.id,
+        storagePath: parsed.data.storagePath,
+        ...(parsed.data.temporaryUploadId
+          ? { id: parsed.data.temporaryUploadId }
+          : {}),
+        evidenceId: null,
+      },
+    });
     return NextResponse.json({ success: true });
   } catch {
     return errorResponse("Der abgebrochene Upload konnte nicht entfernt werden.", 502);

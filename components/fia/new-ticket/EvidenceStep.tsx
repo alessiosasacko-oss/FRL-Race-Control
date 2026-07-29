@@ -16,6 +16,7 @@ type EvidenceStepProps = {
   options: Pick<TicketWizardOptions, "uploadLimits">;
   setData: React.Dispatch<React.SetStateAction<TicketWizardDraft>>;
   uploaderRef: React.Ref<VideoEvidenceUploaderHandle>;
+  submissionKey: string;
 };
 
 export default function EvidenceStep({
@@ -23,6 +24,7 @@ export default function EvidenceStep({
   options,
   setData,
   uploaderRef,
+  submissionKey,
 }: EvidenceStepProps) {
   const links = data.evidence.filter(
     (evidence): evidence is ExternalEvidenceDraft =>
@@ -110,6 +112,7 @@ export default function EvidenceStep({
           limits={options.uploadLimits}
           uploads={uploads}
           onUploadsChange={updateUploads}
+          submissionKey={submissionKey}
         />
       </section>
 

@@ -7,12 +7,32 @@ export type VideoUploadLimits = {
 
 export type UploadedVideoMetadata = {
   kind: "upload";
+  temporaryUploadId: string;
   storagePath: string;
   originalFilename: string;
   mimeType: string;
   fileSize: number;
   label: string;
   uploadedAt: string;
+};
+
+export type VideoUploadStage =
+  | "selected"
+  | "preparing"
+  | "uploading"
+  | "finalizing"
+  | "completed"
+  | "failed";
+
+export type VideoUploadPreparation = {
+  temporaryUploadId: string;
+  signedUrl: string;
+  storagePath: string;
+};
+
+export type VideoUploadCompletion = {
+  upload: UploadedVideoMetadata;
+  evidenceId?: number;
 };
 
 export type ExternalEvidenceMetadata = {

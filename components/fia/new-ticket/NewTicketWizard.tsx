@@ -95,7 +95,7 @@ export default function NewTicketWizard({
       setUploadPending(false);
       if (!result.success) {
         setWorkflowMessage(
-          "Die Datei konnte nicht hochgeladen werden. Bitte versuche es erneut.",
+          "Das Video wurde übertragen, aber die Verknüpfung ist noch nicht abgeschlossen. Versuche nur die Verknüpfung erneut.",
         );
         return;
       }
@@ -148,6 +148,7 @@ export default function NewTicketWizard({
                 options={options}
                 setData={setData}
                 uploaderRef={uploaderRef}
+                submissionKey={submissionKey}
               />
             ) : null}
             {step === 4 ? (
