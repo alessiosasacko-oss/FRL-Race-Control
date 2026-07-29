@@ -3,6 +3,7 @@ import Discord from "next-auth/providers/discord";
 import { z } from "zod";
 import { canonicalPrismaAdapter } from "@/lib/auth/adapter";
 import { authLogger } from "@/lib/auth/logging";
+import { safeAuthErrorDetails } from "@/lib/auth/logging-details";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { logger } from "@/lib/observability/logger";
 
@@ -50,8 +51,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       } catch (error: unknown) {
         logger.warn("Discord OAuth profile synchronization failed", {
           userId,
-          error:
-            error instanceof Error ? error.message : String(error),
+          ...safeAuthErrorDetails(error),
+          failedPhase: "discord_profile_persistence",
         });
       }
       return true;

@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["discord.js"],
+  logging: {
+    incomingRequests: {
+      ignore: [/\/api\/auth\/callback\//],
+    },
+  },
   images: {
     remotePatterns: [
       {
