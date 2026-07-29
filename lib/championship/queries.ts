@@ -930,6 +930,7 @@ export async function getRaceResults(
       revision: session.revision,
       lockedAt: session.lockedAt?.toISOString() ?? null,
       publishedAt: session.publishedAt?.toISOString() ?? null,
+      updatedAt: session.updatedAt.toISOString(),
       draftPayload: resultDraftPayload(session.draftPayload),
       results: session.results.map(resultRow),
     })),
@@ -965,6 +966,7 @@ export async function getResultAdminData(
     return {
       races,
       selected: null,
+      weekendLeagueResults: [],
       drivers: [],
       teams: [],
       fiaPenalties: [],
@@ -981,6 +983,7 @@ export async function getResultAdminData(
     return {
       races,
       selected: null,
+      weekendLeagueResults: [],
       drivers: [],
       teams: [],
       fiaPenalties: [],
@@ -997,6 +1000,28 @@ export async function getResultAdminData(
       ]),
     ),
   );
+  const selectedRaceContext = eligibleRaces.find(
+    (race) => race.id === selectedRaceId,
+  );
+  const weekendSessions = await prisma.raceResultSession.findMany({
+    where: { raceId: selectedRaceId },
+    select: {
+      leagueId: true,
+      session: true,
+      publicationStatus: true,
+    },
+  });
+  const weekendLeagueResults =
+    selectedRaceContext?.season.participatingLeagues.map((league) => ({
+      league,
+      sessions: weekendSessions
+        .filter((result) => result.leagueId === league.id)
+        .map((result) => ({
+          session: result.session as ResultSession,
+          publicationStatus:
+            result.publicationStatus as ResultPublicationStatus,
+        })),
+    })) ?? [];
 
   const [attendance, fiaTickets, scoringConfiguration] =
     await prisma.$transaction([
@@ -1111,6 +1136,7 @@ export async function getResultAdminData(
   return {
     races,
     selected,
+    weekendLeagueResults,
     drivers: drivers.map((driver) => ({
       id: driver.id,
       name: driver.name,

@@ -15,6 +15,8 @@ export type SportsActionState = {
   status: "idle" | "success" | "error";
   message: string;
   fieldErrors?: Record<string, string[]>;
+  completedAt?: string;
+  persisted?: boolean;
 };
 
 export const initialSportsActionState: SportsActionState = {
@@ -234,6 +236,7 @@ export type ResultSessionView = {
   revision: number;
   lockedAt: string | null;
   publishedAt: string | null;
+  updatedAt: string;
   draftPayload: {
     gapMode: ResultGapMode;
     results: Array<{
@@ -272,6 +275,13 @@ export type RaceResultsView = {
 export type ResultAdminData = {
   races: RaceOption[];
   selected: RaceResultsView | null;
+  weekendLeagueResults: Array<{
+    league: { id: number; code: string; name: string };
+    sessions: Array<{
+      session: ResultSession;
+      publicationStatus: ResultPublicationStatus;
+    }>;
+  }>;
   drivers: Array<{
     id: number;
     name: string;

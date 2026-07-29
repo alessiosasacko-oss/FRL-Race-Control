@@ -5,18 +5,22 @@ import {
   useActionState,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
-  CheckCircle2,
   GripVertical,
   Plus,
+  RefreshCcw,
+  Save,
   Search,
+  ShieldCheck,
   Trash2,
   Undo2,
+  X,
 } from "lucide-react";
 import {
   RaceSession,
@@ -26,6 +30,7 @@ import {
   ResultSession,
   ResultStatus,
   resultGapModeLabels,
+  resultSessionLabels,
   resultStatusLabels,
 } from "@/domain";
 import { deleteResultsAction } from "@/lib/championship/actions";
@@ -48,6 +53,11 @@ import {
   parseFastestLapInput,
   parseGapInput,
 } from "@/lib/championship/result-engine";
+import {
+  resultPublishSummary,
+  resultWorkspaceStorageKey,
+  unsavedResultWarning,
+} from "@/lib/championship/result-workspace";
 import {
   calculateResultPoints,
   scoringPositionKey,
@@ -281,7 +291,11 @@ export default function ResultsEditor({
     (item) => item.session === session,
   );
   const storageKey = data.selected
-    ? `frl-result-draft:${data.selected.race.id}:${data.selected.race.season.league.id}:${session}`
+    ? resultWorkspaceStorageKey(
+        data.selected.race.id,
+        data.selected.race.season.league.id,
+        session,
+      )
     : "";
   const [rows, setRows] = useState<RowState[]>(() =>
     initialRows(data, session),
@@ -301,6 +315,14 @@ export default function ResultsEditor({
     row: RowState;
     index: number;
   } | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(
+    existingSession?.updatedAt ?? null,
+  );
+  const [publishConfirmationOpen, setPublishConfirmationOpen] =
+    useState(false);
+  const publishSubmitRef = useRef<HTMLButtonElement>(null);
+  const navigationApprovedRef = useRef(false);
   const [state, action, pending] = useActionState(
     saveResultsAction,
     initialSportsActionState,
@@ -316,8 +338,14 @@ export default function ResultsEditor({
         gapMode?: ResultGapMode;
       };
       const restoreTimer = window.setTimeout(() => {
-        if (parsed.rows?.length) setRows(parsed.rows);
-        if (parsed.gapMode) setGapMode(parsed.gapMode);
+        if (parsed.rows?.length) {
+          setRows(parsed.rows);
+          setDirty(true);
+        }
+        if (parsed.gapMode) {
+          setGapMode(parsed.gapMode);
+          setDirty(true);
+        }
       }, 0);
       return () => window.clearTimeout(restoreTimer);
     } catch {
@@ -334,10 +362,77 @@ export default function ResultsEditor({
   }, [gapMode, rows, storageKey]);
 
   useEffect(() => {
-    if (state.status === "success" && storageKey) {
-      window.sessionStorage.removeItem(storageKey);
+    if (
+      state.status !== "success" ||
+      !state.persisted ||
+      !state.completedAt
+    ) {
+      return;
     }
-  }, [state.status, storageKey]);
+    if (storageKey) window.sessionStorage.removeItem(storageKey);
+    const completionTimer = window.setTimeout(() => {
+      setDirty(false);
+      setLastSavedAt(state.completedAt ?? null);
+    }, 0);
+    return () => window.clearTimeout(completionTimer);
+  }, [state.completedAt, state.persisted, state.status, storageKey]);
+
+  useEffect(() => {
+    if (!dirty || !data.selected) return;
+    const selected = data.selected;
+    const message = unsavedResultWarning(
+      selected.race.season.league.code,
+    );
+    const warnBeforeLeaving = (event: BeforeUnloadEvent): void => {
+      if (navigationApprovedRef.current) return;
+      event.preventDefault();
+      event.returnValue = message;
+    };
+    const confirmLinkNavigation = (event: MouseEvent): void => {
+      const target =
+        event.target instanceof Element
+          ? event.target.closest<HTMLAnchorElement>("a[href]")
+          : null;
+      if (!target || target.target === "_blank") return;
+      if (!window.confirm(message)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      navigationApprovedRef.current = true;
+    };
+    const confirmFormNavigation = (event: SubmitEvent): void => {
+      const form =
+        event.target instanceof HTMLFormElement ? event.target : null;
+      if (!form || form.id === "result-editor-form") return;
+      if (!window.confirm(message)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      navigationApprovedRef.current = true;
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    document.addEventListener("click", confirmLinkNavigation, true);
+    document.addEventListener("submit", confirmFormNavigation, true);
+    return () =>
+      {
+        window.removeEventListener(
+          "beforeunload",
+          warnBeforeLeaving,
+        );
+        document.removeEventListener(
+          "click",
+          confirmLinkNavigation,
+          true,
+        );
+        document.removeEventListener(
+          "submit",
+          confirmFormNavigation,
+          true,
+        );
+      };
+  }, [data.selected, dirty]);
 
   const selectedDriverIds = useMemo(
     () => rows.map((row) => row.driverId).filter(Boolean),
@@ -445,7 +540,7 @@ export default function ResultsEditor({
       position.points,
     ]),
   );
-  const preview = calculated.map((result) => {
+  const pointsByKey = new Map(calculated.map((result) => {
     const row = rows.find((candidate) => candidate.key === result.key);
     const points =
       session === ResultSession.Qualifying
@@ -469,22 +564,14 @@ export default function ResultsEditor({
             positionPoints,
             data.selected?.race.doublePoints ?? false,
           );
-    return { result, row, points };
-  });
-  const teamPoints = new Map<number, number>();
-  preview.forEach(({ row, points }) => {
-    const teamId = Number(row?.representedTeamId);
-    if (teamId) {
-      teamPoints.set(
-        teamId,
-        (teamPoints.get(teamId) ?? 0) +
-          points.teamBase +
-          points.teamBonus,
-      );
-    }
-  });
+    return [
+      result.key,
+      points.driverBase + points.driverBonus,
+    ] as const;
+  }));
 
   function updateRow(index: number, patch: Partial<RowState>): void {
+    setDirty(true);
     setRows((current) =>
       current.map((row, rowIndex) =>
         rowIndex === index ? { ...row, ...patch } : row,
@@ -516,11 +603,13 @@ export default function ResultsEditor({
   }
 
   function moveRow(index: number, direction: -1 | 1): void {
+    setDirty(true);
     setRows((current) => moveResultRow(current, index, direction));
   }
 
   function dropRow(targetIndex: number): void {
     if (draggedIndex === null || draggedIndex === targetIndex) return;
+    setDirty(true);
     setRows((current) => {
       const next = [...current];
       const [dragged] = next.splice(draggedIndex, 1);
@@ -531,6 +620,7 @@ export default function ResultsEditor({
   }
 
   function addRow(): void {
+    setDirty(true);
     setRows((current) => [
       ...current,
       {
@@ -554,12 +644,14 @@ export default function ResultsEditor({
 
     const result = removeResultRow(rows, index);
     if (!result.removed) return;
+    setDirty(true);
     setRows(result.rows);
     setRemovedRow({ row: result.removed, index });
   }
 
   function undoRemove(): void {
     if (!removedRow) return;
+    setDirty(true);
     setRows((current) =>
       restoreResultRow(current, removedRow.row, removedRow.index),
     );
@@ -637,30 +729,151 @@ export default function ResultsEditor({
   const published =
     existingSession?.publicationStatus ===
     ResultPublicationStatus.Published;
+  const draftDisabled =
+    pending ||
+    published ||
+    hasDuplicateDriver ||
+    Boolean(normalizedGaps.error);
+  const validationDisabled =
+    pending ||
+    hasDuplicateDriver ||
+    hasIncompleteDriverRow ||
+    Boolean(normalizedGaps.error);
+  const publishDisabled =
+    validationDisabled || selectedDriverIds.length === 0;
+  const raceDate = new Intl.DateTimeFormat("de-DE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: data.selected.race.timezone,
+  }).format(new Date(data.selected.race.scheduledAt));
+  const lastSavedLabel = lastSavedAt
+    ? new Intl.DateTimeFormat("de-DE", {
+        dateStyle: "short",
+        timeStyle: "short",
+      }).format(new Date(lastSavedAt))
+    : "Noch nicht gespeichert";
+  const fastestDriverNames = rows
+    .filter((row) => fastestDrivers.has(row.key))
+    .flatMap((row) => {
+      const driver = data.drivers.find(
+        (candidate) => candidate.id === Number(row.driverId),
+      );
+      return driver ? [driver.name] : [];
+    });
+  const publishSummary = resultPublishSummary({
+    driverIds: selectedDriverIds,
+    fastestDriverNames,
+    decisionIds: rows.flatMap(
+      (row) => importedFiaSummary(row).decisionIds,
+    ),
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${
-                published
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-                  : "border-amber-500/30 bg-amber-500/10 text-amber-200"
-              }`}
-            >
-              {published ? "Veröffentlicht" : "Entwurf"}
-            </span>
-            <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">
-              {rows.length} Fahrerzeilen
-            </span>
+      <div className="sticky top-[4.5rem] z-40 overflow-hidden rounded-2xl border border-blue-500/30 bg-[#0b1119]/95 shadow-2xl shadow-black/30 backdrop-blur lg:top-3">
+        <div className="grid gap-4 p-4 lg:grid-cols-[110px_1fr_auto] lg:items-center">
+          <div className="grid min-h-20 place-items-center rounded-xl border border-blue-400/35 bg-blue-600 text-3xl font-black tracking-tight text-white shadow-lg shadow-blue-950/40">
+            {data.selected.race.season.league.code}
           </div>
-          <p className="mt-3 text-sm font-semibold text-white">
-            Race-Control-Arbeitsfläche
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded-full border px-2.5 py-1 text-[0.68rem] font-bold uppercase tracking-wider ${
+                  published
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-200"
+                }`}
+              >
+                {published ? "Veröffentlicht" : "Entwurf"}
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[0.68rem] font-semibold ${
+                  dirty
+                    ? "bg-amber-500/15 text-amber-200"
+                    : pending
+                      ? "bg-blue-500/15 text-blue-200"
+                      : "bg-slate-800 text-slate-300"
+                }`}
+              >
+                {pending
+                  ? "Wird gespeichert …"
+                  : dirty
+                    ? "Ungespeicherte Änderungen"
+                    : `Zuletzt gespeichert: ${lastSavedLabel}`}
+              </span>
+            </div>
+            <h2 className="mt-2 truncate text-xl font-black uppercase tracking-tight text-white sm:text-2xl">
+              {data.selected.race.name}
+            </h2>
+            <p className="mt-1 text-sm text-slate-300">
+              Runde {data.selected.race.round} ·{" "}
+              {resultSessionLabels[session]} · {raceDate}
+            </p>
+          </div>
+          <div className="hidden flex-wrap justify-end gap-2 md:flex">
+            <button
+              form="result-editor-form"
+              name="intent"
+              value="DRAFT"
+              disabled={draftDisabled}
+              className="wizard-secondary-button min-h-11 justify-center"
+            >
+              <Save size={17} />
+              Entwurf speichern
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                setSyncFiaPenalties(true);
+                setDirty(true);
+              }}
+              className="wizard-secondary-button min-h-11 justify-center"
+            >
+              <RefreshCcw size={17} />
+              FIA-Strafen
+            </button>
+            <button
+              form="result-editor-form"
+              name="intent"
+              value="VALIDATE"
+              disabled={validationDisabled}
+              className="wizard-secondary-button min-h-11 justify-center"
+            >
+              <ShieldCheck size={17} />
+              Validieren
+            </button>
+            <button
+              type="button"
+              disabled={publishDisabled}
+              onClick={() => setPublishConfirmationOpen(true)}
+              className="wizard-primary-button min-h-11 justify-center"
+            >
+              Veröffentlichen
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 border-t border-slate-800 md:hidden">
+          <span className="px-4 py-2 text-xs text-slate-400">
+            {rows.length} Fahrerzeilen
+          </span>
+          <span className="px-4 py-2 text-right text-xs text-slate-400">
+            {dirty ? "Nicht gespeichert" : lastSavedLabel}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-white">
+            Abstandsmodus
           </p>
           <p className="mt-1 text-xs text-slate-400">
-            Abstände werden intern immer auf Millisekunden normalisiert.
+            Zeiten werden intern in Millisekunden normalisiert.
           </p>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -668,8 +881,11 @@ export default function ResultsEditor({
             <button
               key={mode}
               type="button"
-              onClick={() => setGapMode(mode)}
-              className={`min-h-12 rounded-xl border px-4 text-sm font-semibold ${
+              onClick={() => {
+                setGapMode(mode);
+                setDirty(true);
+              }}
+              className={`min-h-11 rounded-xl border px-4 text-sm font-semibold ${
                 gapMode === mode
                   ? "border-blue-500 bg-blue-500/15 text-blue-200"
                   : "border-slate-700 text-slate-300"
@@ -695,9 +911,10 @@ export default function ResultsEditor({
                 <input
                   type="checkbox"
                   checked={syncFiaPenalties}
-                  onChange={(event) =>
-                    setSyncFiaPenalties(event.target.checked)
-                  }
+                  onChange={(event) => {
+                    setSyncFiaPenalties(event.target.checked);
+                    setDirty(true);
+                  }}
                   className="h-5 w-5 accent-amber-500"
                 />
                 FIA-Strafen erneut synchronisieren
@@ -721,18 +938,32 @@ export default function ResultsEditor({
         </div>
       ) : null}
 
-      <form action={action} className="space-y-5">
+      <form
+        id="result-editor-form"
+        action={action}
+        className="space-y-5"
+      >
         <input
           type="hidden"
           name="submission"
           value={JSON.stringify(submission)}
         />
+        <button
+          ref={publishSubmitRef}
+          type="submit"
+          name="intent"
+          value="PUBLISH"
+          className="sr-only"
+          tabIndex={-1}
+        >
+          Veröffentlichen
+        </button>
 
         <div
           className="hidden max-h-[68vh] overflow-auto rounded-2xl border border-slate-700 bg-[#0b1119] shadow-2xl shadow-black/20 md:block"
           onKeyDown={handleTableKeyDown}
         >
-          <table className="min-w-[1380px] w-full border-collapse text-sm">
+          <table className="min-w-[1520px] w-full border-collapse text-sm">
             <thead className="sticky top-0 z-20 bg-[#151e2a] text-left text-[0.68rem] uppercase tracking-[0.13em] text-slate-400 shadow-lg">
               <tr>
                 <th className="sticky left-0 z-30 w-20 bg-[#151e2a] px-3 py-3">
@@ -744,6 +975,7 @@ export default function ResultsEditor({
                 <th className="px-3 py-3">Nr.</th>
                 <th className="px-3 py-3">Flagge</th>
                 <th className="min-w-40 px-3 py-3">Team</th>
+                <th className="min-w-24 px-3 py-3">Start</th>
                 <th className="min-w-36 px-3 py-3">Status</th>
                 <th className="min-w-36 px-3 py-3">Abstand</th>
                 <th className="min-w-36 px-3 py-3">
@@ -751,6 +983,9 @@ export default function ResultsEditor({
                 </th>
                 <th className="min-w-64 px-3 py-3">FIA-Strafe</th>
                 <th className="min-w-28 px-3 py-3">Endposition</th>
+                <th className="min-w-24 px-3 py-3 text-right">
+                  Punkte
+                </th>
                 <th className="w-32 px-3 py-3">
                   Sortieren / Entfernen
                 </th>
@@ -765,6 +1000,7 @@ export default function ResultsEditor({
                   rows={rows}
                   data={data}
                   calculation={calculationByKey.get(row.key)}
+                  points={pointsByKey.get(row.key) ?? 0}
                   fastest={fastestDrivers.has(row.key)}
                   imported={importedFiaSummary(row)}
                   onUpdate={(patch) => updateRow(index, patch)}
@@ -790,6 +1026,7 @@ export default function ResultsEditor({
               rows={rows}
               data={data}
               calculation={calculationByKey.get(row.key)}
+              points={pointsByKey.get(row.key) ?? 0}
               fastest={fastestDrivers.has(row.key)}
               imported={importedFiaSummary(row)}
               onUpdate={(patch) => updateRow(index, patch)}
@@ -830,67 +1067,6 @@ export default function ResultsEditor({
           </div>
         ) : null}
 
-        <section className="rounded-2xl border border-blue-500/25 bg-blue-500/5 p-4">
-          <div className="mb-4 flex items-center gap-2">
-            <CheckCircle2 className="text-blue-400" size={20} />
-            <h3 className="font-semibold text-white">
-              Live-Vorschau
-            </h3>
-          </div>
-          <div className="grid gap-2">
-            {preview.map(({ result, row, points }) => {
-              const driver = data.drivers.find(
-                (candidate) =>
-                  candidate.id === Number(row?.driverId),
-              );
-              return (
-                <div
-                  key={result.key}
-                  className="grid grid-cols-[42px_1fr_auto] items-center gap-3 rounded-xl bg-slate-950/50 px-3 py-2"
-                >
-                  <span className="font-mono font-bold text-blue-300">
-                    {result.finalPosition
-                      ? `P${result.finalPosition}`
-                      : "–"}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-white">
-                      {driver?.name || "Fahrer auswählen"}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      Effektive Strafe:{" "}
-                      {result.effectiveStatus === ResultStatus.Dsq
-                        ? "DSQ"
-                        : `+${formatTiming(
-                            result.effectivePenaltyMs,
-                          ) || "0.000"}`}
-                    </p>
-                  </div>
-                  <span className="text-right text-sm text-slate-300">
-                    {points.driverBase + points.driverBonus} Pkt.
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          {teamPoints.size > 0 ? (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {[...teamPoints.entries()].map(([teamId, points]) => (
-                <span
-                  key={teamId}
-                  className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300"
-                >
-                  {
-                    data.teams.find((team) => team.id === teamId)
-                      ?.shortName
-                  }
-                  : {points} Pkt.
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </section>
-
         {data.selected.race.season.archived ? (
           <label className="flex min-h-12 items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
             <input
@@ -922,51 +1098,134 @@ export default function ResultsEditor({
         ) : null}
 
         <ActionMessage state={state} />
-        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 grid gap-2 rounded-2xl border border-blue-500/25 bg-[#0b1119]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur sm:grid-cols-3 lg:bottom-3">
+        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-3 gap-2 rounded-2xl border border-blue-500/25 bg-[#0b1119]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur md:hidden">
           <button
             name="intent"
             value="DRAFT"
-            disabled={
-              pending ||
-              published ||
-              hasDuplicateDriver ||
-              Boolean(normalizedGaps.error)
-            }
-            className="wizard-secondary-button min-h-12 justify-center"
+            disabled={draftDisabled}
+            className="wizard-secondary-button min-h-12 justify-center px-2 text-xs"
           >
-            Als Entwurf speichern
+            Speichern
           </button>
           <button
             name="intent"
             value="VALIDATE"
-            disabled={
-              pending ||
-              hasDuplicateDriver ||
-              hasIncompleteDriverRow ||
-              Boolean(normalizedGaps.error)
-            }
-            className="wizard-secondary-button min-h-12 justify-center"
+            disabled={validationDisabled}
+            className="wizard-secondary-button min-h-12 justify-center px-2 text-xs"
           >
-            Ergebnis prüfen
+            Validieren
           </button>
           <button
-            name="intent"
-            value="PUBLISH"
-            disabled={
-              pending ||
-              hasDuplicateDriver ||
-              hasIncompleteDriverRow ||
-              Boolean(normalizedGaps.error) ||
-              selectedDriverIds.length === 0
-            }
-            className="wizard-primary-button min-h-12 justify-center"
+            type="button"
+            disabled={publishDisabled}
+            onClick={() => setPublishConfirmationOpen(true)}
+            className="wizard-primary-button min-h-12 justify-center px-2 text-xs"
           >
-            {pending
-              ? "Verarbeitet…"
-              : "Ergebnis veröffentlichen"}
+            Veröffentlichen
           </button>
         </div>
       </form>
+
+      {publishConfirmationOpen ? (
+        <div
+          role="presentation"
+          className="fixed inset-0 z-50 grid place-items-end bg-slate-950/85 backdrop-blur-sm sm:place-items-center sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !pending) {
+              setPublishConfirmationOpen(false);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="publish-result-title"
+            className="w-full max-w-xl rounded-t-3xl border border-blue-500/25 bg-[#111827] p-6 shadow-2xl sm:rounded-3xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="eyebrow">Veröffentlichung prüfen</p>
+                <h2
+                  id="publish-result-title"
+                  className="mt-2 text-2xl font-black text-white"
+                >
+                  Du veröffentlichst das Ergebnis für{" "}
+                  {data.selected.race.season.league.code} –{" "}
+                  {data.selected.race.name}.
+                </h2>
+              </div>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setPublishConfirmationOpen(false)}
+                aria-label="Dialog schließen"
+                className="grid min-h-11 min-w-11 place-items-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <dl className="mt-6 grid gap-3 rounded-2xl border border-slate-800 bg-slate-950/45 p-4 sm:grid-cols-2">
+              <PublishFact
+                label="Liga"
+                value={data.selected.race.season.league.code}
+              />
+              <PublishFact
+                label="Rennen"
+                value={`Runde ${data.selected.race.round} · ${data.selected.race.name}`}
+              />
+              <PublishFact
+                label="Fahrer"
+                value={String(publishSummary.driverCount)}
+              />
+              <PublishFact
+                label="Schnellste Runde"
+                value={
+                  publishSummary.fastestDriverNames.length > 0
+                    ? publishSummary.fastestDriverNames.join(", ")
+                    : "Nicht gesetzt"
+                }
+              />
+              <PublishFact
+                label="FIA-Strafen"
+                value={`${publishSummary.fiaDecisionCount} Entscheidung${
+                  publishSummary.fiaDecisionCount === 1 ? "" : "en"
+                }`}
+              />
+              <PublishFact
+                label="Punkte"
+                value="Fahrer- und Team-WM werden neu berechnet"
+              />
+            </dl>
+            <p className="mt-4 text-sm leading-6 text-slate-400">
+              Liga, Rennen und Sitzung werden beim Speichern erneut
+              serverseitig geprüft. Die bestehende FIA-, Punkte- und
+              Meisterschaftslogik bleibt maßgeblich.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setPublishConfirmationOpen(false)}
+                className="wizard-secondary-button min-h-12 justify-center"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  setPublishConfirmationOpen(false);
+                  publishSubmitRef.current?.click();
+                }}
+                className="wizard-primary-button min-h-12 justify-center"
+              >
+                {data.selected.race.season.league.code}-Ergebnis
+                veröffentlichen
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {existingSession ? (
         <DeleteResultForm
@@ -984,6 +1243,23 @@ export default function ResultsEditor({
   );
 }
 
+function PublishFact({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <dt className="text-xs uppercase tracking-wider text-slate-500">
+        {label}
+      </dt>
+      <dd className="mt-1 font-semibold text-white">{value}</dd>
+    </div>
+  );
+}
+
 type SharedRowProps = {
   row: RowState;
   index: number;
@@ -992,6 +1268,7 @@ type SharedRowProps = {
   calculation: ReturnType<
     typeof calculateFinalClassification
   >[number] | undefined;
+  points: number;
   fastest: boolean;
   imported: ReturnType<typeof aggregateFiaPenalties>;
   onUpdate: (patch: Partial<RowState>) => void;
@@ -1189,6 +1466,7 @@ function DesktopRow({
   rows,
   data,
   calculation,
+  points,
   fastest,
   imported,
   onUpdate,
@@ -1214,7 +1492,15 @@ function DesktopRow({
       onDragStart={onDragStart}
       onDragOver={(event) => event.preventDefault()}
       onDrop={onDrop}
-      className="border-t border-slate-800 align-top hover:bg-slate-900/50"
+      className={`border-t align-top hover:bg-slate-900/50 ${
+        row.status === ResultStatus.Dsq
+          ? "border-red-500/30 bg-red-500/5"
+          : row.status === ResultStatus.Dnf
+            ? "border-orange-500/25 bg-orange-500/5"
+            : row.status === ResultStatus.Dns
+              ? "border-slate-700 bg-slate-800/20"
+              : "border-slate-800"
+      }`}
     >
       <td className="sticky left-0 z-10 bg-slate-950 px-3 py-3">
         <div className="flex items-center gap-2">
@@ -1266,6 +1552,19 @@ function DesktopRow({
             {team.name}
           </span>
         ) : null}
+      </td>
+      <td className="px-3 py-3">
+        <input
+          data-result-cell
+          type="number"
+          min="1"
+          value={row.startingPosition}
+          onChange={(event) =>
+            onUpdate({ startingPosition: event.target.value })
+          }
+          aria-label={`Startposition für Position ${index + 1}`}
+          className="form-control min-w-20"
+        />
       </td>
       <td className="px-3 py-3">
         <select
@@ -1337,6 +1636,9 @@ function DesktopRow({
             : ""}
         </p>
       </td>
+      <td className="px-3 py-4 text-right font-mono font-bold text-white">
+        {points}
+      </td>
       <td className="px-3 py-3">
         <div className="flex gap-1">
           <button
@@ -1379,6 +1681,7 @@ function MobileRow(props: SharedRowProps) {
     rows,
     data,
     calculation,
+    points,
     imported,
     onUpdate,
     onSelectDriver,
@@ -1390,7 +1693,17 @@ function MobileRow(props: SharedRowProps) {
       candidate.id === Number(row.representedTeamId),
   );
   return (
-    <article className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/40">
+    <article
+      className={`overflow-hidden rounded-2xl border ${
+        row.status === ResultStatus.Dsq
+          ? "border-red-500/35 bg-red-500/5"
+          : row.status === ResultStatus.Dnf
+            ? "border-orange-500/30 bg-orange-500/5"
+            : row.status === ResultStatus.Dns
+              ? "border-slate-700 bg-slate-800/30"
+              : "border-slate-800 bg-slate-950/40"
+      }`}
+    >
       <div className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-3">
           <span className="rounded-lg bg-blue-500/15 px-3 py-2 font-mono font-bold text-blue-200">
@@ -1506,6 +1819,12 @@ function MobileRow(props: SharedRowProps) {
                 : `+${formatTiming(
                     imported.penaltyMilliseconds,
                   )}`}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Punkte</p>
+            <p className="mt-1 text-right font-mono font-bold text-white">
+              {points}
             </p>
           </div>
         </div>

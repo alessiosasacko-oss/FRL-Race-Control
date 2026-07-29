@@ -67,8 +67,16 @@ function errorState(
   return { status: "error", message, fieldErrors };
 }
 
-function successState(message: string): SportsActionState {
-  return { status: "success", message };
+function successState(
+  message: string,
+  persisted = false,
+): SportsActionState {
+  return {
+    status: "success",
+    message,
+    completedAt: new Date().toISOString(),
+    persisted,
+  };
 }
 
 function resultRaceSession(session: ResultSession): RaceSession {
@@ -294,7 +302,7 @@ export async function saveResultsAction(
     }
 
     revalidateResults(race.id);
-    return successState("Ergebnisentwurf wurde gespeichert.");
+    return successState("Ergebnisentwurf wurde gespeichert.", true);
   }
 
   const parsed = resultSubmissionSchema.safeParse(input);
@@ -886,5 +894,6 @@ export async function saveResultsAction(
     publish
       ? "Ergebnis wurde veröffentlicht und die Meisterschaft neu berechnet."
       : "Ergebnis wurde als Entwurf gespeichert.",
+    true,
   );
 }
