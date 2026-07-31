@@ -18,10 +18,10 @@ export default function HeroPanel({
   children,
 }: HeroPanelProps) {
   return (
-    <section className="relative isolate overflow-hidden rounded-[1.5rem] border border-blue-500/25 bg-[#101720] shadow-2xl shadow-blue-950/20">
+    <section className="race-hero relative isolate overflow-hidden rounded-[1.5rem] border">
       <div
         aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.24),transparent_34%),linear-gradient(120deg,transparent_0_64%,rgba(34,211,238,0.055)_64%_65%,transparent_65%_100%)]"
+        className="hero-grid absolute inset-0 -z-10"
       />
       <div className="grid gap-7 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:p-10">
         <div className="min-w-0">

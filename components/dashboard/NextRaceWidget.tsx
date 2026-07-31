@@ -35,7 +35,7 @@ export default function NextRaceWidget({
 }) {
   if (!race) {
     return (
-      <section className="relative overflow-hidden rounded-[1.5rem] border border-slate-800 bg-[#101720] p-8 sm:p-10">
+      <section className="race-hero relative overflow-hidden rounded-[1.5rem] border p-8 sm:p-10">
         <p className="eyebrow">Nächstes Rennen</p>
         <h2 className="mt-3 text-3xl font-bold text-white">
           Kein Renntermin geplant
@@ -52,7 +52,7 @@ export default function NextRaceWidget({
   }
 
   return (
-    <section className="relative isolate min-h-[25rem] overflow-hidden rounded-[1.75rem] border border-blue-500/30 bg-[#0d1622] shadow-[0_30px_90px_rgba(8,47,107,0.28)]">
+    <section className="race-hero relative isolate min-h-[25rem] overflow-hidden rounded-[1.75rem] border shadow-[var(--shadow-card)]">
       <div
         aria-hidden="true"
         className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_12%,rgba(37,99,235,0.38),transparent_33%),radial-gradient(circle_at_92%_82%,rgba(34,211,238,0.12),transparent_28%),linear-gradient(115deg,transparent_0_70%,rgba(255,255,255,0.035)_70%_71%,transparent_71%_100%)]"

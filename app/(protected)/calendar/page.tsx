@@ -76,7 +76,7 @@ export default async function CalendarPage({
 
   return (
     <AppLayout>
-      <div className="page-stack">
+      <div className="page-stack page-accent-calendar">
         <PageHeader
           title="Rennkalender"
           subtitle="Die gemeinsame FRL-Saison als klare Abfolge von Rennwochenenden."
@@ -144,7 +144,7 @@ function NextRaceHero({
   leagueId?: number;
 }) {
   return (
-    <section className="relative isolate overflow-hidden rounded-[1.75rem] border border-blue-500/30 bg-[#0e1825] p-6 shadow-[0_28px_90px_rgba(8,47,107,0.24)] sm:p-8 lg:p-10">
+    <section className="race-hero relative isolate overflow-hidden rounded-[1.75rem] border p-6 sm:p-8 lg:p-10">
       <div
         aria-hidden="true"
         className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_82%_15%,rgba(37,99,235,0.35),transparent_32%),linear-gradient(120deg,transparent_0_70%,rgba(34,211,238,0.06)_70%_71%,transparent_71%_100%)]"
@@ -169,6 +169,10 @@ function NextRaceHero({
             {race.circuit ?? "Mystery Track"}
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Link href={`/calendar/${race.id}`} className="wizard-primary-button">
+              <Gauge size={18} />
+              Race Weekend öffnen
+            </Link>
             <Link href="/attendance" className="wizard-primary-button">
               <CheckCircle2 size={18} />
               Zur Rennanmeldung

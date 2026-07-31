@@ -15,7 +15,7 @@ export default function GeneralInfoCard({
   }).format(new Date(ticket.createdAt));
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-[#101720] p-5">
+    <section className="surface-panel rounded-2xl p-5">
       <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">
         Ticketinformationen
       </h2>

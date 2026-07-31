@@ -11,7 +11,7 @@ type HistoryCardProps = {
 
 export default function HistoryCard({ ticket }: HistoryCardProps) {
   return (
-    <section className="rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-6">
+    <section className="surface-panel rounded-2xl p-5 sm:p-6">
       <div className="flex items-center gap-2">
         <History className="text-blue-400" size={20} />
         <h2 className="text-xl font-bold text-white">Audit-Verlauf</h2>

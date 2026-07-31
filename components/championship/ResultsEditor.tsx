@@ -774,7 +774,7 @@ export default function ResultsEditor({
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-[4.5rem] z-40 overflow-hidden rounded-2xl border border-blue-500/30 bg-[#0b1119]/95 shadow-2xl shadow-black/30 backdrop-blur lg:top-3">
+      <div className="sticky top-[4.5rem] z-40 overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--page-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-background-elevated)_95%,transparent)] shadow-[var(--shadow-card)] backdrop-blur lg:top-3">
         <div className="grid gap-4 p-4 lg:grid-cols-[110px_1fr_auto] lg:items-center">
           <div className="grid min-h-20 place-items-center rounded-xl border border-blue-400/35 bg-blue-600 text-3xl font-black tracking-tight text-white shadow-lg shadow-blue-950/40">
             {data.selected.race.season.league.code}
@@ -960,16 +960,16 @@ export default function ResultsEditor({
         </button>
 
         <div
-          className="hidden max-h-[68vh] overflow-auto rounded-2xl border border-slate-700 bg-[#0b1119] shadow-2xl shadow-black/20 md:block"
+          className="hidden max-h-[68vh] overflow-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-[var(--shadow-card)] md:block"
           onKeyDown={handleTableKeyDown}
         >
           <table className="min-w-[1520px] w-full border-collapse text-sm">
-            <thead className="sticky top-0 z-20 bg-[#151e2a] text-left text-[0.68rem] uppercase tracking-[0.13em] text-slate-400 shadow-lg">
+            <thead className="sticky top-0 z-20 bg-[var(--color-background-elevated)] text-left text-[0.68rem] uppercase tracking-[0.13em] text-[var(--color-text-muted)] shadow-lg">
               <tr>
-                <th className="sticky left-0 z-30 w-20 bg-[#151e2a] px-3 py-3">
+                <th className="sticky left-0 z-30 w-20 bg-[var(--color-background-elevated)] px-3 py-3">
                   Pos.
                 </th>
-                <th className="sticky left-20 z-30 min-w-64 bg-[#151e2a] px-3 py-3">
+                <th className="sticky left-20 z-30 min-w-64 bg-[var(--color-background-elevated)] px-3 py-3">
                   Fahrer
                 </th>
                 <th className="px-3 py-3">Nr.</th>
@@ -1098,7 +1098,7 @@ export default function ResultsEditor({
         ) : null}
 
         <ActionMessage state={state} />
-        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-3 gap-2 rounded-2xl border border-blue-500/25 bg-[#0b1119]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur md:hidden">
+        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-3 gap-2 rounded-2xl border border-[color-mix(in_srgb,var(--page-accent)_25%,transparent)] bg-[color-mix(in_srgb,var(--color-background-elevated)_95%,transparent)] p-3 shadow-[var(--shadow-card)] backdrop-blur md:hidden">
           <button
             name="intent"
             value="DRAFT"
@@ -1140,7 +1140,7 @@ export default function ResultsEditor({
             role="dialog"
             aria-modal="true"
             aria-labelledby="publish-result-title"
-            className="w-full max-w-xl rounded-t-3xl border border-blue-500/25 bg-[#111827] p-6 shadow-2xl sm:rounded-3xl"
+            className="w-full max-w-xl rounded-t-3xl border border-[color-mix(in_srgb,var(--page-accent)_25%,transparent)] bg-[var(--color-card)] p-6 shadow-[var(--shadow-card)] sm:rounded-3xl"
           >
             <div className="flex items-start justify-between gap-4">
               <div>

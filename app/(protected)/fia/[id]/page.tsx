@@ -65,7 +65,7 @@ export default async function InvestigationPage({ params }: Props) {
   );
   return (
     <AppLayout>
-      <div className="page-stack">
+      <div className="page-stack page-accent-fia">
         <InvestigationHeader ticket={ticket} />
 
         {ticket.archivedAt ? (
@@ -141,7 +141,7 @@ export default async function InvestigationPage({ params }: Props) {
                 uploadLimits={getVideoUploadLimits()}
               />
             ) : (
-              <section className="rounded-2xl border border-slate-800 bg-[#101720] p-6 text-sm text-slate-400">
+              <section className="surface-panel rounded-2xl p-6 text-sm text-[var(--color-text-muted)]">
                 Beweise sind nur für beteiligte Fahrer und das
                 Race-Control-Team sichtbar.
               </section>
@@ -169,7 +169,7 @@ export default async function InvestigationPage({ params }: Props) {
                 readOnly
               />
             ) : canReview && proposals.length === 0 ? (
-              <section className="rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-6">
+              <section className="surface-panel rounded-2xl p-5 sm:p-6">
                 <h2 className="text-xl font-bold text-white">
                   Steward-Abstimmungen
                 </h2>

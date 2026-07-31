@@ -37,7 +37,7 @@ export default function PageHeader({
         {eyebrow ? <p className="eyebrow mb-2">{eyebrow}</p> : null}
         <div className="flex items-center gap-3">
           {Icon ? (
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-blue-500/25 bg-blue-500/10 text-blue-300">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[color-mix(in_srgb,var(--page-accent,var(--color-primary))_30%,transparent)] bg-[color-mix(in_srgb,var(--page-accent,var(--color-primary))_12%,transparent)] text-[var(--page-accent,var(--color-primary))]">
               <Icon size={21} />
             </span>
           ) : null}

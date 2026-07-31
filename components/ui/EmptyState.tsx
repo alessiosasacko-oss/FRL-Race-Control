@@ -12,7 +12,7 @@ export default function EmptyState({
   action,
 }: EmptyStateProps) {
   return (
-    <section className="rounded-[1.25rem] border border-dashed border-slate-700 bg-slate-950/25 px-5 py-12 text-center">
+    <section className="empty-state rounded-[var(--radius-card)] border border-dashed px-5 py-12 text-center">
       {icon ? (
         <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-400">
           {icon}

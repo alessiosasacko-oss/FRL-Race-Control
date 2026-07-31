@@ -16,7 +16,7 @@ export default function Topbar({
   unreadNotifications,
 }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b border-slate-800/80 bg-[#080d14]/90 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+    <header className="app-topbar sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3">
         <Image
           src="/images/frl-logo.png"
@@ -36,7 +36,7 @@ export default function Topbar({
         <Link
           href="/notifications"
           aria-label="Benachrichtigungen öffnen"
-          className="relative flex size-11 items-center justify-center rounded-xl border border-slate-800 bg-[#101720] text-slate-300 transition hover:border-blue-500 hover:text-white"
+          className="topbar-action relative flex size-11 items-center justify-center rounded-xl border transition"
         >
           <Bell size={19} />
           {unreadNotifications > 0 ? (
@@ -47,7 +47,7 @@ export default function Topbar({
         </Link>
         <Link
           href="/profile"
-          className="hidden min-h-11 items-center gap-3 rounded-xl border border-slate-800 bg-[#101720] px-2.5 py-1.5 transition hover:border-blue-500 sm:flex"
+          className="topbar-action hidden min-h-11 items-center gap-3 rounded-xl border px-2.5 py-1.5 transition sm:flex"
         >
           {user.avatarUrl ? (
             <Image

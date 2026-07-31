@@ -67,7 +67,7 @@ export default async function FIAPage({ searchParams }: FIAPageProps) {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="page-accent-fia space-y-6">
         <FIAHeader openTickets={stats.open} />
 
         <FIAStats stats={stats} />

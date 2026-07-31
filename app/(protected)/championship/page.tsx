@@ -49,7 +49,7 @@ export default async function ChampionshipPage({
 
   return (
     <AppLayout>
-      <div className="page-stack">
+      <div className="page-stack page-accent-championship">
         <PageHeader
           title="Meisterschaft"
           subtitle="Motorsport-Standings mit klarer Spitze, Punkten und Leistungsdetails."

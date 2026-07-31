@@ -31,7 +31,7 @@ export default async function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="page-stack">
+      <div className="page-stack page-accent-dashboard">
         <WelcomeWidget identity={data.identity} />
 
         <NextRaceWidget

@@ -39,7 +39,7 @@ export default function VotingCard({
   );
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-[#151B24] p-5 sm:p-6">
+    <section className="surface-panel rounded-2xl p-5 sm:p-6">
       <div className="flex items-center gap-2">
         <VoteIcon className="text-blue-400" size={20} />
         <h2 className="text-xl font-bold text-white">

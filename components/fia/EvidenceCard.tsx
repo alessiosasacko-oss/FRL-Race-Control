@@ -122,7 +122,7 @@ export default function EvidenceCard({
     <section
       ref={sectionRef}
       id="fia-evidence"
-      className="scroll-mt-24 rounded-[1.25rem] border border-cyan-500/20 bg-[#101720] p-5 shadow-xl shadow-cyan-950/5 sm:p-6"
+      className="surface-panel scroll-mt-24 rounded-[1.25rem] border-[color-mix(in_srgb,var(--page-accent)_20%,transparent)] p-5 sm:p-6"
     >
       <div className="flex items-center gap-2">
         <FileSearch className="text-cyan-400" size={20} />

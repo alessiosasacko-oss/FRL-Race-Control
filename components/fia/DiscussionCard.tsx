@@ -322,7 +322,7 @@ export default function DiscussionCard({
   }
 
   return (
-    <section className="rounded-[1.25rem] border border-blue-500/25 bg-[#101720] p-4 shadow-2xl shadow-blue-950/10 sm:p-6 xl:min-h-[52rem]">
+    <section className="surface-panel rounded-[1.25rem] border-[color-mix(in_srgb,var(--page-accent)_25%,transparent)] p-4 sm:p-6 xl:min-h-[52rem]">
       <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
         <span className="flex size-9 items-center justify-center rounded-xl bg-blue-500/15 text-blue-300">
           <MessageSquare size={19} />

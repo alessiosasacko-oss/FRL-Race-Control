@@ -18,7 +18,7 @@ export default function WelcomeWidget({
           Nächstes Rennen, Fahrerstatus und aktuelle Liga-Aktivität auf einen Blick.
         </p>
       </div>
-      <div className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-[#101720] p-3 pr-5">
+      <div className="surface-panel flex items-center gap-3 rounded-2xl p-3 pr-5">
         {identity.avatarUrl ? (
           <Image
             src={identity.avatarUrl}

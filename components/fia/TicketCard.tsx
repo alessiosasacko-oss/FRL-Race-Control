@@ -24,7 +24,7 @@ export default function TicketCard({ ticket }: Props) {
   return (
     <Link
       href={`/fia/${ticket.id}`}
-      className="group relative block overflow-hidden rounded-2xl border border-slate-800 bg-[#151B24] p-4 transition-all duration-300 hover:-translate-y-1 hover:border-blue-500/70 hover:shadow-2xl hover:shadow-blue-500/20 sm:p-6"
+      className="surface-panel group relative block overflow-hidden rounded-2xl p-4 transition-all duration-300 hover:-translate-y-1 hover:border-[var(--page-accent)] sm:p-6"
     >
 
         {/* Blaue Seitenleiste */}

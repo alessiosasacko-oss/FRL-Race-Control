@@ -15,10 +15,10 @@ export default function DashboardCard({
 }) {
   return (
     <section
-      className={`rounded-2xl border border-slate-800/90 bg-[#101720]/95 p-5 shadow-xl shadow-black/5 transition duration-200 hover:border-blue-500/40 sm:p-6 ${className}`}
+      className={`surface-panel dashboard-card p-5 transition duration-200 sm:p-6 ${className}`}
     >
       <div className="mb-5 flex items-center gap-3">
-        <span className="rounded-xl border border-blue-500/20 bg-blue-600/10 p-2.5 text-blue-400">
+        <span className="rounded-xl border border-[color-mix(in_srgb,var(--page-accent,var(--color-primary))_25%,transparent)] bg-[color-mix(in_srgb,var(--page-accent,var(--color-primary))_12%,transparent)] p-2.5 text-[var(--page-accent,var(--color-primary))]">
           <Icon size={21} />
         </span>
         <div>

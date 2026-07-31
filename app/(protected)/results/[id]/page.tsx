@@ -47,7 +47,7 @@ export default async function ResultPage({
 
   return (
     <AppLayout>
-      <div className="page-stack">
+      <div className="page-stack page-accent-results">
         <PageHeader
           title={data.race.name}
           subtitle={`${data.race.season.league.code} · ${data.race.season.name} · Runde ${data.race.round}`}
@@ -57,7 +57,7 @@ export default async function ResultPage({
           icon={Flag}
         />
 
-        <section className="relative isolate overflow-hidden rounded-[1.5rem] border border-blue-500/25 bg-[#0e1825] p-6 sm:p-8">
+        <section className="race-hero relative isolate overflow-hidden rounded-[1.5rem] border p-6 sm:p-8">
           <div
             aria-hidden="true"
             className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_0%,rgba(37,99,235,0.28),transparent_32%)]"
@@ -249,7 +249,7 @@ function ResultRow({ result }: { result: SessionResult }) {
 
 function MobileResult({ result }: { result: SessionResult }) {
   return (
-    <article className="rounded-2xl border border-slate-800 bg-[#101720] p-4">
+    <article className="surface-panel rounded-2xl p-4">
       <div className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3">
         <span className="font-mono text-2xl font-black text-white">
           {result.finalPosition ?? result.position ?? "–"}
