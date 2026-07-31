@@ -94,7 +94,7 @@ export default async function ResultPage({
               </div>
             ) : null}
 
-            <div className="data-table-shell hidden overflow-x-auto md:block">
+            <div className="data-table-shell hidden overflow-x-auto lg:block">
               <table className="data-table min-w-[980px]">
                 <thead>
                   <tr>
@@ -117,7 +117,7 @@ export default async function ResultPage({
               </table>
             </div>
 
-            <div className="space-y-3 md:hidden">
+            <div className="space-y-3 lg:hidden">
               {session.results.map((result) => (
                 <MobileResult key={result.id} result={result} />
               ))}

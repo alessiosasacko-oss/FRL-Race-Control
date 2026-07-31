@@ -160,7 +160,57 @@ export default async function AutomationAdminPage() {
           </section>
         ) : null}
 
-        <section className="master-card overflow-x-auto">
+        <section className="space-y-3 lg:hidden" aria-labelledby="mobile-jobs-heading">
+          <h2 id="mobile-jobs-heading" className="text-xl font-semibold text-white">
+            Geplante Aufgaben
+          </h2>
+          {data.jobs.map((job) => (
+            <article key={job.id} className="master-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words font-semibold text-white">{job.name}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {job.status} · alle {job.intervalMinutes} Min.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-300">
+                  {job.status}
+                </span>
+              </div>
+              <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt className="text-xs text-slate-500">Letzter Lauf</dt>
+                  <dd className="mt-1 text-slate-300">{formatDate(job.lastRunAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Nächster Lauf</dt>
+                  <dd className="mt-1 text-slate-300">{formatDate(job.nextRunAt)}</dd>
+                </div>
+              </dl>
+              {job.lastError ? (
+                <p className="mt-3 break-words rounded-lg bg-red-500/10 p-3 text-xs text-red-300">
+                  {job.lastError}
+                </p>
+              ) : null}
+              <form action={retryAutomationJobAction.bind(null, job.id)} className="mt-4">
+                <button
+                  disabled={job.status === "RUNNING"}
+                  className="wizard-secondary-button min-h-12 w-full"
+                >
+                  <RefreshCw size={15} />
+                  Einplanen
+                </button>
+              </form>
+            </article>
+          ))}
+          {data.jobs.length === 0 ? (
+            <p className="master-card text-sm text-amber-300">
+              Die Standardjobs werden beim ersten Worker-Lauf oder durch die Migration angelegt.
+            </p>
+          ) : null}
+        </section>
+
+        <section className="master-card hidden overflow-x-auto lg:block">
           <h2 className="text-xl font-semibold text-white">
             Geplante Aufgaben
           </h2>

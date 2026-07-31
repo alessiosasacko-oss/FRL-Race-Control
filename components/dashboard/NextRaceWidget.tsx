@@ -35,7 +35,7 @@ export default function NextRaceWidget({
 }) {
   if (!race) {
     return (
-      <section className="race-hero relative overflow-hidden rounded-[1.5rem] border p-8 sm:p-10">
+      <section className="race-hero relative overflow-hidden rounded-[1.5rem] border p-5 sm:p-8 lg:p-10">
         <p className="eyebrow">Nächstes Rennen</p>
         <h2 className="mt-3 text-3xl font-bold text-white">
           Kein Renntermin geplant
@@ -44,7 +44,7 @@ export default function NextRaceWidget({
           Sobald ein Rennen terminiert ist, erscheinen Countdown und
           Rennanmeldung hier.
         </p>
-        <Link href="/calendar" className="wizard-primary-button mt-6">
+        <Link href="/calendar" className="wizard-primary-button mt-6 w-full sm:w-auto">
           Kalender öffnen
         </Link>
       </section>
@@ -52,7 +52,7 @@ export default function NextRaceWidget({
   }
 
   return (
-    <section className="race-hero relative isolate min-h-[25rem] overflow-hidden rounded-[1.75rem] border shadow-[var(--shadow-card)]">
+    <section className="race-hero relative isolate overflow-hidden rounded-[1.75rem] border shadow-[var(--shadow-card)] lg:min-h-[25rem]">
       <div
         aria-hidden="true"
         className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_12%,rgba(37,99,235,0.38),transparent_33%),radial-gradient(circle_at_92%_82%,rgba(34,211,238,0.12),transparent_28%),linear-gradient(115deg,transparent_0_70%,rgba(255,255,255,0.035)_70%_71%,transparent_71%_100%)]"
@@ -64,7 +64,7 @@ export default function NextRaceWidget({
         {String(race.round).padStart(2, "0")}
       </div>
 
-      <div className="grid min-h-[25rem] gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end lg:p-10">
+      <div className="grid gap-6 p-5 sm:gap-8 sm:p-8 lg:min-h-[25rem] lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end lg:p-10">
         <div className="relative z-10 flex min-w-0 flex-col justify-between self-stretch">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -91,7 +91,7 @@ export default function NextRaceWidget({
             <p className="mt-7 text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">
               Next up
             </p>
-            <h2 className="mt-2 max-w-4xl text-4xl font-black tracking-[-0.045em] text-white sm:text-5xl lg:text-6xl">
+            <h2 className="mt-2 max-w-4xl break-words text-3xl font-black tracking-[-0.045em] text-white sm:text-4xl lg:text-6xl">
               {race.name}
             </h2>
             <p className="mt-4 flex items-center gap-2 text-sm text-slate-300 sm:text-base">
@@ -101,12 +101,12 @@ export default function NextRaceWidget({
           </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Link href="/attendance" className="wizard-primary-button">
+            <Link href="/attendance" className="wizard-primary-button w-full sm:w-auto">
               <CheckCircle2 size={18} />
               Rennanmeldung öffnen
               <ArrowRight size={17} />
             </Link>
-            <Link href="/calendar" className="wizard-secondary-button">
+            <Link href="/calendar" className="wizard-secondary-button w-full sm:w-auto">
               Gesamten Kalender ansehen
             </Link>
           </div>

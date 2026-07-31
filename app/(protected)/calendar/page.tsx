@@ -144,7 +144,7 @@ function NextRaceHero({
   leagueId?: number;
 }) {
   return (
-    <section className="race-hero relative isolate overflow-hidden rounded-[1.75rem] border p-6 sm:p-8 lg:p-10">
+    <section className="race-hero relative isolate overflow-hidden rounded-[1.75rem] border p-5 sm:p-8 lg:p-10">
       <div
         aria-hidden="true"
         className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_82%_15%,rgba(37,99,235,0.35),transparent_32%),linear-gradient(120deg,transparent_0_70%,rgba(34,211,238,0.06)_70%_71%,transparent_71%_100%)]"
@@ -161,7 +161,7 @@ function NextRaceHero({
               {raceStatusLabels[race.status]}
             </span>
           </div>
-          <h2 className="mt-5 text-4xl font-black tracking-[-0.04em] text-white sm:text-5xl">
+          <h2 className="mt-5 break-words text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl lg:text-5xl">
             {race.mystery ? <EyeOff className="mr-3 inline" size={30} /> : null}
             {race.name}
           </h2>
@@ -169,17 +169,17 @@ function NextRaceHero({
             {race.circuit ?? "Mystery Track"}
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Link href={`/calendar/${race.id}`} className="wizard-primary-button">
+            <Link href={`/calendar/${race.id}`} className="wizard-primary-button w-full sm:w-auto">
               <Gauge size={18} />
               Race Weekend öffnen
             </Link>
-            <Link href="/attendance" className="wizard-primary-button">
+            <Link href="/attendance" className="wizard-primary-button w-full sm:w-auto">
               <CheckCircle2 size={18} />
               Zur Rennanmeldung
             </Link>
             <Link
               href={resultHref(race.id, leagueId)}
-              className="wizard-secondary-button"
+              className="wizard-secondary-button w-full sm:w-auto"
             >
               Ergebnisse ansehen
               <ArrowRight size={17} />
@@ -240,7 +240,7 @@ function RaceTimelineItem({
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="truncate text-lg font-bold text-white">
+          <h3 className="break-words text-lg font-bold text-white sm:truncate">
             {race.mystery ? <EyeOff className="mr-2 inline" size={17} /> : null}
             {race.name}
           </h3>

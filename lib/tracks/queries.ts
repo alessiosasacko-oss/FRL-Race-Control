@@ -24,24 +24,49 @@ export async function getTrackOptions() {
   });
 }
 
-export async function getRaceWeekendPageData(raceId: number) {
-  const race = await getPrismaClient().race.findUnique({
-    where: { id: raceId },
-    include: {
-      track: { include: { visual: true } },
-      season: { select: { name: true } },
-      leagueSchedules: {
-        orderBy: [{ league: { displayOrder: "asc" } }, { scheduledAt: "asc" }],
-        include: { league: { select: { id: true, code: true, name: true, color: true } } },
+export async function getRaceWeekendPageData(raceId: number, userId?: number) {
+  const prisma = getPrismaClient();
+  const [race, viewer] = await Promise.all([
+    prisma.race.findUnique({
+      where: { id: raceId },
+      include: {
+        track: { include: { visual: true } },
+        season: { select: { name: true } },
+        leagueSchedules: {
+          orderBy: [
+            { league: { displayOrder: "asc" } },
+            { scheduledAt: "asc" },
+          ],
+          include: {
+            league: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                color: true,
+              },
+            },
+          },
+        },
+        resultSessions: {
+          where: { publicationStatus: "PUBLISHED" },
+          orderBy: { updatedAt: "desc" },
+          take: 6,
+          select: {
+            id: true,
+            league: { select: { code: true, color: true } },
+            session: true,
+          },
+        },
       },
-      resultSessions: {
-        where: { publicationStatus: "PUBLISHED" },
-        orderBy: { updatedAt: "desc" },
-        take: 6,
-        select: { id: true, league: { select: { code: true, color: true } }, session: true },
-      },
-    },
-  });
+    }),
+    userId
+      ? prisma.user.findUnique({
+          where: { id: userId },
+          select: { driver: { select: { leagueId: true } } },
+        })
+      : Promise.resolve(null),
+  ]);
   if (!race) return null;
   const publicTrack = publicRaceTrack(race);
   return {
@@ -59,6 +84,7 @@ export async function getRaceWeekendPageData(raceId: number) {
     doublePoints: race.doublePoints,
     mystery: race.mystery,
     season: race.season,
+    viewerLeagueId: viewer?.driver?.leagueId ?? null,
     schedules: race.leagueSchedules.map((schedule) => ({
       id: schedule.id,
       scheduledAt: schedule.scheduledAt.toISOString(),

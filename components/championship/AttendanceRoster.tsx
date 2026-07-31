@@ -71,7 +71,7 @@ export default function AttendanceRoster({
         </label>
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-2 md:hidden">
+      <div className="mt-5 grid grid-cols-3 gap-2 lg:hidden">
         {groups.map((status) => (
           <button
             key={status}
@@ -92,11 +92,11 @@ export default function AttendanceRoster({
           </button>
         ))}
       </div>
-      <div className="mt-4 md:hidden">
+      <div className="mt-4 lg:hidden">
         <RosterGroup status={mobileGroup} entries={group(mobileGroup)} />
       </div>
 
-      <div className="mt-6 hidden gap-4 md:grid md:grid-cols-3">
+      <div className="mt-6 hidden gap-4 lg:grid lg:grid-cols-3">
         {groups.map((status) => (
           <RosterGroup
             key={status}

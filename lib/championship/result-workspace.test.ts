@@ -158,7 +158,7 @@ test("the removed live preview does not return", () => {
 test("the editor retains a mobile-only action bar", () => {
   assert.match(
     editorSource,
-    /backdrop-blur md:hidden/,
+    /backdrop-blur lg:hidden/,
   );
 });
 

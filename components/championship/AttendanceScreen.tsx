@@ -70,7 +70,7 @@ export default async function AttendanceScreen({
   return (
     <AppLayout>
       <div className="page-stack">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-400">
               Race Weekend
@@ -84,7 +84,7 @@ export default async function AttendanceScreen({
             </p>
           </div>
           {!adminMode && canManageAll ? (
-            <Link href="/admin/attendance" className="wizard-primary-button">
+            <Link href="/admin/attendance" className="wizard-primary-button w-full lg:w-auto">
               <ShieldCheck size={18} />
               Admin-Verwaltung
             </Link>
@@ -93,7 +93,7 @@ export default async function AttendanceScreen({
 
         <form
           action={adminMode ? "/admin/attendance" : "/attendance"}
-          className="grid gap-3 rounded-2xl border border-slate-800 bg-[#0d1723] p-4 md:grid-cols-[1fr_2fr_auto]"
+          className="grid gap-3 rounded-2xl border border-slate-800 bg-[#0d1723] p-4 lg:grid-cols-[1fr_2fr_auto]"
         >
           <label className="master-label">
             Liga

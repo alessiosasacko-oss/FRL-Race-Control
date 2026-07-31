@@ -32,13 +32,28 @@ export default async function DashboardPage() {
   return (
     <AppLayout>
       <div className="page-stack page-accent-dashboard">
-        <WelcomeWidget identity={data.identity} />
+        <div className="hidden lg:block">
+          <WelcomeWidget identity={data.identity} />
+        </div>
 
         <NextRaceWidget
           race={data.nextRace}
           attendance={data.attendance}
           league={data.identity.driver?.league.code ?? null}
         />
+
+        <section className="space-y-4 lg:hidden" aria-label="Race Operations">
+          <AttendanceWidget
+            race={data.nextRace}
+            driverId={data.identity.driver?.id ?? null}
+            attendance={data.attendance}
+          />
+          <QuickActionsWidget />
+        </section>
+
+        <div className="lg:hidden">
+          <WelcomeWidget identity={data.identity} />
+        </div>
 
         <section aria-labelledby="status-heading">
           <SectionHeader
@@ -49,7 +64,7 @@ export default async function DashboardPage() {
           <h2 id="status-heading" className="sr-only">
             Dein Status
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <MetricBlock
               label="WM-Position"
               value={
@@ -152,7 +167,7 @@ export default async function DashboardPage() {
             </div>
           </section>
 
-          <div className="space-y-8">
+          <div className="hidden space-y-8 lg:block">
             <section>
               <SectionHeader
                 title="Race Operations"

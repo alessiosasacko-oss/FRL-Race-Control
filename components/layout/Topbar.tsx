@@ -16,8 +16,8 @@ export default function Topbar({
   unreadNotifications,
 }: TopbarProps) {
   return (
-    <header className="app-topbar sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
-      <div className="flex min-w-0 items-center gap-3">
+    <header className="app-topbar sticky top-0 z-40 flex min-h-16 min-w-0 items-center justify-between gap-2 border-b px-3 py-3 backdrop-blur-xl sm:gap-3 sm:px-6 lg:px-8">
+      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
         <Image
           src="/images/frl-logo.png"
           alt=""
@@ -47,7 +47,8 @@ export default function Topbar({
         </Link>
         <Link
           href="/profile"
-          className="topbar-action hidden min-h-11 items-center gap-3 rounded-xl border px-2.5 py-1.5 transition sm:flex"
+          aria-label="Profil öffnen"
+          className="topbar-action flex size-11 shrink-0 items-center justify-center gap-3 rounded-xl border p-1.5 transition lg:min-h-11 lg:w-auto lg:px-2.5 lg:py-1.5"
         >
           {user.avatarUrl ? (
             <Image

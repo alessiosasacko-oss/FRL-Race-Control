@@ -175,14 +175,14 @@ export default async function ChampionshipPage({
               title="Fahrerwertung"
               description="Die Top 3 stehen im Rampenlicht; das gesamte Feld folgt darunter."
             />
-            <div className="mb-5 grid gap-3 md:grid-cols-3">
+            <div className="mb-5 grid gap-3 lg:grid-cols-3">
               {data.drivers.slice(0, 3).map((standing, index) => (
                 <Link
                   key={standing.driver.id}
                   href={`/drivers/${standing.driver.id}`}
                   className={`relative overflow-hidden rounded-2xl border p-5 transition hover:-translate-y-0.5 ${
                     index === 0
-                      ? "border-amber-400/40 bg-amber-400/10 md:-translate-y-2"
+                      ? "border-amber-400/40 bg-amber-400/10 lg:-translate-y-2"
                       : index === 1
                         ? "border-slate-400/30 bg-slate-400/5"
                         : "border-orange-500/30 bg-orange-500/5"
@@ -248,7 +248,7 @@ function DriverStandings({
 
   return (
     <div className="data-table-shell">
-      <div className="hidden grid-cols-[5rem_minmax(13rem,1.4fr)_minmax(9rem,1fr)_7rem_7rem_6rem] gap-4 border-b border-slate-700 bg-[#121923] px-6 py-3 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-slate-500 md:grid">
+      <div className="hidden grid-cols-[5rem_minmax(13rem,1.4fr)_minmax(9rem,1fr)_7rem_7rem_6rem] gap-4 border-b border-slate-700 bg-[#121923] px-6 py-3 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-slate-500 lg:grid">
         <span>Pos.</span>
         <span>Fahrer</span>
         <span>Team</span>
@@ -263,7 +263,7 @@ function DriverStandings({
             standing.position <= 3 ? "bg-blue-500/[0.025]" : ""
           }`}
         >
-          <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-blue-500/5 md:grid-cols-[5rem_minmax(13rem,1.4fr)_minmax(9rem,1fr)_7rem_7rem_6rem] md:gap-4 md:px-6">
+          <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-blue-500/5 lg:grid-cols-[5rem_minmax(13rem,1.4fr)_minmax(9rem,1fr)_7rem_7rem_6rem] lg:gap-4 lg:px-6">
             <strong className="font-mono text-2xl text-white">
               {String(standing.position).padStart(2, "0")}
             </strong>
@@ -276,10 +276,10 @@ function DriverStandings({
                 #{standing.driver.number} {standing.driver.name}
               </span>
             </Link>
-            <span className="hidden truncate text-slate-400 md:block">
+            <span className="hidden truncate text-slate-400 lg:block">
               {standing.driver.team?.name ?? "Ohne Team"}
             </span>
-            <span className="hidden text-right font-mono text-sm text-slate-500 md:block">
+            <span className="hidden text-right font-mono text-sm text-slate-500 lg:block">
               {standing.position === 1
                 ? "Leader"
                 : `-${points(leaderPoints - standing.points)}`}
@@ -287,7 +287,7 @@ function DriverStandings({
             <strong className="text-right text-lg text-blue-200">
               {points(standing.points)}
             </strong>
-            <span className="hidden text-right text-slate-300 md:block">
+            <span className="hidden text-right text-slate-300 lg:block">
               {standing.wins}
             </span>
           </summary>
@@ -318,7 +318,7 @@ function TeamStandings({
 
   return (
     <div className="data-table-shell">
-      <div className="hidden grid-cols-[5rem_minmax(14rem,1fr)_7rem_7rem_6rem] gap-4 border-b border-slate-700 bg-[#121923] px-6 py-3 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-slate-500 md:grid">
+      <div className="hidden grid-cols-[5rem_minmax(14rem,1fr)_7rem_7rem_6rem] gap-4 border-b border-slate-700 bg-[#121923] px-6 py-3 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-slate-500 lg:grid">
         <span>Pos.</span>
         <span>Team</span>
         <span className="text-right">Abstand</span>
@@ -330,7 +330,7 @@ function TeamStandings({
           key={standing.team.id}
           className="group border-b border-slate-800/80 last:border-b-0"
         >
-          <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-blue-500/5 md:grid-cols-[5rem_minmax(14rem,1fr)_7rem_7rem_6rem] md:gap-4 md:px-6">
+          <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-blue-500/5 lg:grid-cols-[5rem_minmax(14rem,1fr)_7rem_7rem_6rem] lg:gap-4 lg:px-6">
             <strong className="font-mono text-2xl text-white">
               {String(standing.position).padStart(2, "0")}
             </strong>
@@ -344,7 +344,7 @@ function TeamStandings({
               />
               <span className="truncate">{standing.team.name}</span>
             </Link>
-            <span className="hidden text-right font-mono text-sm text-slate-500 md:block">
+            <span className="hidden text-right font-mono text-sm text-slate-500 lg:block">
               {standing.position === 1
                 ? "Leader"
                 : `-${points(leaderPoints - standing.points)}`}
@@ -352,7 +352,7 @@ function TeamStandings({
             <strong className="text-right text-lg text-blue-200">
               {points(standing.points)}
             </strong>
-            <span className="hidden text-right text-slate-300 md:block">
+            <span className="hidden text-right text-slate-300 lg:block">
               {standing.wins}
             </span>
           </summary>

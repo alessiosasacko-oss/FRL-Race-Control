@@ -50,7 +50,9 @@ export default function MobileNavigation({
     drivers: leagueNavigationItems[0],
     teams: leagueNavigationItems[1],
   } as const;
-  const configuredItems = settings.mobileItems.map((id) => itemsById[id]);
+  const configuredItems = settings.mobileItems
+    .slice(0, 4)
+    .map((id) => itemsById[id]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -117,7 +119,7 @@ export default function MobileNavigation({
             role="dialog"
             aria-modal="true"
             aria-label="Alle Bereiche"
-            className="app-sidebar absolute inset-y-0 right-0 flex w-[min(90vw,23rem)] flex-col border-l shadow-2xl"
+            className="app-sidebar absolute inset-x-0 bottom-0 flex max-h-[min(88dvh,48rem)] flex-col rounded-t-3xl border-t shadow-2xl sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[min(90vw,23rem)] sm:rounded-none sm:border-l sm:border-t-0"
           >
             <header className="flex items-center justify-between border-b border-slate-800 p-5">
               <div className="flex items-center gap-3">

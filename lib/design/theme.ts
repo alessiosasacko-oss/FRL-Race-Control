@@ -311,7 +311,7 @@ const defaultNavigation: NavigationSettings = {
   logoSize: "MEDIUM",
   activeStyle: "COMBINED",
   mobileBottomNavigation: true,
-  mobileItems: ["dashboard", "calendar", "attendance", "fia"],
+  mobileItems: ["dashboard", "calendar", "attendance", "championship"],
 };
 
 function recolor(

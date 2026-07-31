@@ -98,7 +98,7 @@ export default function GlobalSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="hidden items-center gap-3 rounded-xl border border-slate-800 bg-[#151B24] px-4 py-2 text-sm text-slate-400 transition hover:border-blue-500 hover:text-white md:flex"
+        className="hidden items-center gap-3 rounded-xl border border-slate-800 bg-[#151B24] px-4 py-2 text-sm text-slate-400 transition hover:border-blue-500 hover:text-white lg:flex"
       >
         <Search size={18} />
         <span className="xl:min-w-36 xl:text-left">Global suchen</span>
@@ -110,7 +110,7 @@ export default function GlobalSearch() {
         type="button"
         aria-label="Global suchen"
         onClick={() => setOpen(true)}
-        className="rounded-xl bg-[#151B24] p-3 transition hover:bg-blue-600 md:hidden"
+        className="mobile-touch-target rounded-xl bg-[#151B24] p-3 transition hover:bg-blue-600 lg:hidden"
       >
         <Search size={20} />
       </button>

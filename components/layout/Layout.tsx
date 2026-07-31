@@ -10,7 +10,7 @@ export default function Layout({ children, className = "" }: LayoutProps) {
     <div className={`min-h-screen bg-[#05070A] text-white ${className}`}>
       <Navbar />
 
-      <main className="mx-auto max-w-7xl px-8 py-10">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         {children}
       </main>
     </div>

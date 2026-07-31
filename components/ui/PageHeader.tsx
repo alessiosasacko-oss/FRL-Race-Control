@@ -23,7 +23,7 @@ export default function PageHeader({
   children,
 }: PageHeaderProps) {
   return (
-    <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+    <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-5">
       <div className="min-w-0">
         {backHref ? (
           <Link
@@ -41,7 +41,7 @@ export default function PageHeader({
               <Icon size={21} />
             </span>
           ) : null}
-          <h1 className="text-3xl font-bold tracking-[-0.025em] text-white sm:text-4xl">
+          <h1 className="break-words text-2xl font-bold tracking-[-0.025em] text-white sm:text-3xl lg:text-4xl">
             {title}
           </h1>
         </div>
@@ -52,7 +52,7 @@ export default function PageHeader({
         ) : null}
       </div>
       {children ? (
-        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 lg:flex lg:w-auto lg:items-center">
           {children}
         </div>
       ) : null}

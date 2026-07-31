@@ -111,7 +111,7 @@ export default async function TeamPrincipalChampionshipPage({
 
         {data.standings.length > 0 ? (
           <section className="data-table-shell">
-            <div className="hidden grid-cols-[5rem_minmax(15rem,1.4fr)_minmax(11rem,1fr)_7rem_7rem_7rem] gap-4 border-b border-slate-700 bg-[#121923] px-6 py-3 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-slate-500 md:grid">
+            <div className="hidden grid-cols-[5rem_minmax(15rem,1.4fr)_minmax(11rem,1fr)_7rem_7rem_7rem] gap-4 border-b border-slate-700 bg-[#121923] px-6 py-3 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-slate-500 lg:grid">
               <span>Pos.</span>
               <span>Organisation</span>
               <span>Teamchef</span>
@@ -124,7 +124,7 @@ export default async function TeamPrincipalChampionshipPage({
                 key={standing.organization.id}
                 className="border-b border-slate-800/80 last:border-b-0"
               >
-                <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 md:grid-cols-[5rem_minmax(15rem,1.4fr)_minmax(11rem,1fr)_7rem_7rem_7rem] md:gap-4 md:px-6">
+                <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 lg:grid-cols-[5rem_minmax(15rem,1.4fr)_minmax(11rem,1fr)_7rem_7rem_7rem] lg:gap-4 lg:px-6">
                   <strong className="font-mono text-2xl text-white">
                     {String(standing.position).padStart(2, "0")}
                   </strong>
@@ -144,14 +144,14 @@ export default async function TeamPrincipalChampionshipPage({
                       </span>
                     </span>
                   </span>
-                  <span className="hidden truncate text-slate-300 md:block">
+                  <span className="hidden truncate text-slate-300 lg:block">
                     {standing.organization.principal?.displayName ??
                       "Nicht zugewiesen"}
                   </span>
-                  <span className="hidden text-right text-slate-300 md:block">
+                  <span className="hidden text-right text-slate-300 lg:block">
                     {standing.leagueCount}
                   </span>
-                  <span className="hidden text-right text-slate-300 md:block">
+                  <span className="hidden text-right text-slate-300 lg:block">
                     {standing.finalizedWeekendCount}
                   </span>
                   <strong className="text-right text-lg text-blue-200">

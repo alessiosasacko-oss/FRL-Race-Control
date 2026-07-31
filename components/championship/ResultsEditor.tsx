@@ -814,7 +814,7 @@ export default function ResultsEditor({
               {resultSessionLabels[session]} · {raceDate}
             </p>
           </div>
-          <div className="hidden flex-wrap justify-end gap-2 md:flex">
+          <div className="hidden flex-wrap justify-end gap-2 lg:flex">
             <button
               form="result-editor-form"
               name="intent"
@@ -857,7 +857,7 @@ export default function ResultsEditor({
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-2 border-t border-slate-800 md:hidden">
+        <div className="grid grid-cols-2 border-t border-slate-800 lg:hidden">
           <span className="px-4 py-2 text-xs text-slate-400">
             {rows.length} Fahrerzeilen
           </span>
@@ -960,7 +960,7 @@ export default function ResultsEditor({
         </button>
 
         <div
-          className="hidden max-h-[68vh] overflow-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-[var(--shadow-card)] md:block"
+          className="hidden max-h-[68vh] overflow-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-[var(--shadow-card)] lg:block"
           onKeyDown={handleTableKeyDown}
         >
           <table className="min-w-[1520px] w-full border-collapse text-sm">
@@ -1017,7 +1017,7 @@ export default function ResultsEditor({
           </table>
         </div>
 
-        <div className="space-y-4 md:hidden">
+        <div className="space-y-4 lg:hidden">
           {rows.map((row, index) => (
             <MobileRow
               key={row.key}
@@ -1098,7 +1098,7 @@ export default function ResultsEditor({
         ) : null}
 
         <ActionMessage state={state} />
-        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-3 gap-2 rounded-2xl border border-[color-mix(in_srgb,var(--page-accent)_25%,transparent)] bg-[color-mix(in_srgb,var(--color-background-elevated)_95%,transparent)] p-3 shadow-[var(--shadow-card)] backdrop-blur md:hidden">
+        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-3 gap-2 rounded-2xl border border-[color-mix(in_srgb,var(--page-accent)_25%,transparent)] bg-[color-mix(in_srgb,var(--color-background-elevated)_95%,transparent)] p-3 shadow-[var(--shadow-card)] backdrop-blur lg:hidden">
           <button
             name="intent"
             value="DRAFT"

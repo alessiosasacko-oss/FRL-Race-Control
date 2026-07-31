@@ -210,6 +210,15 @@ export default function DesignBrandingEditor({ data }: { data: AdminData }) {
   return (
     <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_32rem]">
       <div className="min-w-0 space-y-6">
+        <details className="surface-panel lg:hidden">
+          <summary className="flex min-h-14 cursor-pointer items-center justify-between px-5 font-bold">
+            Mobile Live-Vorschau
+            <Palette size={18} className="text-[var(--color-primary)]" />
+          </summary>
+          <div className="border-t border-[var(--color-border)] p-3">
+            <DesignPreview config={config} mode={previewMode} style={previewStyle} />
+          </div>
+        </details>
         <section className="surface-panel p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -362,7 +371,7 @@ export default function DesignBrandingEditor({ data }: { data: AdminData }) {
         </div>
       </div>
 
-      <aside className="2xl:sticky 2xl:top-24 2xl:self-start">
+      <aside className="hidden lg:block 2xl:sticky 2xl:top-24 2xl:self-start">
         <DesignPreview config={config} mode={previewMode} style={previewStyle} />
       </aside>
     </div>

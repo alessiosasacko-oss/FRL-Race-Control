@@ -506,6 +506,42 @@ summary {
   }
 }
 
+@media (max-width: 1023px) {
+  html,
+  body,
+  .theme-root,
+  .app-shell,
+  .app-content,
+  .page-container,
+  .page-stack {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  html,
+  body,
+  .theme-root,
+  .app-shell {
+    overflow-x: clip;
+  }
+
+  .page-container {
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-touch-target {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .mobile-media {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
