@@ -21,7 +21,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const { callbackUrl, error } = await searchParams;
 
   return (
-    <Layout className="min-h-screen bg-gradient-to-b from-black via-gray-950 to-black text-white">
+    <Layout scope="LOGIN">
       <div className="mx-auto flex min-h-[70vh] max-w-lg items-center justify-center">
         <Card title="Anmeldung">
           <div className="space-y-6 text-center">

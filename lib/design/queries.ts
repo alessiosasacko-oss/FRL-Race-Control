@@ -24,6 +24,7 @@ type StoredTheme = {
   pageAccents: Prisma.JsonValue;
   componentSettings: Prisma.JsonValue;
   navigationSettings: Prisma.JsonValue;
+  backgroundSettings: Prisma.JsonValue | null;
 };
 
 export type ResolvedTheme = {
@@ -47,6 +48,7 @@ export function parseStoredTheme(theme: StoredTheme): DesignThemeConfig {
     pageAccents: theme.pageAccents,
     componentSettings: theme.componentSettings,
     navigationSettings: theme.navigationSettings,
+    backgroundSettings: theme.backgroundSettings ?? undefined,
   });
 }
 
@@ -95,6 +97,10 @@ export const getResolvedTheme = cache(
     } catch (error: unknown) {
       console.warn("[design] Published theme unavailable; using FRL defaults.", {
         errorName: error instanceof Error ? error.name : "UnknownError",
+        prismaCode:
+          typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+            ? error.code
+            : null,
       });
       return {
         id: null,

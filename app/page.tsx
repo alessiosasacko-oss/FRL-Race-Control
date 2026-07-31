@@ -4,7 +4,7 @@ import Layout from "@/components/layout/Layout";
 
 export default function Home() {
   return (
-    <Layout className="min-h-screen bg-gradient-to-b from-black via-gray-950 to-black text-white">
+    <Layout>
       
 
       <div className="mx-auto flex max-w-5xl flex-col items-center justify-center py-32 text-center">

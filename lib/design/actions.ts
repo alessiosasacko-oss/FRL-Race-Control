@@ -48,6 +48,7 @@ function configData(config: typeof defaultDesignTheme) {
     pageAccents: config.pageAccents as Prisma.InputJsonValue,
     componentSettings: config.componentSettings as Prisma.InputJsonValue,
     navigationSettings: config.navigationSettings as Prisma.InputJsonValue,
+    backgroundSettings: config.backgroundSettings as Prisma.InputJsonValue,
   };
 }
 
@@ -118,7 +119,7 @@ export async function publishDesignAction(
     return errorState("Die Designkonfiguration ist ungültig.");
   }
   const warnings = themeContrastWarnings(parsed.data);
-  if (warnings.length > 0) {
+  if (warnings.length > 0 && formData.get("acknowledgeWarnings") !== "true") {
     return errorState(
       "Diese Farbkombination besitzt nicht genügend Kontrast.",
       undefined,

@@ -12,6 +12,8 @@ import {
   ShieldAlert,
   Upload,
 } from "lucide-react";
+import AppBackground from "@/components/design/AppBackground";
+import BackgroundEditor from "@/components/design/BackgroundEditor";
 import {
   publishDesignAction,
   restoreDefaultDesignAction,
@@ -37,6 +39,7 @@ import {
 } from "@/lib/design/types";
 
 type AdminData = {
+  themeId: number | null;
   config: DesignThemeConfig;
   activeThemeName: string;
   isDraft: boolean;
@@ -140,7 +143,9 @@ export default function DesignBrandingEditor({ data }: { data: AdminData }) {
   const [previewMode, setPreviewMode] = useState<"DARK" | "LIGHT">(
     data.config.defaultMode === "LIGHT" ? "LIGHT" : "DARK",
   );
+  const [previewViewport, setPreviewViewport] = useState<"DESKTOP" | "TABLET" | "MOBILE">("DESKTOP");
   const [importError, setImportError] = useState("");
+  const [acknowledgeWarnings, setAcknowledgeWarnings] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const [draftState, draftAction, draftPending] = useActionState(
     saveDesignDraftAction,
@@ -216,7 +221,8 @@ export default function DesignBrandingEditor({ data }: { data: AdminData }) {
             <Palette size={18} className="text-[var(--color-primary)]" />
           </summary>
           <div className="border-t border-[var(--color-border)] p-3">
-            <DesignPreview config={config} mode={previewMode} style={previewStyle} />
+            <PreviewViewportToggle value={previewViewport} onChange={setPreviewViewport} />
+            <div className="mt-3"><DesignPreview config={config} mode={previewMode} style={previewStyle} viewport={previewViewport} /></div>
           </div>
         </details>
         <section className="surface-panel p-5 sm:p-6">
@@ -267,6 +273,8 @@ export default function DesignBrandingEditor({ data }: { data: AdminData }) {
             ))}
           </div>
         </section>
+
+        <BackgroundEditor config={config} setConfig={setConfig} themeId={data.themeId} mode={previewMode} />
 
         <section className="surface-panel p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -349,6 +357,7 @@ export default function DesignBrandingEditor({ data }: { data: AdminData }) {
               <p className="font-bold">Kontrastwarnungen</p>
               <p className="mt-1">Diese Farbkombination besitzt nicht genügend Kontrast.</p>
               <ul className="mt-2 list-disc pl-5">{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+              <label className="mt-3 flex min-h-11 items-center gap-3 rounded-lg border border-amber-400/25 px-3"><input type="checkbox" checked={acknowledgeWarnings} onChange={(event) => setAcknowledgeWarnings(event.target.checked)} />Warnungen geprüft und Veröffentlichung bestätigen</label>
             </div>
           ) : null}
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background-elevated)] p-4 text-sm text-[var(--color-text-muted)]">
@@ -361,7 +370,8 @@ export default function DesignBrandingEditor({ data }: { data: AdminData }) {
             </form>
             <form action={publishAction}>
               <input type="hidden" name="themePayload" value={payload} />
-              <button disabled={publishPending || warnings.length > 0} className="wizard-primary-button w-full sm:w-auto">{publishPending ? "Veröffentlicht…" : "Design veröffentlichen"}</button>
+              <input type="hidden" name="acknowledgeWarnings" value={acknowledgeWarnings ? "true" : "false"} />
+              <button disabled={publishPending || (warnings.length > 0 && !acknowledgeWarnings)} className="wizard-primary-button w-full sm:w-auto">{publishPending ? "Veröffentlicht…" : "Design veröffentlichen"}</button>
             </form>
             <button type="button" onClick={() => setConfig(data.config)} className="wizard-secondary-button"><RotateCcw size={16} /> Änderungen verwerfen</button>
             <form action={restoreDefaultDesignAction}>
@@ -372,7 +382,8 @@ export default function DesignBrandingEditor({ data }: { data: AdminData }) {
       </div>
 
       <aside className="hidden lg:block 2xl:sticky 2xl:top-24 2xl:self-start">
-        <DesignPreview config={config} mode={previewMode} style={previewStyle} />
+        <PreviewViewportToggle value={previewViewport} onChange={setPreviewViewport} />
+        <div className="mt-3"><DesignPreview config={config} mode={previewMode} style={previewStyle} viewport={previewViewport} /></div>
       </aside>
     </div>
   );
@@ -408,7 +419,6 @@ function SurfaceSettings({ config, setConfig }: { config: DesignThemeConfig; set
         <Range label="Hero-Overlay" value={settings.heroOverlay} min={20} max={90} suffix="%" onChange={(value) => update("heroOverlay", value)} />
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Check label="Hero-Bilder" checked={settings.heroImage} onChange={(value) => update("heroImage", value)} />
         <Check label="Hero-Glow" checked={settings.heroGlow} onChange={(value) => update("heroGlow", value)} />
         <Check label="Track Layout" checked={settings.showTrackLayout} onChange={(value) => update("showTrackLayout", value)} />
         <Check label="Teamlogo" checked={settings.showTeamLogo} onChange={(value) => update("showTeamLogo", value)} />
@@ -537,9 +547,16 @@ function Range({ label, value, min, max, suffix, onChange }: { label: string; va
   return <label className="master-label">{label} <span className="text-[var(--color-text-muted)]">{value}{suffix}</span><input type="range" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} className="mt-3 w-full accent-[var(--color-primary)]" /></label>;
 }
 
-function DesignPreview({ config, mode, style }: { config: DesignThemeConfig; mode: "DARK" | "LIGHT"; style: React.CSSProperties }) {
+function PreviewViewportToggle({ value, onChange }: { value: "DESKTOP" | "TABLET" | "MOBILE"; onChange: (value: "DESKTOP" | "TABLET" | "MOBILE") => void }) {
+  return <div className="grid grid-cols-3 gap-1 rounded-xl border border-[var(--color-border)] p-1">{([['DESKTOP', 'Desktop'], ['TABLET', 'Tablet'], ['MOBILE', 'Smartphone']] as const).map(([viewport, label]) => <button key={viewport} type="button" onClick={() => onChange(viewport)} className={`min-h-11 rounded-lg px-2 text-xs font-bold ${value === viewport ? "bg-[var(--color-primary)] text-white" : "text-[var(--color-text-muted)]"}`}>{label}</button>)}</div>;
+}
+
+function DesignPreview({ config, mode, style, viewport }: { config: DesignThemeConfig; mode: "DARK" | "LIGHT"; style: React.CSSProperties; viewport: "DESKTOP" | "TABLET" | "MOBILE" }) {
+  const viewportClass = viewport === "MOBILE" ? "max-w-[23rem]" : viewport === "TABLET" ? "max-w-[30rem]" : "max-w-full";
   return (
-    <section className="overflow-hidden rounded-[1.5rem] border border-slate-700 shadow-2xl" style={{ ...style, background: mode === "DARK" ? config.darkTokens.background : config.lightTokens.background, color: mode === "DARK" ? config.darkTokens.text : config.lightTokens.text }}>
+    <section className={`relative isolate mx-auto w-full ${viewportClass} overflow-hidden rounded-[1.5rem] border border-slate-700 shadow-2xl`} data-preview-viewport={viewport.toLowerCase()} style={{ ...style, background: mode === "DARK" ? config.darkTokens.background : config.lightTokens.background, color: mode === "DARK" ? config.darkTokens.text : config.lightTokens.text }}>
+      <AppBackground settings={config.backgroundSettings} mode={mode} preview />
+      <div className="relative z-10">
       <header className="flex items-center justify-between border-b p-4" style={{ borderColor: "var(--color-border)", background: "var(--color-header)" }}>
         <span className="flex items-center gap-2 font-black"><Palette size={18} style={{ color: "var(--color-primary)" }} /> FRL Preview</span>
         <span className="rounded-full px-2 py-1 text-[10px] font-black uppercase" style={{ color: "var(--color-success)", background: "color-mix(in srgb,var(--color-success) 14%,transparent)" }}>System online</span>
@@ -560,6 +577,7 @@ function DesignPreview({ config, mode, style }: { config: DesignThemeConfig; mod
         <div className="mt-3 flex gap-2"><button className="flex-1 rounded-xl px-3 py-2 text-xs font-black text-white" style={{ background: "var(--color-primary)" }}>Primäraktion</button><button className="rounded-xl border px-3 py-2 text-xs font-bold" style={{ borderColor: "var(--color-border)" }}><Eye size={14} /></button></div>
         <label className="mt-3 block text-[10px] font-bold">Formularfeld<input readOnly value="Vorschau" className="mt-1 w-full rounded-lg border bg-transparent px-3 py-2 text-xs" style={{ borderColor: "var(--color-border)" }} /></label>
         <div className="mt-3 flex items-center justify-center rounded-xl border border-dashed p-5" style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}><Flag className="mr-2" size={18} /> Track Layout Platzhalter</div>
+      </div>
       </div>
     </section>
   );

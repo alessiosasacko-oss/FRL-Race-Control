@@ -83,6 +83,21 @@ body::before {
   font-family: var(--font-app, var(--font-sans));
 }
 
+.theme-root[data-background-active="true"] {
+  background: var(--color-background);
+}
+
+.theme-root[data-background-glass="true"] .surface-panel {
+  background-color: color-mix(in srgb, var(--color-card) 72%, transparent);
+  backdrop-filter: blur(18px);
+  border-color: color-mix(in srgb, var(--color-border) 86%, white 14%);
+}
+
+.theme-root[data-navigation-emphasis="true"] :is(.app-sidebar, .app-topbar, .app-mobile-nav) {
+  background-color: color-mix(in srgb, var(--color-sidebar) 94%, black 6%);
+  backdrop-filter: blur(28px);
+}
+
 .theme-root :is(h1, h2, h3, .eyebrow) {
   font-family: var(--font-heading, var(--font-app));
   font-weight: var(--heading-weight, 800);

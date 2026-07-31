@@ -149,6 +149,111 @@ export const navigationSettingsSchema = z.object({
     .max(5),
 }).strict();
 
+export const backgroundTypes = ["COLOR", "GRADIENT", "PATTERN", "IMAGE"] as const;
+export const backgroundPatterns = [
+  "NONE",
+  "FINE_GRID",
+  "DOTS",
+  "DIAGONAL_LINES",
+  "CARBON",
+  "TRACK_LINES",
+  "BLUEPRINT_GRID",
+  "CHECKERED",
+  "NOISE",
+  "SPEED_LINES",
+] as const;
+export const backgroundScopes = ["PROTECTED_APP", "LOGIN", "DASHBOARD", "PUBLIC"] as const;
+
+const backgroundAssetReferenceSchema = z.string().trim().max(1000).refine(
+  (value) => value === "" || (() => {
+    try {
+      return new URL(value).protocol === "https:" && !/[<>"'()\\\u0000-\u001F]/.test(value);
+    } catch {
+      return false;
+    }
+  })(),
+  "Das Hintergrundbild muss eine sichere HTTPS-Referenz sein.",
+);
+
+export const backgroundSettingsSchema = z.object({
+  type: z.enum(backgroundTypes),
+  color: hexColorSchema,
+  colorDark: hexColorSchema,
+  colorLight: hexColorSchema,
+  gradientType: z.enum(["LINEAR", "RADIAL"]),
+  gradientColors: z.array(hexColorSchema).min(2).max(3),
+  gradientAngle: z.number().int().min(0).max(360),
+  gradientPosition: z.enum(["CENTER", "TOP", "BOTTOM", "LEFT", "RIGHT"]),
+  gradientIntensity: z.number().int().min(10).max(100),
+  pattern: z.enum(backgroundPatterns),
+  patternColor: hexColorSchema,
+  patternBackgroundColor: hexColorSchema,
+  patternOpacity: z.number().int().min(0).max(40),
+  patternScale: z.number().int().min(20).max(200),
+  patternSpacing: z.number().int().min(4).max(100),
+  patternRotation: z.number().int().min(-180).max(180),
+  patternContrast: z.number().int().min(50).max(200),
+  patternBlendMode: z.enum(["NORMAL", "SCREEN", "OVERLAY", "SOFT_LIGHT"]),
+  assetPath: backgroundAssetReferenceSchema,
+  imageFit: z.enum(["COVER", "CONTAIN", "AUTO"]),
+  imagePositionX: z.number().int().min(0).max(100),
+  imagePositionY: z.number().int().min(0).max(100),
+  imageOpacity: z.number().int().min(0).max(100),
+  imageBlur: z.number().int().min(0).max(24),
+  imageBrightness: z.number().int().min(25).max(175),
+  imageContrast: z.number().int().min(25).max(175),
+  imageSaturation: z.number().int().min(0).max(200),
+  imageAttachment: z.enum(["FIXED", "SCROLL"]),
+  overlayColor: hexColorSchema,
+  overlayOpacity: z.number().int().min(0).max(90),
+  contentDim: z.number().int().min(0).max(50),
+  navigationEmphasis: z.boolean(),
+  glassSurfaces: z.boolean(),
+  scopes: z.array(z.enum(backgroundScopes)).min(1).max(4).refine(
+    (values) => new Set(values).size === values.length,
+    "Jeder Geltungsbereich darf nur einmal gewählt werden.",
+  ),
+}).strict();
+
+export type BackgroundSettings = z.infer<typeof backgroundSettingsSchema>;
+
+export const defaultBackgroundSettings: BackgroundSettings = {
+  type: "GRADIENT",
+  color: "#07111F",
+  colorDark: "#07111F",
+  colorLight: "#F5F7FA",
+  gradientType: "LINEAR",
+  gradientColors: ["#07111F", "#0B1628", "#05080E"],
+  gradientAngle: 145,
+  gradientPosition: "CENTER",
+  gradientIntensity: 88,
+  pattern: "NONE",
+  patternColor: "#1F6BFF",
+  patternBackgroundColor: "#07111F",
+  patternOpacity: 12,
+  patternScale: 100,
+  patternSpacing: 28,
+  patternRotation: 0,
+  patternContrast: 100,
+  patternBlendMode: "SCREEN",
+  assetPath: "",
+  imageFit: "COVER",
+  imagePositionX: 50,
+  imagePositionY: 50,
+  imageOpacity: 100,
+  imageBlur: 0,
+  imageBrightness: 80,
+  imageContrast: 110,
+  imageSaturation: 90,
+  imageAttachment: "FIXED",
+  overlayColor: "#020617",
+  overlayOpacity: 55,
+  contentDim: 10,
+  navigationEmphasis: true,
+  glassSurfaces: false,
+  scopes: ["PROTECTED_APP"],
+};
+
 export const designThemeConfigSchema = z.object({
   name: z.string().trim().min(3).max(160),
   preset: z.enum(designPresets),
@@ -162,6 +267,7 @@ export const designThemeConfigSchema = z.object({
   pageAccents: pageAccentsSchema,
   componentSettings: componentSettingsSchema,
   navigationSettings: navigationSettingsSchema,
+  backgroundSettings: backgroundSettingsSchema.default(defaultBackgroundSettings),
 }).strict().superRefine((config, context) => {
   const allowed = {
     DARK: config.allowDarkMode,
@@ -330,6 +436,7 @@ function recolor(
     pageAccents: { ...defaultPageAccents, ...accents },
     componentSettings: { ...defaultComponents },
     navigationSettings: { ...defaultNavigation },
+    backgroundSettings: structuredClone(defaultBackgroundSettings),
   };
 }
 
@@ -434,7 +541,65 @@ export function themeContrastWarnings(config: DesignThemeConfig): string[] {
       warnings.push(`${mode}: Sekundärtext auf Hintergrund`);
     }
   }
+  if (config.backgroundSettings.type === "IMAGE" && config.backgroundSettings.assetPath && config.backgroundSettings.overlayOpacity < 25) {
+    warnings.push("Bildhintergrund: Ein stärkeres Overlay verbessert die Lesbarkeit");
+  }
+  if (config.backgroundSettings.glassSurfaces && config.backgroundSettings.contentDim < 8) {
+    warnings.push("Glasflächen: Der Inhaltskontrast ist möglicherweise zu gering");
+  }
   return warnings;
+}
+
+const patternImages: Record<(typeof backgroundPatterns)[number], string> = {
+  NONE: "none",
+  FINE_GRID: "linear-gradient(var(--app-pattern-color) 1px, transparent 1px), linear-gradient(90deg, var(--app-pattern-color) 1px, transparent 1px)",
+  DOTS: "radial-gradient(circle, var(--app-pattern-color) 1.2px, transparent 1.4px)",
+  DIAGONAL_LINES: "repeating-linear-gradient(135deg, var(--app-pattern-color) 0 1px, transparent 1px 12px)",
+  CARBON: "linear-gradient(45deg, var(--app-pattern-color) 25%, transparent 25% 75%, var(--app-pattern-color) 75%), linear-gradient(45deg, var(--app-pattern-color) 25%, transparent 25% 75%, var(--app-pattern-color) 75%)",
+  TRACK_LINES: "radial-gradient(ellipse at 15% 115%, transparent 0 42%, var(--app-pattern-color) 43% 44%, transparent 45%), radial-gradient(ellipse at 90% -15%, transparent 0 48%, var(--app-pattern-color) 49% 50%, transparent 51%)",
+  BLUEPRINT_GRID: "linear-gradient(var(--app-pattern-color) 1px, transparent 1px), linear-gradient(90deg, var(--app-pattern-color) 1px, transparent 1px), linear-gradient(color-mix(in srgb, var(--app-pattern-color) 45%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--app-pattern-color) 45%, transparent) 1px, transparent 1px)",
+  CHECKERED: "conic-gradient(var(--app-pattern-color) 25%, transparent 0 50%, var(--app-pattern-color) 0 75%, transparent 0)",
+  NOISE: "radial-gradient(circle at 20% 30%, var(--app-pattern-color) 0 0.6px, transparent 0.8px), radial-gradient(circle at 75% 68%, var(--app-pattern-color) 0 0.5px, transparent 0.8px)",
+  SPEED_LINES: "repeating-linear-gradient(165deg, transparent 0 18px, var(--app-pattern-color) 19px 20px, transparent 21px 44px)",
+};
+
+export function backgroundPresentation(settings: BackgroundSettings, mode: "DARK" | "LIGHT") {
+  const modeColor = mode === "LIGHT" ? settings.colorLight : settings.colorDark;
+  const fallbackColor = settings.type === "IMAGE" ? settings.color : modeColor;
+  const gradientDirection = settings.gradientType === "RADIAL"
+    ? `circle at ${settings.gradientPosition.toLowerCase()}`
+    : `${settings.gradientAngle}deg`;
+  const gradientColors = settings.gradientColors.map((color) =>
+    `color-mix(in srgb, ${color} ${settings.gradientIntensity}%, ${fallbackColor})`,
+  ).join(", ");
+  const image = settings.type === "IMAGE" && settings.assetPath
+    ? `url("${settings.assetPath}")`
+    : settings.type === "GRADIENT"
+      ? `${settings.gradientType === "RADIAL" ? "radial" : "linear"}-gradient(${gradientDirection}, ${gradientColors})`
+      : settings.type === "PATTERN"
+        ? patternImages[settings.pattern]
+        : "none";
+  return {
+    fallbackColor: settings.type === "PATTERN" ? settings.patternBackgroundColor : fallbackColor,
+    image,
+    size: settings.type === "IMAGE"
+      ? settings.imageFit.toLowerCase()
+      : settings.type === "PATTERN"
+        ? `${Math.max(8, Math.round(settings.patternSpacing * settings.patternScale / 100))}px ${Math.max(8, Math.round(settings.patternSpacing * settings.patternScale / 100))}px`
+        : "cover",
+    position: settings.type === "IMAGE" ? `${settings.imagePositionX}% ${settings.imagePositionY}%` : "center",
+    repeat: settings.type === "IMAGE" ? "no-repeat" : "repeat",
+    opacity: settings.type === "IMAGE" ? settings.imageOpacity / 100 : settings.type === "PATTERN" ? settings.patternOpacity / 100 : 1,
+    filter: settings.type === "IMAGE"
+      ? `blur(${settings.imageBlur}px) brightness(${settings.imageBrightness}%) contrast(${settings.imageContrast}%) saturate(${settings.imageSaturation}%)`
+      : settings.type === "PATTERN"
+        ? `contrast(${settings.patternContrast}%)`
+        : "none",
+    rotation: settings.type === "PATTERN" ? settings.patternRotation : 0,
+    blendMode: settings.patternBlendMode.toLowerCase().replace("_", "-"),
+    overlayColor: settings.overlayColor,
+    overlayOpacity: settings.overlayOpacity / 100,
+  };
 }
 
 export const assetReferenceSchema = z.string().trim().max(1000).refine(

@@ -1417,6 +1417,7 @@ model DesignTheme {
   pageAccents           Json
   componentSettings     Json
   navigationSettings    Json
+  backgroundSettings    Json?
   isDraft               Boolean              @default(true)
   isActive              Boolean              @default(false)
   createdById           Int

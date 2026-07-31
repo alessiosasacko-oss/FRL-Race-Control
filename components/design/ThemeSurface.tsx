@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { CSSProperties } from "react";
+import AppBackground from "@/components/design/AppBackground";
 import {
   themeCssVariables,
   type DesignThemeConfig,
@@ -14,11 +16,14 @@ export default function ThemeSurface({
   config,
   mode,
   children,
+  scope = "PROTECTED_APP",
 }: {
   config: DesignThemeConfig;
   mode: ThemeMode;
   children: React.ReactNode;
+  scope?: "PROTECTED_APP" | "LOGIN" | "PUBLIC";
 }) {
+  const pathname = usePathname();
   const [systemMode, setSystemMode] = useState<"DARK" | "LIGHT">("DARK");
 
   useEffect(() => {
@@ -38,6 +43,9 @@ export default function ThemeSurface({
   }, [mode]);
 
   const resolvedMode = mode === "SYSTEM" ? systemMode : mode;
+  const backgroundEnabled = scope === "PROTECTED_APP"
+    ? config.backgroundSettings.scopes.includes("PROTECTED_APP") || (pathname === "/dashboard" && config.backgroundSettings.scopes.includes("DASHBOARD"))
+    : config.backgroundSettings.scopes.includes(scope);
 
   const style = useMemo<ThemeStyle>(() => {
     const settings = config.componentSettings;
@@ -102,7 +110,7 @@ export default function ThemeSurface({
 
   return (
     <div
-      className="theme-root min-h-screen"
+      className="theme-root relative isolate min-h-screen overflow-x-clip"
       data-theme-mode={resolvedMode.toLowerCase()}
       data-density={config.componentSettings.density.toLowerCase()}
       data-texture={config.componentSettings.texture.toLowerCase()}
@@ -120,9 +128,14 @@ export default function ThemeSurface({
       data-navigation-active={config.navigationSettings.activeStyle.toLowerCase()}
       data-logo-size={config.navigationSettings.logoSize.toLowerCase()}
       data-mobile-navigation={config.navigationSettings.mobileBottomNavigation ? "visible" : "hidden"}
+      data-background-active={backgroundEnabled ? "true" : "false"}
+      data-background-type={config.backgroundSettings.type.toLowerCase()}
+      data-background-glass={backgroundEnabled && config.backgroundSettings.glassSurfaces ? "true" : "false"}
+      data-navigation-emphasis={backgroundEnabled && config.backgroundSettings.navigationEmphasis ? "true" : "false"}
       style={style}
     >
-      {children}
+      {backgroundEnabled ? <AppBackground settings={config.backgroundSettings} mode={resolvedMode} /> : null}
+      <div className="relative z-10 min-h-screen">{children}</div>
     </div>
   );
 }
