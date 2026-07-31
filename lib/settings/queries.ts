@@ -83,7 +83,10 @@ export async function getSettingsPageData(
         user.settings?.quietHoursEndMinute ?? null,
       ),
       timezone: user.settings?.timezone ?? "Europe/Berlin",
-      theme: "dark",
+      theme:
+        user.settings?.theme === "light" || user.settings?.theme === "system"
+          ? user.settings.theme
+          : "dark",
       language: "de",
     },
   };

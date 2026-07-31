@@ -93,6 +93,7 @@ export const timezoneSchema = z
 export const raceSchema = z
   .object({
     seasonId: entityId,
+    trackId: optionalId,
     name,
     circuit: z.preprocess(
       (value) => (value === "" || value === null ? null : value),

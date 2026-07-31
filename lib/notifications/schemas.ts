@@ -51,7 +51,7 @@ export const notificationSettingsSchema = z
     quietHoursStart: optionalTime,
     quietHoursEnd: optionalTime,
     timezone: z.string().trim().min(1).max(80),
-    theme: z.enum(["dark"]),
+    theme: z.enum(["dark", "light", "system"]),
     language: z.enum(["de"]),
   })
   .superRefine((settings, context) => {

@@ -462,6 +462,7 @@ export async function archiveSeasonAction(
 function racePayload(formData: FormData) {
   return {
     seasonId: formData.get("seasonId"),
+    trackId: formData.get("trackId"),
     name: formData.get("name"),
     circuit: formData.get("circuit"),
     countryCode: formData.get("countryCode"),
@@ -565,6 +566,7 @@ export async function createRaceAction(
       const race = await transaction.race.create({
         data: {
           seasonId: parsed.data.seasonId,
+          trackId: parsed.data.trackId,
           name: parsed.data.name,
           circuit,
           countryCode,
@@ -826,6 +828,7 @@ export async function updateRaceAction(
         where: { id: raceId.data },
         data: {
           seasonId: parsed.data.seasonId,
+          trackId: parsed.data.trackId,
           name:
             existing.mystery &&
             parsed.data.name === "Mystery Track"

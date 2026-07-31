@@ -1,8 +1,10 @@
 import MobileNavigation from "./MobileNavigation";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import ThemeSurface from "@/components/design/ThemeSurface";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { getResolvedTheme } from "@/lib/design/queries";
 import { getUnreadNotificationCount } from "@/lib/notifications/queries";
 
 type AppLayoutProps = {
@@ -11,6 +13,7 @@ type AppLayoutProps = {
 
 export default async function AppLayout({ children }: AppLayoutProps) {
   const user = await requireAuthenticatedUser();
+  const theme = await getResolvedTheme(user.id);
   let unreadNotifications = 0;
 
   try {
@@ -30,18 +33,21 @@ export default async function AppLayout({ children }: AppLayoutProps) {
   );
 
   return (
-    <div className="flex min-h-screen text-white">
-      <Sidebar user={user} />
-      <div className="min-w-0 flex-1">
-        <Topbar user={user} unreadNotifications={unreadNotifications} />
-        <main className="mobile-safe-bottom min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
-          <div className="page-container">{children}</div>
-        </main>
+    <ThemeSurface config={theme.config} mode={theme.mode}>
+      <div className="app-shell flex min-h-screen">
+        <Sidebar user={user} settings={theme.config.navigationSettings} />
+        <div className="min-w-0 flex-1">
+          <Topbar user={user} unreadNotifications={unreadNotifications} />
+          <main className="app-content mobile-safe-bottom min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+            <div className="page-container">{children}</div>
+          </main>
+        </div>
+        <MobileNavigation
+          user={user}
+          canManageAdministration={canManageAdministration}
+          settings={theme.config.navigationSettings}
+        />
       </div>
-      <MobileNavigation
-        user={user}
-        canManageAdministration={canManageAdministration}
-      />
-    </div>
+    </ThemeSurface>
   );
 }

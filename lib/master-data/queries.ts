@@ -373,6 +373,7 @@ export async function getRaceItems(
     return {
       id: race.id,
       seasonId: race.seasonId,
+      trackId: race.trackId,
       name: track.name,
       circuit: track.circuit,
       countryCode: track.countryCode,

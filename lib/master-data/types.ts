@@ -124,6 +124,7 @@ export type SeasonAdminItem = {
 export type RaceItem = {
   id: number;
   seasonId: number;
+  trackId: number | null;
   name: string;
   circuit: string | null;
   countryCode: string | null;

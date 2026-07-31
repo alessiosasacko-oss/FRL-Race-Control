@@ -12,6 +12,8 @@ import {
   Home,
   Layers3,
   Megaphone,
+  Map,
+  Palette,
   Settings2,
   Shield,
   Trophy,
@@ -47,6 +49,8 @@ export const administrationNavigationItems = [
   { name: "Anmeldungen", href: "/admin/attendance", icon: Activity },
   { name: "Kommunikation", href: "/admin/announcements", icon: Megaphone },
   { name: "Automationen", href: "/admin/automation", icon: Bot },
+  { name: "Design & Branding", href: "/admin/design", icon: Palette },
+  { name: "Strecken", href: "/admin/tracks", icon: Map },
   { name: "Einstellungen", href: "/settings", icon: Cog },
 ] as const;
 

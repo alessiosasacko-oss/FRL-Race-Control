@@ -2,12 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Crown, LogOut, Settings, User } from "lucide-react";
+import { Crown, LogOut, PanelLeftClose, PanelLeftOpen, Settings, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { roleLabels } from "@/domain";
 import { signOutCurrentUser } from "@/lib/auth/actions";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import type { AuthenticatedUser } from "@/lib/auth/session";
+import type { NavigationSettings } from "@/lib/design/theme";
+import { useState } from "react";
 import ActiveNavLink from "./ActiveNavLink";
 import {
   administrationNavigationItems,
@@ -17,6 +19,7 @@ import {
 
 type SidebarProps = {
   user: AuthenticatedUser;
+  settings: NavigationSettings;
 };
 
 type NavigationItem = {
@@ -25,24 +28,25 @@ type NavigationItem = {
   icon: LucideIcon;
 };
 
-export default function Sidebar({ user }: SidebarProps) {
+export default function Sidebar({ user, settings }: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(false);
   const canManageAdministration = hasPermission(
     user.roles,
     Permission.ManageAdministration,
   );
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-[17.5rem] shrink-0 flex-col border-r border-slate-800/90 bg-[#0b1119]/95 lg:flex">
+    <aside data-collapsed={collapsed ? "true" : "false"} className="app-sidebar sticky top-0 hidden h-screen w-[17.5rem] shrink-0 flex-col border-r transition-[width] lg:flex">
       <div className="border-b border-slate-800/80 px-5 py-5">
         <div className="flex items-center gap-3">
           <Image
             src="/images/frl-logo.png"
             alt="FRL"
-            width={44}
-            height={44}
+            width={settings.logoSize === "SMALL" ? 36 : settings.logoSize === "LARGE" ? 52 : 44}
+            height={settings.logoSize === "SMALL" ? 36 : settings.logoSize === "LARGE" ? 52 : 44}
             className="rounded-xl shadow-lg shadow-blue-950/30"
           />
-          <div className="min-w-0">
+          <div className="sidebar-copy min-w-0">
             <h1 className="truncate text-base font-bold text-white">
               FRL Race Control
             </h1>
@@ -50,6 +54,11 @@ export default function Sidebar({ user }: SidebarProps) {
               Control Center
             </p>
           </div>
+          {settings.collapsible ? (
+            <button type="button" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? "Sidebar ausklappen" : "Sidebar einklappen"} className="ml-auto flex size-10 shrink-0 items-center justify-center rounded-xl text-[var(--color-text-muted)] transition hover:bg-[var(--color-card)] hover:text-[var(--color-text)]">
+              {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -66,8 +75,8 @@ export default function Sidebar({ user }: SidebarProps) {
         ) : null}
       </nav>
 
-      <div className="border-t border-slate-800/80 p-3">
-        <div className="rounded-2xl border border-slate-800 bg-[#101720] p-3">
+      <div className="sidebar-profile border-t border-slate-800/80 p-3">
+        <div className="nav-profile-card rounded-2xl border p-3">
           <div className="flex items-center gap-3">
             {user.avatarUrl ? (
               <Image
@@ -133,7 +142,7 @@ function SidebarGroup({
 }) {
   return (
     <section>
-      <div className="mb-2 flex items-center gap-2 px-3">
+      <div className="sidebar-group-label mb-2 flex items-center gap-2 px-3">
         {special ? <Crown size={12} className="text-violet-400" /> : null}
         <p
           className={`text-[0.62rem] font-bold uppercase tracking-[0.18em] ${

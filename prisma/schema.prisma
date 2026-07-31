@@ -297,6 +297,28 @@ enum ProposalVoteChoice {
   ABSTAIN
 }
 
+enum DesignPreset {
+  FRL_RACING_BLUE
+  MIDNIGHT_MOTORSPORT
+  RACING_RED
+  CHAMPIONSHIP_GOLD
+  NEON_RACE_CONTROL
+  CLEAN_LIGHT
+  CUSTOM
+}
+
+enum ThemeMode {
+  DARK
+  LIGHT
+  SYSTEM
+}
+
+enum DisplayDensity {
+  COMPACT
+  STANDARD
+  COMFORTABLE
+}
+
 model User {
   id                       Int                        @id @default(autoincrement())
   discordId                String?                    @unique @db.VarChar(32)
@@ -341,6 +363,9 @@ model User {
   createdAnnouncements     Announcement[]
   retriedAutomationRuns    AutomationJobRun[]         @relation("AutomationRunRetryActor")
   systemAuditEntries       SystemAuditLog[]
+  createdDesignThemes      DesignTheme[]              @relation("DesignThemeCreator")
+  updatedDesignThemes      DesignTheme[]              @relation("DesignThemeUpdater")
+  designThemeVersions      DesignThemeVersion[]
   accounts                 Account[]
   sessions                 Session[]
   createdAt                DateTime                   @default(now())
@@ -424,6 +449,10 @@ model Team {
   name                    String                   @db.VarChar(160)
   shortName               String                   @db.VarChar(12)
   color                   String                   @db.Char(7)
+  secondaryColor          String?                  @db.Char(7)
+  contrastColor           String?                  @db.Char(7)
+  logoUrl                 String?                  @db.Text
+  backgroundGradient      String?                  @db.VarChar(120)
   active                  Boolean                  @default(true)
   league                  League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   season                  Season                   @relation(fields: [seasonId], references: [id], onDelete: Restrict)
@@ -490,6 +519,7 @@ model League {
   raceTimezone                     String                   @default("Europe/Berlin") @db.VarChar(64)
   defaultAttendanceDeadlineMinutes Int?
   displayOrder                     Int                      @default(0)
+  color                            String?                  @db.Char(7)
   currentSeason                    Season?                  @relation("CurrentSeason", fields: [currentSeasonId], references: [id], onDelete: SetNull)
   seasons                          Season[]                 @relation("LeagueSeasons")
   calendarSeasons                  Season[]                 @relation("SeasonParticipation")
@@ -546,6 +576,7 @@ model Season {
 model Race {
   id                      Int                      @id @default(autoincrement())
   seasonId                Int
+  trackId                 Int?
   name                    String                   @db.VarChar(160)
   circuit                 String?                  @db.VarChar(160)
   countryCode             String?                  @db.Char(2)
@@ -560,6 +591,7 @@ model Race {
   mystery                 Boolean                  @default(false)
   attendanceDeadline      DateTime?
   season                  Season                   @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  track                   Track?                   @relation(fields: [trackId], references: [id], onDelete: SetNull)
   tickets                 FiaTicket[]
   attendanceEntries       RaceAttendance[]
   leagueSchedules         RaceLeagueSchedule[]
@@ -576,6 +608,7 @@ model Race {
   @@unique([seasonId, name])
   @@index([seasonId, scheduledAt])
   @@index([status, scheduledAt])
+  @@index([trackId])
 }
 
 model Championship {
@@ -1331,12 +1364,113 @@ model UserSettings {
   quietHoursEndMinute   Int?
   timezone              String             @default("Europe/Berlin") @db.VarChar(80)
   theme                 String             @default("dark") @db.VarChar(32)
+  displayDensity        DisplayDensity     @default(STANDARD)
+  reducedMotion         Boolean            @default(false)
   language              String             @default("de") @db.VarChar(16)
   user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
 
   @@index([emailEnabled])
+}
+
+model DesignTheme {
+  id                    Int                  @id @default(autoincrement())
+  name                  String               @db.VarChar(160)
+  preset                DesignPreset
+  defaultMode           ThemeMode            @default(DARK)
+  allowDarkMode         Boolean              @default(true)
+  allowLightMode        Boolean              @default(false)
+  allowSystemMode       Boolean              @default(false)
+  allowUserModeOverride Boolean              @default(false)
+  darkTokens            Json
+  lightTokens           Json
+  pageAccents           Json
+  componentSettings     Json
+  navigationSettings    Json
+  isDraft               Boolean              @default(true)
+  isActive              Boolean              @default(false)
+  createdById           Int
+  updatedById           Int
+  publishedAt           DateTime?
+  createdBy             User                 @relation("DesignThemeCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy             User                 @relation("DesignThemeUpdater", fields: [updatedById], references: [id], onDelete: Restrict)
+  versions              DesignThemeVersion[]
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@index([isActive, publishedAt])
+  @@index([isDraft, updatedAt])
+  @@index([createdById])
+  @@index([updatedById])
+}
+
+model DesignThemeVersion {
+  id          Int         @id @default(autoincrement())
+  themeId     Int
+  version     Int
+  snapshot    Json
+  createdById Int
+  theme       DesignTheme @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  createdBy   User        @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime    @default(now())
+
+  @@unique([themeId, version])
+  @@index([themeId, createdAt])
+  @@index([createdById])
+}
+
+model Track {
+  id                 Int          @id @default(autoincrement())
+  name               String       @unique @db.VarChar(160)
+  countryCode        String       @db.Char(2)
+  lengthKm           Float?
+  lapCount           Int?
+  totalDistanceKm    Float?
+  sectorCount        Int          @default(3)
+  drsZones           Int?
+  overtakePoints     Int?
+  longestStraightM   Int?
+  poleSide           String?      @db.VarChar(32)
+  pitLaneLossSeconds Float?
+  notes              String?      @db.Text
+  active             Boolean      @default(true)
+  races              Race[]
+  visual             TrackVisual?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([active, name])
+  @@index([countryCode])
+}
+
+model TrackVisual {
+  id                  Int      @id @default(autoincrement())
+  trackId             Int      @unique
+  layoutAsset         String?  @db.Text
+  layoutMimeType      String?  @db.VarChar(80)
+  heroAsset           String?  @db.Text
+  mobileHeroAsset     String?  @db.Text
+  trackLogoAsset      String?  @db.Text
+  primaryColor        String   @default("#3B82F6") @db.Char(7)
+  secondaryColor      String   @default("#22D3EE") @db.Char(7)
+  overlayStrength     Int      @default(65)
+  imagePosition       String   @default("center") @db.VarChar(32)
+  imageCrop           String   @default("cover") @db.VarChar(32)
+  lightBannerText     Boolean  @default(true)
+  useThemeLayoutColor Boolean  @default(true)
+  layoutColor         String?  @db.Char(7)
+  lineWidth           Int      @default(3)
+  showStartFinish     Boolean  @default(true)
+  showSectors         Boolean  @default(false)
+  showDrsZones        Boolean  @default(false)
+  showOvertakePoints  Boolean  @default(false)
+  showCornerNumbers   Boolean  @default(false)
+  track               Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([primaryColor])
 }
 
 model EmailDelivery {

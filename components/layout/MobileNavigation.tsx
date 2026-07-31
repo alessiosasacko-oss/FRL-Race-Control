@@ -7,18 +7,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { roleLabels } from "@/domain";
+import type { NavigationSettings } from "@/lib/design/theme";
 import type { AuthenticatedUser } from "@/lib/auth/session";
 import ActiveNavLink from "./ActiveNavLink";
 import {
   administrationNavigationItems,
   driverNavigationItems,
   leagueNavigationItems,
-  mobilePrimaryItems,
 } from "./navigation";
 
 type MobileNavigationProps = {
   user: AuthenticatedUser;
   canManageAdministration: boolean;
+  settings: NavigationSettings;
 };
 
 type NavigationItem = {
@@ -35,9 +36,21 @@ function isCurrent(pathname: string, href: string): boolean {
 export default function MobileNavigation({
   user,
   canManageAdministration,
+  settings,
 }: MobileNavigationProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const itemsById = {
+    dashboard: driverNavigationItems[0],
+    calendar: driverNavigationItems[1],
+    attendance: driverNavigationItems[2],
+    championship: driverNavigationItems[3],
+    fia: driverNavigationItems[4],
+    notifications: driverNavigationItems[5],
+    drivers: leagueNavigationItems[0],
+    teams: leagueNavigationItems[1],
+  } as const;
+  const configuredItems = settings.mobileItems.map((id) => itemsById[id]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -51,9 +64,10 @@ export default function MobileNavigation({
     <>
       <nav
         aria-label="Mobile Hauptnavigation"
-        className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-slate-700/80 bg-[#0b1119]/95 px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-18px_45px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:hidden"
+        className="app-mobile-nav fixed inset-x-0 bottom-0 z-50 grid border-t px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
+        style={{ gridTemplateColumns: `repeat(${configuredItems.length + 1}, minmax(0, 1fr))` }}
       >
-        {mobilePrimaryItems.map((item) => {
+        {configuredItems.map((item) => {
           const Icon = item.icon;
           const active = isCurrent(pathname, item.href);
           return (
@@ -62,12 +76,12 @@ export default function MobileNavigation({
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={`flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-[0.66rem] font-semibold transition ${
-                active ? "text-blue-300" : "text-slate-500"
+                  active ? "text-[var(--color-primary)]" : "text-[var(--color-text-muted)]"
               }`}
             >
               <span
                 className={`flex h-7 min-w-10 items-center justify-center rounded-full ${
-                  active ? "bg-blue-500/20" : ""
+                  active ? "bg-[color-mix(in_srgb,var(--color-primary)_18%,transparent)]" : ""
                 }`}
               >
                 <Icon size={19} />
@@ -103,7 +117,7 @@ export default function MobileNavigation({
             role="dialog"
             aria-modal="true"
             aria-label="Alle Bereiche"
-            className="absolute inset-y-0 right-0 flex w-[min(90vw,23rem)] flex-col border-l border-slate-700 bg-[#0b1119] shadow-2xl"
+            className="app-sidebar absolute inset-y-0 right-0 flex w-[min(90vw,23rem)] flex-col border-l shadow-2xl"
           >
             <header className="flex items-center justify-between border-b border-slate-800 p-5">
               <div className="flex items-center gap-3">

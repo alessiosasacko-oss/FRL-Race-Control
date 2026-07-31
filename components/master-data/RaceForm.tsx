@@ -19,11 +19,13 @@ import ActionMessage from "./ActionMessage";
 
 type RaceFormProps = {
   seasons: SeasonOption[];
+  tracks: Array<{ id: number; name: string; countryCode: string }>;
   race?: RaceItem;
 };
 
 export default function RaceForm({
   seasons,
+  tracks,
   race,
 }: RaceFormProps) {
   const [mystery, setMystery] = useState(race?.mystery ?? false);
@@ -76,6 +78,24 @@ export default function RaceForm({
               placeholder="Belgium Grand Prix"
               className="form-control mt-2"
             />
+          </label>
+          <label className="master-label sm:col-span-2">
+            Zentrale Strecke
+            <select
+              name="trackId"
+              defaultValue={race?.trackId ?? ""}
+              onChange={(event) => {
+                const track = tracks.find((item) => item.id === Number(event.target.value));
+                if (track && !mystery) {
+                  setCircuit(track.name);
+                  setCountryCode(track.countryCode);
+                }
+              }}
+              className="form-control mt-2"
+            >
+              <option value="">Keine Streckendaten zuordnen</option>
+              {tracks.map((track) => <option key={track.id} value={track.id}>{track.countryCode} · {track.name}</option>)}
+            </select>
           </label>
           {!hideTrackFields ? (
             <>

@@ -253,7 +253,7 @@ export default function SettingsForms({
             <CardTitle
               icon={Moon}
               title="Darstellung"
-              description="Weitere Themes folgen in einer späteren Ausbaustufe."
+              description="Wähle deinen erlaubten persönlichen Farbmodus."
             />
             <label className="master-label">
               Theme
@@ -263,6 +263,8 @@ export default function SettingsForms({
                 className="form-control mt-2"
               >
                 <option value="dark">FRL Dark Blue</option>
+                <option value="light">Light Mode</option>
+                <option value="system">Systemeinstellung</option>
               </select>
             </label>
           </div>

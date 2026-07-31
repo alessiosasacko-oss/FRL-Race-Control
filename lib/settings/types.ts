@@ -44,7 +44,7 @@ export type SettingsPageData = {
     quietHoursStart: string;
     quietHoursEnd: string;
     timezone: string;
-    theme: "dark";
+    theme: "dark" | "light" | "system";
     language: "de";
   };
 };
