@@ -10,11 +10,12 @@ import {
   Ruler,
   Sparkles,
   Timer,
-  Trophy,
+  Zap,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import Countdown from "@/components/dashboard/Countdown";
 import TrackVisual from "@/components/tracks/TrackVisual";
+import CountryFlag from "@/components/ui/CountryFlag";
 import EmptyState from "@/components/ui/EmptyState";
 import MetricBlock from "@/components/ui/MetricBlock";
 import PageHeader from "@/components/ui/PageHeader";
@@ -33,14 +34,6 @@ export default async function RaceWeekendPage({
   const race = await getRaceWeekendPageData(raceId, user.id);
   if (!race) notFound();
 
-  const heroImage = race.track?.visual?.heroAsset;
-  const heroStyle = heroImage
-    ? {
-        backgroundImage: `linear-gradient(90deg,rgba(3,7,18,.94),rgba(3,7,18,.48)),url(${JSON.stringify(heroImage)})`,
-        backgroundSize: "cover",
-        backgroundPosition: race.track?.visual?.imagePosition ?? "center",
-      }
-    : undefined;
   const ownSchedule = race.schedules.find(
     (schedule) => schedule.league.id === race.viewerLeagueId,
   );
@@ -57,10 +50,7 @@ export default async function RaceWeekendPage({
           icon={Flag}
         />
 
-        <section
-          className="race-hero relative isolate overflow-hidden rounded-[1.75rem] border p-5 sm:p-8 lg:p-10"
-          style={heroStyle}
-        >
+        <section className="race-hero relative isolate overflow-hidden rounded-[1.75rem] border p-5 sm:p-8 lg:p-10">
           <div className="grid gap-6 lg:min-h-72 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-end lg:gap-8">
             <div>
               <div className="flex flex-wrap gap-2">
@@ -85,6 +75,7 @@ export default async function RaceWeekendPage({
               <p className="mt-4 flex items-start gap-2 text-base text-[var(--color-text-muted)] lg:text-lg">
                 <MapPin size={20} className="mt-0.5 shrink-0 text-[var(--page-accent)]" />
                 <span>
+                  {race.countryCode ? <CountryFlag countryCode={race.countryCode} size="sm" /> : null}
                   {race.circuit ?? "Mystery Track"}
                   {race.countryCode ? ` · ${race.countryCode}` : ""}
                 </span>
@@ -189,19 +180,17 @@ function MobileTrackFacts({ race }: { race: RaceWeekendData }) {
       <p className="eyebrow">Circuit intelligence</p>
       <h2 className="mt-2 text-2xl font-black">Key Facts</h2>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <Fact icon={Ruler} label="Streckenlänge" value={race.track.lengthKm ? `${race.track.lengthKm} km` : "Noch offen"} />
+        <Fact icon={Ruler} label="Streckenlänge" value={formatKilometers(race.track.lengthKm)} />
         <Fact icon={Route} label="Runden" value={race.track.lapCount ?? "Noch offen"} />
-        <Fact icon={Gauge} label="Gesamtdistanz" value={race.track.totalDistanceKm ? `${race.track.totalDistanceKm} km` : "Noch offen"} />
-        <Fact icon={Sparkles} label="DRS-Zonen" value={race.track.drsZones ?? "Noch offen"} />
+        <Fact icon={Zap} label="SM Straight Mode" value={formatStraightMode(race.track.smStraightModeZones)} />
+        <Fact icon={Route} label="Sektoren" value={race.track.sectorCount} />
       </div>
       <details className="mt-4 rounded-xl border border-[var(--color-border)]">
         <summary className="flex min-h-12 cursor-pointer items-center px-4 text-sm font-bold text-cyan-200">
           Weitere Streckendaten
         </summary>
         <div className="grid gap-3 border-t border-[var(--color-border)] p-3 sm:grid-cols-2">
-          <Fact icon={Trophy} label="Overtake Points" value={race.track.overtakePoints ?? "Noch offen"} />
           <Fact icon={Timer} label="Pitlane-Verlust" value={race.track.pitLaneLossSeconds ? `${race.track.pitLaneLossSeconds} s` : "Noch offen"} />
-          <Fact icon={Route} label="Sektoren" value={race.track.sectorCount} />
           <Fact icon={Ruler} label="Längste Gerade" value={race.track.longestStraightM ? `${race.track.longestStraightM} m` : "Noch offen"} />
           <Fact icon={Flag} label="Pole-Seite" value={race.track.poleSide ?? "Noch offen"} />
         </div>
@@ -218,14 +207,13 @@ function DesktopTrackFacts({ race }: { race: RaceWeekendData }) {
       <p className="eyebrow">Circuit intelligence</p>
       <h2 className="mt-2 text-2xl font-black">Key Facts</h2>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <Fact icon={Ruler} label="Streckenlänge" value={race.track.lengthKm ? `${race.track.lengthKm} km` : "Noch offen"} />
+        <Fact icon={Ruler} label="Streckenlänge" value={formatKilometers(race.track.lengthKm)} />
         <Fact icon={Route} label="Runden" value={race.track.lapCount ?? "Noch offen"} />
-        <Fact icon={Gauge} label="Gesamtdistanz" value={race.track.totalDistanceKm ? `${race.track.totalDistanceKm} km` : "Noch offen"} />
-        <Fact icon={Sparkles} label="DRS-Zonen" value={race.track.drsZones ?? "Noch offen"} />
-        <Fact icon={Trophy} label="Overtake Points" value={race.track.overtakePoints ?? "Noch offen"} />
+        <Fact icon={Zap} label="SM Straight Mode" value={formatStraightMode(race.track.smStraightModeZones)} />
         <Fact icon={Timer} label="Pitlane-Verlust" value={race.track.pitLaneLossSeconds ? `${race.track.pitLaneLossSeconds} s` : "Noch offen"} />
         <Fact icon={Route} label="Sektoren" value={race.track.sectorCount} />
         <Fact icon={Ruler} label="Längste Gerade" value={race.track.longestStraightM ? `${race.track.longestStraightM} m` : "Noch offen"} />
+        <Fact icon={Flag} label="Pole-Seite" value={race.track.poleSide ?? "Noch offen"} />
       </div>
       {race.track.notes ? <TrackNotes notes={race.track.notes} /> : null}
     </section>
@@ -261,6 +249,17 @@ function TrackNotes({ notes }: { notes: string }) {
       {notes}
     </p>
   );
+}
+
+function formatKilometers(value: number | null) {
+  return value === null
+    ? "Keine Angabe"
+    : `${value.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} km`;
+}
+
+function formatStraightMode(value: number | null) {
+  if (value === null) return "Keine Angabe";
+  return `${value} ${value === 1 ? "Zone" : "Zonen"}`;
 }
 
 function Fact({

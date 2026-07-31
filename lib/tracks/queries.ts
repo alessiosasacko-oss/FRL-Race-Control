@@ -3,10 +3,42 @@ import "server-only";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { publicRaceTrack } from "@/lib/races/visibility";
 
+const activeVisualSelect = {
+  layoutAsset: true,
+  layoutMimeType: true,
+  primaryColor: true,
+  secondaryColor: true,
+  overlayStrength: true,
+  lightBannerText: true,
+  useThemeLayoutColor: true,
+  layoutColor: true,
+  lineWidth: true,
+  showStartFinish: true,
+  showSectors: true,
+  showCornerNumbers: true,
+} as const;
+
 export async function getTrackAdminData() {
   const tracks = await getPrismaClient().track.findMany({
     orderBy: [{ active: "desc" }, { name: "asc" }],
-    include: { visual: true, _count: { select: { races: true } } },
+    select: {
+      id: true,
+      name: true,
+      countryCode: true,
+      lengthKm: true,
+      lapCount: true,
+      sectorCount: true,
+      smStraightModeZones: true,
+      longestStraightM: true,
+      poleSide: true,
+      pitLaneLossSeconds: true,
+      notes: true,
+      active: true,
+      visual: { select: activeVisualSelect },
+      _count: { select: { races: true } },
+      createdAt: true,
+      updatedAt: true,
+    },
   });
   return tracks.map((track) => ({
     ...track,
@@ -30,7 +62,22 @@ export async function getRaceWeekendPageData(raceId: number, userId?: number) {
     prisma.race.findUnique({
       where: { id: raceId },
       include: {
-        track: { include: { visual: true } },
+        track: {
+          select: {
+            id: true,
+            name: true,
+            countryCode: true,
+            lengthKm: true,
+            lapCount: true,
+            sectorCount: true,
+            smStraightModeZones: true,
+            longestStraightM: true,
+            poleSide: true,
+            pitLaneLossSeconds: true,
+            notes: true,
+            visual: { select: activeVisualSelect },
+          },
+        },
         season: { select: { name: true } },
         leagueSchedules: {
           orderBy: [
@@ -98,10 +145,8 @@ export async function getRaceWeekendPageData(raceId: number, userId?: number) {
       countryCode: race.track.countryCode,
       lengthKm: race.track.lengthKm,
       lapCount: race.track.lapCount,
-      totalDistanceKm: race.track.totalDistanceKm,
       sectorCount: race.track.sectorCount,
-      drsZones: race.track.drsZones,
-      overtakePoints: race.track.overtakePoints,
+      smStraightModeZones: race.track.smStraightModeZones,
       longestStraightM: race.track.longestStraightM,
       poleSide: race.track.poleSide,
       pitLaneLossSeconds: race.track.pitLaneLossSeconds,

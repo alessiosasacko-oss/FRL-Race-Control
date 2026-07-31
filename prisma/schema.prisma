@@ -1450,54 +1450,55 @@ model DesignThemeVersion {
 }
 
 model Track {
-  id                 Int          @id @default(autoincrement())
-  name               String       @unique @db.VarChar(160)
-  countryCode        String       @db.Char(2)
-  lengthKm           Float?
-  lapCount           Int?
-  totalDistanceKm    Float?
-  sectorCount        Int          @default(3)
-  drsZones           Int?
-  overtakePoints     Int?
-  longestStraightM   Int?
-  poleSide           String?      @db.VarChar(32)
-  pitLaneLossSeconds Float?
-  notes              String?      @db.Text
-  active             Boolean      @default(true)
-  races              Race[]
-  visual             TrackVisual?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  id                    Int          @id @default(autoincrement())
+  name                  String       @unique @db.VarChar(160)
+  countryCode           String       @db.Char(2)
+  lengthKm              Float?
+  lapCount              Int?
+  legacyTotalDistanceKm Float?       @map("totalDistanceKm")
+  sectorCount           Int          @default(3)
+  legacyDrsZones        Int?         @map("drsZones")
+  legacyOvertakePoints  Int?         @map("overtakePoints")
+  smStraightModeZones   Int?
+  longestStraightM      Int?
+  poleSide              String?      @db.VarChar(32)
+  pitLaneLossSeconds    Float?
+  notes                 String?      @db.Text
+  active                Boolean      @default(true)
+  races                 Race[]
+  visual                TrackVisual?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   @@index([active, name])
   @@index([countryCode])
 }
 
 model TrackVisual {
-  id                  Int      @id @default(autoincrement())
-  trackId             Int      @unique
-  layoutAsset         String?  @db.Text
-  layoutMimeType      String?  @db.VarChar(80)
-  heroAsset           String?  @db.Text
-  mobileHeroAsset     String?  @db.Text
-  trackLogoAsset      String?  @db.Text
-  primaryColor        String   @default("#3B82F6") @db.Char(7)
-  secondaryColor      String   @default("#22D3EE") @db.Char(7)
-  overlayStrength     Int      @default(65)
-  imagePosition       String   @default("center") @db.VarChar(32)
-  imageCrop           String   @default("cover") @db.VarChar(32)
-  lightBannerText     Boolean  @default(true)
-  useThemeLayoutColor Boolean  @default(true)
-  layoutColor         String?  @db.Char(7)
-  lineWidth           Int      @default(3)
-  showStartFinish     Boolean  @default(true)
-  showSectors         Boolean  @default(false)
-  showDrsZones        Boolean  @default(false)
-  showOvertakePoints  Boolean  @default(false)
-  showCornerNumbers   Boolean  @default(false)
-  track               Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                       Int      @id @default(autoincrement())
+  trackId                  Int      @unique
+  layoutAsset              String?  @db.Text
+  layoutMimeType           String?  @db.VarChar(80)
+  legacyHeroAsset          String?  @map("heroAsset") @db.Text
+  legacyMobileHeroAsset    String?  @map("mobileHeroAsset") @db.Text
+  legacyTrackLogoAsset     String?  @map("trackLogoAsset") @db.Text
+  primaryColor             String   @default("#3B82F6") @db.Char(7)
+  secondaryColor           String   @default("#22D3EE") @db.Char(7)
+  overlayStrength          Int      @default(65)
+  legacyImagePosition      String   @default("center") @map("imagePosition") @db.VarChar(32)
+  legacyImageCrop          String   @default("cover") @map("imageCrop") @db.VarChar(32)
+  lightBannerText          Boolean  @default(true)
+  useThemeLayoutColor      Boolean  @default(true)
+  layoutColor              String?  @db.Char(7)
+  lineWidth                Int      @default(3)
+  showStartFinish          Boolean  @default(true)
+  showSectors              Boolean  @default(false)
+  legacyShowDrsZones       Boolean  @default(false) @map("showDrsZones")
+  legacyShowOvertakePoints Boolean  @default(false) @map("showOvertakePoints")
+  showCornerNumbers        Boolean  @default(false)
+  track                    Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   @@index([primaryColor])
 }

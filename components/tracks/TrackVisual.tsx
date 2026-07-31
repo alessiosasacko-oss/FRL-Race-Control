@@ -10,8 +10,6 @@ type Visual = {
   lineWidth: number;
   showStartFinish: boolean;
   showSectors: boolean;
-  showDrsZones: boolean;
-  showOvertakePoints: boolean;
   showCornerNumbers: boolean;
 };
 
@@ -36,8 +34,6 @@ export default function TrackVisual({ visual, name }: { visual: Visual | null; n
         <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-wider">
           {visual.showStartFinish ? <Tag icon={FlagTriangleRight} label="Start/Ziel" /> : null}
           {visual.showSectors ? <Tag icon={CircuitBoard} label="Sektoren" /> : null}
-          {visual.showDrsZones ? <Tag icon={Gauge} label="DRS" /> : null}
-          {visual.showOvertakePoints ? <Tag icon={Route} label="Overtake" /> : null}
           {visual.showCornerNumbers ? <Tag icon={CircuitBoard} label="Kurven" /> : null}
         </div>
       ) : null}

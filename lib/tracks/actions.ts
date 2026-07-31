@@ -18,10 +18,10 @@ function errorState(message: string, fieldErrors?: Record<string, string[]>): Tr
 
 function splitTrack(input: ReturnType<typeof trackSchema.parse>) {
   const {
-    layoutAsset, layoutMimeType, heroAsset, mobileHeroAsset, trackLogoAsset,
-    primaryColor, secondaryColor, overlayStrength, imagePosition, imageCrop,
+    layoutAsset, layoutMimeType,
+    primaryColor, secondaryColor, overlayStrength,
     lightBannerText, useThemeLayoutColor, layoutColor, lineWidth,
-    showStartFinish, showSectors, showDrsZones, showOvertakePoints, showCornerNumbers,
+    showStartFinish, showSectors, showCornerNumbers,
     ...track
   } = input;
   return {
@@ -29,22 +29,15 @@ function splitTrack(input: ReturnType<typeof trackSchema.parse>) {
     visual: {
       layoutAsset: layoutAsset || null,
       layoutMimeType: layoutMimeType ?? null,
-      heroAsset: heroAsset || null,
-      mobileHeroAsset: mobileHeroAsset || null,
-      trackLogoAsset: trackLogoAsset || null,
       primaryColor,
       secondaryColor,
       overlayStrength,
-      imagePosition,
-      imageCrop,
       lightBannerText,
       useThemeLayoutColor,
       layoutColor,
       lineWidth,
       showStartFinish,
       showSectors,
-      showDrsZones,
-      showOvertakePoints,
       showCornerNumbers,
     },
   };
