@@ -3,6 +3,7 @@ import { Role } from "@/domain";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { effectiveUserAccess } from "./permissions";
 import { userListQuerySchema } from "./schemas";
+import { logUserAdministrationFailure } from "./diagnostics";
 
 export function parseUserListQuery(
   input: Record<string, string | string[] | undefined>,
@@ -91,6 +92,7 @@ export async function getUserAdminList(
           league: { select: { id: true, code: true, name: true } },
           team: { select: { id: true, name: true, color: true } },
           seasonAssignments: {
+            where: { active: true },
             orderBy: { season: { startsOn: "desc" } },
             take: 1,
             include: {
@@ -174,8 +176,11 @@ export async function getUserAdminDetail(userId: number) {
     orderBy: { createdAt: "desc" },
     take: 100,
     include: { actor: { select: { displayName: true } } },
+  }).catch((error: unknown) => {
+    logUserAdministrationFailure("user-detail-audit", error);
+    return [];
   });
-  const currentAssignment = user.driver?.seasonAssignments[0] ?? null;
+  const currentAssignment = user.driver?.seasonAssignments.find((assignment) => assignment.active) ?? null;
   const access = effectiveUserAccess({
     roles: user.roles as Role[],
     leagueCode: currentAssignment?.league.code ?? user.driver?.league.code,

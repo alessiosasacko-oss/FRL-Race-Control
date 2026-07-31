@@ -14,6 +14,7 @@ import {
   getUserDataQualityReport,
   parseUserListQuery,
 } from "@/lib/users/queries";
+import { logUserAdministrationFailure } from "@/lib/users/diagnostics";
 
 type UsersPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -22,11 +23,24 @@ type UsersPageProps = {
 export default async function UsersAdminPage({ searchParams }: UsersPageProps) {
   await requirePermission(Permission.ManageUsers);
   const query = parseUserListQuery(await searchParams);
-  const [users, options, quality] = await Promise.all([
+  const [users, optionsResult, qualityResult] = await Promise.all([
     getUserAdminList(query),
-    getUserAdminOptions(),
-    getUserDataQualityReport(),
+    getUserAdminOptions()
+      .then((data) => ({ data, failed: false as const }))
+      .catch((error: unknown) => {
+        logUserAdministrationFailure("user-list-options", error);
+        return { data: { leagues: [], seasons: [], organizations: [], primaryAssignments: [] }, failed: true as const };
+      }),
+    getUserDataQualityReport()
+      .then((data) => ({ data, failed: false as const }))
+      .catch((error: unknown) => {
+        logUserAdministrationFailure("user-list-quality-report", error);
+        return { data: { usersWithoutDriver: 0, driversWithoutTeam: 0, invalidCountryCodes: [], overfilledPrimarySlots: 0 }, failed: true as const };
+      }),
   ]);
+  const options = optionsResult.data;
+  const quality = qualityResult.data;
+  const optionalDataWarning = optionsResult.failed || qualityResult.failed;
 
   return (
     <AppLayout>
@@ -37,6 +51,8 @@ export default async function UsersAdminPage({ searchParams }: UsersPageProps) {
           subtitle="Systemrollen, sportliche Zuordnung und effektive Berechtigungen sicher verwalten."
           icon={UserCog}
         />
+
+        {optionalDataWarning ? <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">Einzelne optionale Zuordnungsdaten konnten nicht geladen werden. Benutzerkonten und Rollen bleiben verfügbar; Details stehen im sicheren Serverlog.</p> : null}
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <QualityMetric label="Benutzer" value={users.length} />
@@ -111,7 +127,7 @@ function DesktopUserRow({ user }: { user: UserListItem }) {
     <tr>
       <td className="px-5 py-4"><UserIdentity user={user} /></td>
       <td className="px-5 py-4">{user.driver ? <div className="flex items-center gap-2"><CountryFlag countryCode={user.driver.countryCode} size="sm" /><span>#{user.driver.number} {user.driver.name}</span></div> : <span className="text-slate-500">Kein Fahrerprofil</span>}</td>
-      <td className="px-5 py-4 text-slate-300">{user.driver ? `${user.driver.assignment?.league.code ?? user.driver.league.code} · ${user.driver.assignment?.organization?.name ?? user.driver.team?.name ?? "Ohne Team"}` : "–"}</td>
+      <td className="px-5 py-4 text-slate-300">{user.driver?.assignment ? <><span>{user.driver.assignment.league.code} · {user.driver.assignment.organization?.name ?? "Kein Team zugeordnet"}</span><span className="mt-1 block text-xs text-slate-500">{user.driver.assignment.lineupStatus === DriverLineupStatus.Primary ? "Stammfahrer" : "Ersatzfahrer"}</span></> : user.driver ? <span className="text-amber-300">Keine aktive Saisonzuordnung</span> : "–"}</td>
       <td className="max-w-64 px-5 py-4"><div className="flex flex-wrap gap-1">{user.roles.map((role) => <RoleBadge key={role} role={role} />)}</div></td>
       <td className="px-5 py-4 text-xs text-slate-400">{formatLastLogin(user.lastLoginAt)}</td>
       <td className="px-5 py-4"><span className={user.active ? "text-emerald-300" : "text-red-300"}>{user.active ? "Aktiv" : "Gesperrt"}</span></td>
@@ -127,8 +143,8 @@ function MobileUserCard({ user }: { user: UserListItem }) {
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <div><p className="text-xs text-slate-500">Fahrer</p><p className="mt-1 text-white">{user.driver ? `#${user.driver.number} ${user.driver.name}` : "Nicht verknüpft"}</p></div>
         <div><p className="text-xs text-slate-500">Land</p><div className="mt-1"><CountryFlag countryCode={user.driver?.countryCode} size="sm" showLabel /></div></div>
-        <div><p className="text-xs text-slate-500">Liga</p><p className="mt-1 text-white">{user.driver?.assignment?.league.code ?? user.driver?.league.code ?? "–"}</p></div>
-        <div><p className="text-xs text-slate-500">Team</p><p className="mt-1 break-words text-white">{user.driver?.assignment?.organization?.name ?? user.driver?.team?.name ?? "Ohne Team"}</p></div>
+        <div><p className="text-xs text-slate-500">Liga</p><p className="mt-1 text-white">{user.driver?.assignment?.league.code ?? (user.driver ? "Keine aktive Zuordnung" : "–")}</p></div>
+        <div><p className="text-xs text-slate-500">Team / Status</p><p className="mt-1 break-words text-white">{user.driver?.assignment ? `${user.driver.assignment.organization?.name ?? "Kein Team zugeordnet"} · ${user.driver.assignment.lineupStatus === DriverLineupStatus.Primary ? "Stammfahrer" : "Ersatzfahrer"}` : "Keine aktive Saisonzuordnung"}</p></div>
       </div>
       <div className="mt-4 flex flex-wrap gap-1">{user.roles.map((role) => <RoleBadge key={role} role={role} />)}</div>
       <p className="mt-3 text-xs text-slate-500">Letzte Anmeldung: {formatLastLogin(user.lastLoginAt)}</p>

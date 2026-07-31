@@ -8,6 +8,7 @@ import { countryCodeToFlagEmoji } from "@/lib/countries";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { writeSystemAudit } from "@/lib/audit/system";
 import { primarySlotAvailable, validateRoleChange } from "./policy";
+import { logUserAdministrationFailure } from "./diagnostics";
 import {
   userRoleUpdateSchema,
   userSportAssignmentSchema,
@@ -93,33 +94,45 @@ export async function updateUserRolesAction(
     return { status: "success", message: "Die Rollen sind unverändert.", changes: [] };
   }
 
-  await prisma.$transaction(async (transaction) => {
-    await transaction.user.update({ where: { id: target.id }, data: { roles: nextRoles } });
-    for (const role of added) {
-      await writeSystemAudit(transaction, {
-        actorId: actor.id,
-        action: "USER_ROLE_ADDED",
-        entityType: "User",
-        entityId: target.id,
-        metadata: { role, previous: currentRoles, next: nextRoles, reason: parsed.data.reason },
+  try {
+    await prisma.$transaction(async (transaction) => {
+      await transaction.user.update({ where: { id: target.id }, data: { roles: nextRoles } });
+      for (const role of added) {
+        await writeSystemAudit(transaction, {
+          actorId: actor.id,
+          action: "USER_ROLE_ADDED",
+          entityType: "User",
+          entityId: target.id,
+          metadata: { role, previous: currentRoles, next: nextRoles, reason: parsed.data.reason },
+        });
+      }
+      for (const role of removed) {
+        await writeSystemAudit(transaction, {
+          actorId: actor.id,
+          action: "USER_ROLE_REMOVED",
+          entityType: "User",
+          entityId: target.id,
+          metadata: { role, previous: currentRoles, next: nextRoles, reason: parsed.data.reason },
+        });
+      }
+      const reloaded = await transaction.user.findUnique({
+        where: { id: target.id },
+        select: { id: true, roles: true, active: true },
       });
-    }
-    for (const role of removed) {
-      await writeSystemAudit(transaction, {
-        actorId: actor.id,
-        action: "USER_ROLE_REMOVED",
-        entityType: "User",
-        entityId: target.id,
-        metadata: { role, previous: currentRoles, next: nextRoles, reason: parsed.data.reason },
-      });
-    }
-    await transaction.session.deleteMany({ where: { userId: target.id } });
-  });
+      if (!reloaded) throw new Error("UPDATED_USER_NOT_FOUND");
+    });
+  } catch (error: unknown) {
+    logUserAdministrationFailure("role-update-transaction", error);
+    return {
+      status: "error",
+      message: "Die Rollen konnten nicht gespeichert werden. Es wurden keine Teiländerungen übernommen.",
+    };
+  }
 
   refreshUserAdministration(target.id);
   return {
     status: "success",
-    message: "Rollen wurden gespeichert. Bestehende Sitzungen wurden sicher erneuert.",
+    message: "Rollen wurden gespeichert. Die neuen Rechte gelten ab dem nächsten Request.",
     changes: [
       ...added.map((role) => `${role}: hinzugefügt`),
       ...removed.map((role) => `${role}: entfernt`),
