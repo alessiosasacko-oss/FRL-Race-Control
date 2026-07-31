@@ -5,6 +5,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
+import CountryFlag from "@/components/ui/CountryFlag";
 import { resultSessionLabels, resultStatusLabels } from "@/domain";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -192,9 +193,7 @@ function PodiumResult({
           size={22}
         />
       )}
-      <p className="mt-4 text-lg font-bold text-white">
-        {result.driver.flag} {result.driver.name}
-      </p>
+      <p className="mt-4 flex items-center gap-2 text-lg font-bold text-white"><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />{result.driver.name}</p>
       <p className="mt-1 text-sm text-slate-400">
         {result.representedTeam.name}
       </p>
@@ -216,7 +215,7 @@ function ResultRow({ result }: { result: SessionResult }) {
           href={`/drivers/${result.driver.id}`}
           className="font-semibold text-white hover:text-blue-300"
         >
-          {result.driver.flag} #{result.driver.number} {result.driver.name}
+          <span className="inline-flex items-center gap-2"><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />#{result.driver.number} {result.driver.name}</span>
         </Link>
         {result.substitute ? (
           <p className="mt-1 text-xs text-amber-300">
@@ -259,7 +258,7 @@ function MobileResult({ result }: { result: SessionResult }) {
             href={`/drivers/${result.driver.id}`}
             className="block truncate font-semibold text-white"
           >
-            {result.driver.flag} {result.driver.name}
+            <span className="inline-flex items-center gap-2"><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />{result.driver.name}</span>
           </Link>
           <p className="mt-1 truncate text-xs text-slate-500">
             {result.representedTeam.name} · {resultStatusLabels[result.status]}

@@ -33,6 +33,7 @@ import {
   resultSessionLabels,
   resultStatusLabels,
 } from "@/domain";
+import CountryFlag from "@/components/ui/CountryFlag";
 import { deleteResultsAction } from "@/lib/championship/actions";
 import { saveResultsAction } from "@/lib/championship/result-actions";
 import {
@@ -1345,7 +1346,7 @@ function DriverPicker({
               }}
               className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-800"
             >
-              <span>{driver.flag}</span>
+              <CountryFlag countryCode={null} fallbackFlag={driver.flag} size="sm" />
               <span className="min-w-0">
                 <span className="block truncate font-medium text-white">
                   #{driver.number} {driver.name}
@@ -1530,7 +1531,7 @@ function DesktopRow({
       <td className="px-3 py-4 font-mono text-slate-300">
         {driver ? `#${driver.number}` : "–"}
       </td>
-      <td className="px-3 py-4 text-lg">{driver?.flag ?? "–"}</td>
+      <td className="px-3 py-4 text-lg"><CountryFlag countryCode={null} fallbackFlag={driver?.flag} size="sm" /></td>
       <td className="px-3 py-3">
         <select
           data-result-cell

@@ -26,6 +26,7 @@ type NavigationItem = {
   name: string;
   href: string;
   icon: LucideIcon;
+  permission: Permission;
 };
 
 export default function Sidebar({ user, settings }: SidebarProps) {
@@ -63,12 +64,12 @@ export default function Sidebar({ user, settings }: SidebarProps) {
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-        <SidebarGroup label="Fahrer" items={driverNavigationItems} />
-        <SidebarGroup label="Liga" items={leagueNavigationItems} />
+        <SidebarGroup label="Fahrer" items={driverNavigationItems.filter((item) => hasPermission(user.roles, item.permission))} />
+        <SidebarGroup label="Liga" items={leagueNavigationItems.filter((item) => hasPermission(user.roles, item.permission))} />
         {canManageAdministration ? (
           <SidebarGroup
             label="Administration"
-            items={administrationNavigationItems}
+            items={administrationNavigationItems.filter((item) => hasPermission(user.roles, item.permission))}
             compact
             special
           />

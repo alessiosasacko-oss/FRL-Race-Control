@@ -10,6 +10,7 @@ import {
   type DriverItem,
   type MasterDataOptions,
 } from "@/lib/master-data/types";
+import CountrySelect from "@/components/ui/CountrySelect";
 import ActionMessage from "./ActionMessage";
 
 type DriverFormProps = {
@@ -55,26 +56,8 @@ export default function DriverForm({
           />
         </label>
         <label className="master-label">
-          Flagge
-          <input
-            name="flag"
-            defaultValue={driver?.flag ?? ""}
-            required
-            maxLength={16}
-            placeholder="🇩🇪"
-            className="form-control mt-2"
-          />
-        </label>
-        <label className="master-label">
           Ländercode
-          <input
-            name="countryCode"
-            defaultValue={driver?.countryCode ?? "DE"}
-            required
-            minLength={2}
-            maxLength={2}
-            className="form-control mt-2 uppercase"
-          />
+          <CountrySelect defaultValue={driver?.countryCode ?? "DE"} />
         </label>
         <label className="master-label">
           Liga

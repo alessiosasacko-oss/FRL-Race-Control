@@ -32,6 +32,7 @@ export type SettingsPageData = {
     name: string;
     number: number;
     flag: string;
+    countryCode: string;
     team: string | null;
     league: string;
   } | null;

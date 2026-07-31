@@ -223,6 +223,21 @@ export async function getAttendancePageData(
           league: { select: { id: true, code: true, name: true } },
         },
       },
+      organizationSeasons: {
+        select: {
+          organization: {
+            select: {
+              teams: {
+                where: { active: true },
+                select: {
+                  id: true,
+                  league: { select: { id: true, code: true, name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
   const canManageAll = Boolean(
@@ -254,6 +269,17 @@ export async function getAttendancePageData(
   for (const team of userContext?.principalTeams ?? []) {
     accessibleLeagueMap.set(team.league.id, team.league);
   }
+  for (const organizationSeason of userContext?.organizationSeasons ?? []) {
+    for (const team of organizationSeason.organization.teams) {
+      accessibleLeagueMap.set(team.league.id, team.league);
+    }
+  }
+  const allPrincipalTeamIds = [
+    ...(userContext?.principalTeams.map((team) => team.id) ?? []),
+    ...(userContext?.organizationSeasons.flatMap((assignment) =>
+      assignment.organization.teams.map((team) => team.id)
+    ) ?? []),
+  ];
   const accessibleLeagues = [...accessibleLeagueMap.values()];
   const preferredLeagueId =
     query.leagueId &&
@@ -275,7 +301,7 @@ export async function getAttendancePageData(
       teams: [],
       substituteDrivers: [],
       ownDriverId: userContext?.driver?.id ?? null,
-      principalTeamIds: userContext?.principalTeams.map((team) => team.id) ?? [],
+      principalTeamIds: allPrincipalTeamIds,
       counts: attendanceCounts([]),
       auditEntries: [],
     };
@@ -331,8 +357,7 @@ export async function getAttendancePageData(
       teams: [],
       substituteDrivers: [],
       ownDriverId: userContext?.driver?.id ?? null,
-      principalTeamIds:
-        userContext?.principalTeams.map((team) => team.id) ?? [],
+      principalTeamIds: allPrincipalTeamIds,
       counts: attendanceCounts([]),
       auditEntries: [],
     };
@@ -395,9 +420,21 @@ export async function getAttendancePageData(
       }),
       prisma.team.findMany({
         where: {
-          principalUserId: userId,
           seasonId: selectedRaceRaw.seasonId,
           leagueId: selectedLeague.id,
+          OR: [
+            { principalUserId: userId },
+            {
+              organization: {
+                seasons: {
+                  some: {
+                    seasonId: selectedRaceRaw.seasonId,
+                    principalUserId: userId,
+                  },
+                },
+              },
+            },
+          ],
         },
         select: { id: true },
       }),

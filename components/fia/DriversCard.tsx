@@ -1,4 +1,5 @@
 import type { FiaTicketDetail } from "@/lib/fia/types";
+import CountryFlag from "@/components/ui/CountryFlag";
 
 type DriversCardProps = {
   ticket: FiaTicketDetail;
@@ -17,9 +18,7 @@ export default function DriversCard({ ticket }: DriversCardProps) {
             className="flex items-center justify-between rounded-xl bg-slate-900/70 p-3"
           >
             <div>
-              <h3 className="font-semibold text-white">
-                {driver.flag} {driver.name}
-              </h3>
+              <h3 className="flex items-center gap-2 font-semibold text-white"><CountryFlag countryCode={null} fallbackFlag={driver.flag} size="sm" />{driver.name}</h3>
               <p className="text-sm text-slate-400">
                 {driver.team?.name ?? "Ohne Team"}
               </p>

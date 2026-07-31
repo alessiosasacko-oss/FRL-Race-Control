@@ -3,6 +3,7 @@
 import { Search, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Driver, Team } from "@/domain";
+import CountryFlag from "@/components/ui/CountryFlag";
 
 type SearchableDriver = Driver & {
   team: Team;
@@ -61,9 +62,7 @@ export default function DriverSearch({
 
               <div className="flex items-center gap-3">
 
-                <span className="text-2xl">
-                  {driver.flag}
-                </span>
+                <CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} />
 
                 <div>
 

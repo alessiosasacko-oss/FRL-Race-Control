@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, BadgeInfo, MessageCircle, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
+import CountryFlag from "@/components/ui/CountryFlag";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getDriverById } from "@/lib/master-data/queries";
@@ -54,9 +55,7 @@ export default async function DriverDetailPage({
           <div className="grid gap-8 p-6 lg:grid-cols-[1fr_280px] lg:p-8">
             <div>
               <div className="flex flex-wrap items-start gap-5">
-                <span className="text-5xl" aria-label={driver.countryCode}>
-                  {driver.flag}
-                </span>
+                <CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="lg" />
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-widest text-blue-400">
                     {driver.league.code} · Fahrer #{driver.number}
@@ -87,9 +86,7 @@ export default async function DriverDetailPage({
                   <dt className="text-xs uppercase tracking-wider text-slate-500">
                     Herkunft
                   </dt>
-                  <dd className="mt-2 font-semibold text-white">
-                    {driver.countryCode}
-                  </dd>
+                  <dd className="mt-2 font-semibold text-white"><CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} showLabel /></dd>
                 </div>
                 <div className="rounded-xl bg-slate-950/60 p-4">
                   <dt className="text-xs uppercase tracking-wider text-slate-500">

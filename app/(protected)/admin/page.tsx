@@ -40,6 +40,12 @@ const areas = [
     icon: Users,
   },
   {
+    href: "/admin/users",
+    title: "Benutzer & Rollen",
+    description: "Systemrollen, sportliche Zuordnung und Berechtigungen",
+    icon: Users,
+  },
+  {
     href: "/admin/teams",
     title: "Teams",
     description: "Saison, Team Principal, Farbe und Fahrerfeld",

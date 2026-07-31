@@ -5,6 +5,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Tabs from "@/components/ui/Tabs";
+import CountryFlag from "@/components/ui/CountryFlag";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import {
@@ -194,9 +195,7 @@ export default async function ChampionshipPage({
                   <p className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
                     Position {standing.position}
                   </p>
-                  <p className="mt-3 text-lg font-bold text-white">
-                    {standing.driver.flag} {standing.driver.name}
-                  </p>
+                  <p className="mt-3 flex items-center gap-2 text-lg font-bold text-white"><CountryFlag countryCode={null} fallbackFlag={standing.driver.flag} size="sm" />{standing.driver.name}</p>
                   <p className="mt-1 text-sm text-slate-400">
                     {standing.driver.team?.name ?? "Ohne Team"}
                   </p>
@@ -271,7 +270,7 @@ function DriverStandings({
               href={`/drivers/${standing.driver.id}`}
               className="min-w-0 font-semibold text-white hover:text-blue-300"
             >
-              <span className="mr-2">{standing.driver.flag}</span>
+              <CountryFlag countryCode={null} fallbackFlag={standing.driver.flag} size="sm" className="mr-2" />
               <span className="truncate">
                 #{standing.driver.number} {standing.driver.name}
               </span>

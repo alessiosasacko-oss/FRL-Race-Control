@@ -5,6 +5,7 @@ import { NotificationType as PrismaNotificationType } from "@/generated/prisma/c
 import { WebhookEventType } from "@/domain";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { countryCodeToFlagEmoji } from "@/lib/countries";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import {
   notificationSettingsSchema,
@@ -57,7 +58,7 @@ export async function updateProfileSettingsAction(
   const user = await requireAuthenticatedUser();
   const parsed = profileSettingsSchema.safeParse({
     displayName: formData.get("displayName"),
-    flag: formData.get("flag"),
+    countryCode: formData.get("countryCode"),
     driverNumber: formData.get("driverNumber"),
   });
   if (!parsed.success) return validationState(parsed);
@@ -69,7 +70,7 @@ export async function updateProfileSettingsAction(
   });
   if (
     driver &&
-    (parsed.data.flag === null ||
+    (parsed.data.countryCode === null ||
       parsed.data.driverNumber === null)
   ) {
     return errorState("Flagge und Fahrernummer werden benötigt.");
@@ -86,7 +87,8 @@ export async function updateProfileSettingsAction(
           where: { id: driver.id },
           data: {
             name: parsed.data.displayName,
-            flag: parsed.data.flag as string,
+            countryCode: parsed.data.countryCode as string,
+            flag: countryCodeToFlagEmoji(parsed.data.countryCode) ?? "🌐",
             number: parsed.data.driverNumber as number,
           },
         });

@@ -11,6 +11,7 @@ import {
 import AppLayout from "@/components/layout/AppLayout";
 import Countdown from "@/components/dashboard/Countdown";
 import EmptyState from "@/components/ui/EmptyState";
+import CountryFlag from "@/components/ui/CountryFlag";
 import {
   AttendanceStatus,
   attendanceChangeSourceLabels,
@@ -375,9 +376,7 @@ function ManagementRow({
     <article className="rounded-2xl border border-slate-800 bg-[#111b27] p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-bold text-white">
-            {entry.driver.flag} #{entry.driver.number} {entry.driver.name}
-          </p>
+          <p className="flex min-w-0 items-center gap-2 truncate font-bold text-white"><CountryFlag countryCode={null} fallbackFlag={entry.driver.flag} size="sm" /><span className="truncate">#{entry.driver.number} {entry.driver.name}</span></p>
           <p className="mt-1 text-xs text-slate-500">
             {leagueCode} · {entry.driver.team?.name ?? "Ohne Team"} ·{" "}
             {attendanceStatusLabels[entry.status]}

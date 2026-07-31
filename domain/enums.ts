@@ -9,6 +9,11 @@ export enum Role {
   Driver = "DRIVER",
 }
 
+export enum DriverLineupStatus {
+  Primary = "PRIMARY",
+  Substitute = "SUBSTITUTE",
+}
+
 export enum TicketStatus {
   Open = "OPEN",
   InReview = "IN_REVIEW",

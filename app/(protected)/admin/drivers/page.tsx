@@ -1,5 +1,6 @@
 import AppLayout from "@/components/layout/AppLayout";
 import DriverForm from "@/components/master-data/DriverForm";
+import CountryFlag from "@/components/ui/CountryFlag";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import {
@@ -40,7 +41,7 @@ export default async function DriverAdminPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="font-semibold text-white">
-                      {driver.flag} #{driver.number} {driver.name}
+                      <span className="inline-flex items-center gap-2"><CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="sm" />#{driver.number} {driver.name}</span>
                     </h2>
                     <p className="mt-1 text-sm text-slate-400">
                       {driver.league.code} · {driver.team?.name ?? "Ohne Team"}

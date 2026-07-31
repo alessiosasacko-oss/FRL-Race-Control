@@ -29,6 +29,7 @@ import {
   tallyProposalVotes,
 } from "@/lib/fia/proposal-policy";
 import type { FiaTicketDetail } from "@/lib/fia/types";
+import CountryFlag from "@/components/ui/CountryFlag";
 
 type Proposal = NonNullable<
   FiaTicketDetail["discussionMessages"][number]["proposal"]
@@ -212,9 +213,7 @@ export default function PenaltyProposalCard({
         <div>
           <dt className="text-slate-500">Fahrer</dt>
           <dd className="mt-1 font-semibold text-white">
-            <span aria-hidden="true">
-              {proposal.affectedDriver.flag}{" "}
-            </span>
+            <CountryFlag countryCode={null} fallbackFlag={proposal.affectedDriver.flag} size="sm" />{" "}
             {proposal.affectedDriver.name} · #
             {proposal.affectedDriver.number}
           </dd>

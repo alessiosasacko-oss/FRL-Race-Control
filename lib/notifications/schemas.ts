@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { countryCodeSchema } from "@/domain/common";
 import {
   notificationPrioritySchema,
   notificationTypeSchema,
@@ -69,9 +70,9 @@ export const notificationSettingsSchema = z
 
 export const profileSettingsSchema = z.object({
   displayName: z.string().trim().min(2).max(160),
-  flag: z.preprocess(
+  countryCode: z.preprocess(
     (value) => (value === "" || value === null ? null : value),
-    z.string().trim().min(1).max(16).nullable(),
+    countryCodeSchema.nullable(),
   ),
   driverNumber: z.preprocess(
     (value) => (value === "" || value === null ? null : value),

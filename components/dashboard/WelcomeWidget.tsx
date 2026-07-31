@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Gauge, UserRound } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard/types";
+import CountryFlag from "@/components/ui/CountryFlag";
 
 export default function WelcomeWidget({
   identity,
@@ -33,10 +34,8 @@ export default function WelcomeWidget({
           </span>
         )}
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">
-            {identity.driver
-              ? `${identity.driver.flag} #${identity.driver.number} ${identity.driver.name}`
-              : identity.displayName}
+          <p className="flex min-w-0 items-center gap-2 truncate text-sm font-semibold text-white">
+            {identity.driver ? <><CountryFlag countryCode={null} fallbackFlag={identity.driver.flag} size="sm" /><span className="truncate">#{identity.driver.number} {identity.driver.name}</span></> : identity.displayName}
           </p>
           <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-slate-500">
             <Gauge size={13} className="text-cyan-400" />

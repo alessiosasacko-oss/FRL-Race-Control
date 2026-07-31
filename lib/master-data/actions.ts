@@ -34,6 +34,8 @@ import {
 import { zonedLocalToUtc } from "./timezone";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import { calculateLeagueRaceSchedule } from "@/lib/races/scheduling";
+import { countryCodeToFlagEmoji } from "@/lib/countries";
+import { writeSystemAudit } from "@/lib/audit/system";
 import type { MasterDataActionState } from "./types";
 
 function errorState(
@@ -964,7 +966,6 @@ function driverPayload(formData: FormData) {
   return {
     name: formData.get("name"),
     number: formData.get("number"),
-    flag: formData.get("flag"),
     countryCode: formData.get("countryCode"),
     userId: formData.get("userId"),
     leagueId: formData.get("leagueId"),
@@ -1007,7 +1008,12 @@ export async function createDriverAction(
   const prisma = getPrismaClient();
 
   try {
-    await prisma.driver.create({ data: parsed.data });
+    await prisma.driver.create({
+      data: {
+        ...parsed.data,
+        flag: countryCodeToFlagEmoji(parsed.data.countryCode) ?? "🌐",
+      },
+    });
   } catch {
     return databaseError();
   }
@@ -1045,7 +1051,10 @@ export async function updateDriverAction(
   try {
     await prisma.driver.update({
       where: { id: driverId.data },
-      data: parsed.data,
+      data: {
+        ...parsed.data,
+        flag: countryCodeToFlagEmoji(parsed.data.countryCode) ?? "🌐",
+      },
     });
   } catch {
     return databaseError();
@@ -1257,7 +1266,7 @@ export async function createTeamOrganizationAction(
   _previousState: MasterDataActionState,
   formData: FormData,
 ): Promise<MasterDataActionState> {
-  await authorize();
+  const actor = await authorize();
   const parsed = teamOrganizationSchema.safeParse(
     teamOrganizationPayload(formData),
   );
@@ -1268,18 +1277,31 @@ export async function createTeamOrganizationAction(
     ...organizationData
   } = parsed.data;
   try {
-    await getPrismaClient().teamOrganization.create({
-      data: {
-        ...organizationData,
-        seasons: seasonId
-          ? {
-              create: {
-                seasonId,
-                principalUserId,
-              },
-            }
-          : undefined,
-      },
+    await getPrismaClient().$transaction(async (transaction) => {
+      const organization = await transaction.teamOrganization.create({
+        data: {
+          ...organizationData,
+          seasons: seasonId
+            ? { create: { seasonId, principalUserId } }
+            : undefined,
+        },
+      });
+      if (principalUserId) {
+        await writeSystemAudit(transaction, {
+          actorId: actor.id,
+          action: "TEAM_PRINCIPAL_CHANGED",
+          entityType: "TeamOrganization",
+          entityId: organization.id,
+          metadata: { seasonId, previous: null, next: principalUserId },
+        });
+        await writeSystemAudit(transaction, {
+          actorId: actor.id,
+          action: "TEAM_PRINCIPAL_CHANGED",
+          entityType: "User",
+          entityId: principalUserId,
+          metadata: { organizationId: organization.id, seasonId, previous: null, next: principalUserId },
+        });
+      }
     });
   } catch {
     return databaseError();
@@ -1293,7 +1315,7 @@ export async function updateTeamOrganizationAction(
   _previousState: MasterDataActionState,
   formData: FormData,
 ): Promise<MasterDataActionState> {
-  await authorize();
+  const actor = await authorize();
   const organizationId = entityIdSchema.safeParse(organizationIdInput);
   const parsed = teamOrganizationSchema.safeParse(
     teamOrganizationPayload(formData),
@@ -1309,25 +1331,71 @@ export async function updateTeamOrganizationAction(
     ...organizationData
   } = parsed.data;
   try {
-    await getPrismaClient().teamOrganization.update({
-      where: { id: organizationId.data },
-      data: {
-        ...organizationData,
-        seasons: seasonId
-          ? {
-              upsert: {
-                where: {
-                  organizationId_seasonId: {
-                    organizationId: organizationId.data,
-                    seasonId,
+    const prisma = getPrismaClient();
+    const previous = seasonId
+      ? await prisma.teamOrganizationSeason.findUnique({
+          where: {
+            organizationId_seasonId: {
+              organizationId: organizationId.data,
+              seasonId,
+            },
+          },
+          select: { principalUserId: true },
+        })
+      : null;
+    await prisma.$transaction(async (transaction) => {
+      await transaction.teamOrganization.update({
+        where: { id: organizationId.data },
+        data: {
+          ...organizationData,
+          seasons: seasonId
+            ? {
+                upsert: {
+                  where: {
+                    organizationId_seasonId: {
+                      organizationId: organizationId.data,
+                      seasonId,
+                    },
                   },
+                  update: { principalUserId },
+                  create: { seasonId, principalUserId },
                 },
-                update: { principalUserId },
-                create: { seasonId, principalUserId },
-              },
-            }
-          : undefined,
-      },
+              }
+            : undefined,
+        },
+      });
+      if (seasonId && previous?.principalUserId !== principalUserId) {
+        await writeSystemAudit(transaction, {
+          actorId: actor.id,
+          action: "TEAM_PRINCIPAL_CHANGED",
+          entityType: "TeamOrganization",
+          entityId: organizationId.data,
+          metadata: {
+            seasonId,
+            previous: previous?.principalUserId ?? null,
+            next: principalUserId,
+          },
+        });
+        const affectedUsers = new Set([
+          previous?.principalUserId ?? null,
+          principalUserId ?? null,
+        ]);
+        for (const affectedUserId of affectedUsers) {
+          if (!affectedUserId) continue;
+          await writeSystemAudit(transaction, {
+            actorId: actor.id,
+            action: "TEAM_PRINCIPAL_CHANGED",
+            entityType: "User",
+            entityId: affectedUserId,
+            metadata: {
+              organizationId: organizationId.data,
+              seasonId,
+              previous: previous?.principalUserId ?? null,
+              next: principalUserId,
+            },
+          });
+        }
+      }
     });
   } catch {
     return databaseError();

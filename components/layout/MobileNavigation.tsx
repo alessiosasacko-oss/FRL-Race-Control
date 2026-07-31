@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { roleLabels } from "@/domain";
+import { hasPermission, Permission } from "@/lib/auth/permissions";
 import type { NavigationSettings } from "@/lib/design/theme";
 import type { AuthenticatedUser } from "@/lib/auth/session";
 import ActiveNavLink from "./ActiveNavLink";
@@ -26,6 +27,7 @@ type NavigationItem = {
   name: string;
   href: string;
   icon: LucideIcon;
+  permission: Permission;
 };
 
 function isCurrent(pathname: string, href: string): boolean {
@@ -52,7 +54,8 @@ export default function MobileNavigation({
   } as const;
   const configuredItems = settings.mobileItems
     .slice(0, 4)
-    .map((id) => itemsById[id]);
+    .map((id) => itemsById[id])
+    .filter((item) => hasPermission(user.roles, item.permission));
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -148,18 +151,18 @@ export default function MobileNavigation({
             <div className="flex-1 space-y-6 overflow-y-auto p-4">
               <NavigationGroup
                 label="Fahrer"
-                items={driverNavigationItems}
+                items={driverNavigationItems.filter((item) => hasPermission(user.roles, item.permission))}
                 onNavigate={() => setOpen(false)}
               />
               <NavigationGroup
                 label="Liga"
-                items={leagueNavigationItems}
+                items={leagueNavigationItems.filter((item) => hasPermission(user.roles, item.permission))}
                 onNavigate={() => setOpen(false)}
               />
               {canManageAdministration ? (
                 <NavigationGroup
                   label="Administration"
-                  items={administrationNavigationItems}
+                  items={administrationNavigationItems.filter((item) => hasPermission(user.roles, item.permission))}
                   compact
                   onNavigate={() => setOpen(false)}
                 />

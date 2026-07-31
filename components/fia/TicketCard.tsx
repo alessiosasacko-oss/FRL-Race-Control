@@ -10,6 +10,7 @@ import {
 import { raceSessionLabels } from "@/domain";
 import type { FiaTicketListItem } from "@/lib/fia/types";
 import StatusBadge from "./StatusBadge";
+import CountryFlag from "@/components/ui/CountryFlag";
 
 type Props = {
   ticket: FiaTicketListItem;
@@ -54,9 +55,7 @@ export default function TicketCard({ ticket }: Props) {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-white">
-                    {driver.flag} {driver.name}
-                  </h3>
+                  <h3 className="flex items-center gap-2 font-semibold text-white"><CountryFlag countryCode={null} fallbackFlag={driver.flag} size="sm" />{driver.name}</h3>
 
                   <p className="text-sm text-slate-400">
                     {driver.team?.name ?? "Ohne Team"}

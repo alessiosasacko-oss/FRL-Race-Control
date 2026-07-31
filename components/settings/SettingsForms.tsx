@@ -22,6 +22,7 @@ import {
   type SettingsPageData,
 } from "@/lib/settings/types";
 import FormMessage from "@/components/ui/FormMessage";
+import CountrySelect from "@/components/ui/CountrySelect";
 
 function CardTitle({
   icon: Icon,
@@ -109,16 +110,7 @@ export default function SettingsForms({
           </label>
           {data.driver ? (
             <>
-              <label className="master-label">
-                Flagge
-                <input
-                  name="flag"
-                  defaultValue={data.driver.flag}
-                  required
-                  maxLength={16}
-                  className="form-control mt-2"
-                />
-              </label>
+              <label className="master-label">Land<CountrySelect defaultValue={data.driver.countryCode} /></label>
               <label className="master-label">
                 Fahrernummer
                 <input
@@ -142,7 +134,7 @@ export default function SettingsForms({
             </>
           ) : (
             <>
-              <input type="hidden" name="flag" value="" />
+              <input type="hidden" name="countryCode" value="" />
               <input type="hidden" name="driverNumber" value="" />
               <p className="md:col-span-3 text-sm text-slate-400">
                 Deinem Benutzerkonto ist noch kein Fahrer zugeordnet.

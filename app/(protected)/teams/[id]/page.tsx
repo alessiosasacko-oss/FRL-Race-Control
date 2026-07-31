@@ -1,152 +1,81 @@
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, MessageCircle, Users } from "lucide-react";
+import { ArrowLeft, Flag, MessageCircle, Users } from "lucide-react";
 import { notFound } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
+import CountryFlag from "@/components/ui/CountryFlag";
+import { DriverLineupStatus } from "@/domain";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
-import { getTeamById } from "@/lib/master-data/queries";
-import { entityIdSchema } from "@/lib/master-data/schemas";
+import { getGlobalTeamDetail } from "@/lib/teams/queries";
 
 type TeamDetailPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ seasonId?: string }>;
 };
 
-export default async function TeamDetailPage({
-  params,
-}: TeamDetailPageProps) {
+export default async function TeamDetailPage({ params, searchParams }: TeamDetailPageProps) {
   const user = await requirePermission(Permission.ViewMasterData);
-  const parsedId = entityIdSchema.safeParse((await params).id);
-
-  if (!parsedId.success) notFound();
-
-  const team = await getTeamById(parsedId.data);
-
+  const id = Number((await params).id);
+  const seasonId = Number((await searchParams).seasonId);
+  if (!Number.isInteger(id) || id <= 0) notFound();
+  const team = await getGlobalTeamDetail(id, Number.isInteger(seasonId) && seasonId > 0 ? seasonId : undefined);
   if (!team) notFound();
-
-  const canManage = hasPermission(
-    user.roles,
-    Permission.ManageMasterData,
-  );
+  const canManage = hasPermission(user.roles, Permission.ManageMasterData);
+  const primaries = team.leagues.flatMap((league) => league.primaryDrivers);
+  const substitutes = team.leagues.flatMap((league) => league.substitutes);
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link
-            href="/teams"
-            className="flex items-center gap-2 text-sm text-slate-400 transition hover:text-white"
-          >
-            <ArrowLeft size={16} />
-            Zur Teamübersicht
-          </Link>
-          {canManage ? (
-            <Link href="/admin/teams" className="wizard-primary-button">
-              Team verwalten
-            </Link>
-          ) : null}
+      <div className="page-stack page-accent-teams">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <Link href="/teams" className="inline-flex min-h-11 items-center gap-2 text-sm text-slate-400"><ArrowLeft size={16} />Zur Teamübersicht</Link>
+          {canManage ? <Link href="/admin/teams" className="wizard-primary-button">Team verwalten</Link> : null}
         </div>
-
         <section className="master-card overflow-hidden p-0">
           <div className="h-2" style={{ backgroundColor: team.color }} />
-          <div className="p-6 lg:p-8">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-widest text-blue-400">
-                  {team.league.code} · {team.season?.name ?? "Keine Saison"}
-                </p>
-                <h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
-                  {team.name}
-                </h1>
-                <p className="mt-2 font-mono text-slate-400">
-                  {team.shortName}
-                </p>
+          <div className="p-5 sm:p-7 lg:p-8">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex items-center gap-4">
+                {team.logoUrl ? <Image src={team.logoUrl} alt={`${team.name} Logo`} width={80} height={80} className="size-16 rounded-2xl object-contain sm:size-20" /> : <span className="flex size-16 items-center justify-center rounded-2xl bg-slate-800 sm:size-20"><Flag size={28} /></span>}
+                <div><p className="eyebrow">{team.season?.name ?? "Keine Saison"}</p><h1 className="mt-2 break-words text-3xl font-black text-white sm:text-4xl">{team.name}</h1><p className="mt-1 font-mono text-slate-400">{team.shortName}</p></div>
               </div>
-              <span
-                className={`w-fit rounded-full px-3 py-1 text-sm font-semibold ${
-                  team.active
-                    ? "bg-green-500/15 text-green-300"
-                    : "bg-slate-700 text-slate-300"
-                }`}
-              >
-                {team.active ? "Aktiv" : "Inaktiv"}
-              </span>
+              <form action={`/teams/${id}`} className="grid gap-2 sm:grid-cols-[1fr_auto]"><select name="seasonId" defaultValue={team.season?.id ?? ""} className="form-control">{team.seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}</select><button className="wizard-secondary-button">Saison</button></form>
             </div>
-
-            <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_300px]">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Users className="text-blue-400" size={21} />
-                  <h2 className="text-xl font-semibold text-white">
-                    Fahreraufstellung
-                  </h2>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {team.drivers.map((driver) => (
-                    <Link
-                      key={driver.id}
-                      href={`/drivers/${driver.id}`}
-                      className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 p-4 transition hover:border-blue-500"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{driver.flag}</span>
-                        <div>
-                          <p className="font-semibold text-white">
-                            {driver.name}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {driver.active ? "Aktiver Fahrer" : "Inaktiv"}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="rounded-lg bg-slate-800 px-3 py-2 font-bold text-white">
-                        #{driver.number}
-                      </span>
-                    </Link>
-                  ))}
-                  {team.drivers.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-700 p-8 text-center text-slate-400">
-                      Noch keine Fahrer zugeordnet.
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <aside className="space-y-4">
-                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-5">
-                  <MessageCircle className="text-blue-400" size={22} />
-                  <h2 className="mt-3 font-semibold text-white">
-                    Team Principal
-                  </h2>
-                  <p className="mt-2 text-sm text-slate-400">
-                    {team.principal?.displayName ?? "Nicht zugewiesen"}
-                  </p>
-                  {team.principal?.discordId ? (
-                    <p className="mt-1 font-mono text-xs text-slate-500">
-                      {team.principal.discordId}
-                    </p>
-                  ) : null}
-                </div>
-                <dl className="rounded-xl border border-slate-800 bg-slate-950/60 p-5 text-sm">
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-slate-500">Teamfarbe</dt>
-                    <dd className="flex items-center gap-2 font-mono text-white">
-                      <span
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: team.color }}
-                      />
-                      {team.color}
-                    </dd>
-                  </div>
-                  <div className="mt-3 flex justify-between gap-4">
-                    <dt className="text-slate-500">Wertungseinträge</dt>
-                    <dd className="text-white">{team.standingCount}</dd>
-                  </div>
-                </dl>
-              </aside>
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Metric label="Stammfahrer" value={primaries.length} /><Metric label="Ersatzfahrer" value={substitutes.length} /><Metric label="Ligen" value={team.leagues.filter((league) => league.primaryDrivers.length || league.substitutes.length).length} /><Metric label="Teamchef" value={team.principalName} />
             </div>
           </div>
         </section>
+
+        <section>
+          <div className="mb-4 flex items-center gap-2"><Users size={21} className="text-blue-300" /><h2 className="text-2xl font-black text-white">Besetzung F1 bis F6</h2></div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {team.leagues.map((league) => (
+              <details key={league.id} className="surface-panel group" open={league.primaryDrivers.length > 0 || league.substitutes.length > 0}>
+                <summary className="flex min-h-14 cursor-pointer items-center justify-between px-5"><strong className="text-lg text-white">{league.code} · {league.primaryDrivers.length}/2 Stammplätze</strong><span className="text-xs text-slate-500">{league.substitutes.length} Ersatz</span></summary>
+                <div className="space-y-4 border-t border-slate-800 p-5">
+                  <LineupGroup title="Stammfahrer" drivers={league.primaryDrivers} />
+                  {Array.from({ length: Math.max(0, 2 - league.primaryDrivers.length) }, (_, index) => <div key={index} className="rounded-xl border border-dashed border-slate-700 p-4 text-sm text-slate-500">Noch kein Fahrer zugeordnet</div>)}
+                  <LineupGroup title="Ersatzfahrer" drivers={league.substitutes} empty="Keine Ersatzfahrer" />
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        <aside className="surface-panel p-5"><MessageCircle size={21} className="text-blue-300" /><h2 className="mt-3 font-bold text-white">Teamchef</h2><p className="mt-2 text-sm text-slate-400">{team.principalName}</p></aside>
       </div>
     </AppLayout>
   );
+}
+
+type DetailDriver = NonNullable<Awaited<ReturnType<typeof getGlobalTeamDetail>>>["leagues"][number]["primaryDrivers"][number];
+
+function LineupGroup({ title, drivers, empty }: { title: string; drivers: DetailDriver[]; empty?: string }) {
+  return <div><h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{title}</h3><div className="space-y-2">{drivers.map((driver) => <Link key={driver.id} href={`/drivers/${driver.id}`} className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-slate-950/45 px-4"><span className="flex min-w-0 items-center gap-2"><CountryFlag countryCode={driver.countryCode} size="sm" /><span className="truncate">#{driver.number} {driver.name}</span></span><span className={driver.active ? "text-xs text-emerald-300" : "text-xs text-slate-500"}>{driver.lineupStatus === DriverLineupStatus.Primary ? "Stamm" : "Ersatz"}</span></Link>)}{drivers.length === 0 && empty ? <p className="text-sm text-slate-600">{empty}</p> : null}</div></div>;
+}
+
+function Metric({ label, value }: { label: string; value: React.ReactNode }) {
+  return <div className="rounded-xl border border-slate-800 bg-slate-950/35 p-3"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 break-words font-bold text-white">{value}</p></div>;
 }

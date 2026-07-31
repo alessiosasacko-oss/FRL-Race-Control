@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, Search, Users } from "lucide-react";
 import type { TicketWizardOptions } from "@/lib/fia/types";
+import CountryFlag from "@/components/ui/CountryFlag";
 import type { TicketWizardDraft } from "./wizard-types";
 
 type DriversStepProps = {
@@ -90,9 +91,7 @@ export default function DriversStep({
               }`}
             >
               <div>
-                <p className="font-semibold text-white">
-                  {driver.flag} #{driver.number} {driver.name}
-                </p>
+                <p className="flex items-center gap-2 font-semibold text-white"><CountryFlag countryCode={null} fallbackFlag={driver.flag} size="sm" />#{driver.number} {driver.name}</p>
                 <p className="mt-1 text-sm text-slate-400">
                   {driver.team?.name ?? "Ohne Team"}
                 </p>

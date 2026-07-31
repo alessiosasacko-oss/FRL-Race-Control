@@ -141,7 +141,6 @@ export const raceDeadlineOverrideSchema = z.object({
 export const driverSchema = z.object({
   name,
   number: z.coerce.number().int().min(1).max(999),
-  flag: z.string().trim().min(1).max(16),
   countryCode: countryCodeSchema,
   userId: optionalId,
   leagueId: entityId,

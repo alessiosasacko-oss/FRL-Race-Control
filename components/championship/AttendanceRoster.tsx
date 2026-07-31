@@ -7,6 +7,7 @@ import {
   attendanceStatusLabels,
 } from "@/domain";
 import type { AttendanceEntryView } from "@/lib/championship/types";
+import CountryFlag from "@/components/ui/CountryFlag";
 
 const groups = [
   AttendanceStatus.Registered,
@@ -132,9 +133,7 @@ function RosterGroup({
             key={entry.driver.id}
             className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-800/80 bg-[#111b27] p-3"
           >
-            <span className="text-xl" aria-hidden="true">
-              {entry.driver.flag}
-            </span>
+            <CountryFlag countryCode={null} fallbackFlag={entry.driver.flag} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-white">
                 #{entry.driver.number} {entry.driver.name}

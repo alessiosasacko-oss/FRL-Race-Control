@@ -13,6 +13,7 @@ const routeLabels = [
   { path: "/notifications", title: "Benachrichtigungen", context: "Deine Inbox" },
   { path: "/admin/design", title: "Design & Branding", context: "Globale Markensteuerung" },
   { path: "/admin/tracks", title: "Strecken", context: "Layouts & Rennstreckendaten" },
+  { path: "/admin/users", title: "Benutzer & Rollen", context: "Zugriffe & sportliche Zuordnung" },
   { path: "/admin", title: "Administration", context: "Race-Control-Werkzeuge" },
   { path: "/profile", title: "Profil", context: "Fahreridentität" },
   { path: "/settings", title: "Einstellungen", context: "Konto & Präferenzen" },

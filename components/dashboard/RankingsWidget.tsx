@@ -1,6 +1,7 @@
 import { ListOrdered } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard/types";
 import DashboardCard from "./DashboardCard";
+import CountryFlag from "@/components/ui/CountryFlag";
 
 export default function RankingsWidget({
   championship,
@@ -27,7 +28,7 @@ export default function RankingsWidget({
                 <span className="w-7 font-mono font-bold text-blue-400">
                   {driver.position}
                 </span>
-                <span>{driver.flag}</span>
+                <CountryFlag countryCode={null} fallbackFlag={driver.flag} size="sm" />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
                   {driver.name}
                 </span>

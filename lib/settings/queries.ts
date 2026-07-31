@@ -59,6 +59,7 @@ export async function getSettingsPageData(
           name: user.driver.name,
           number: user.driver.number,
           flag: user.driver.flag,
+          countryCode: user.driver.countryCode,
           team: user.driver.team?.name ?? null,
           league: user.driver.league.code,
         }

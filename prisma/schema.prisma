@@ -16,6 +16,11 @@ enum Role {
   DRIVER
 }
 
+enum DriverLineupStatus {
+  PRIMARY
+  SUBSTITUTE
+}
+
 enum TicketStatus {
   OPEN
   IN_REVIEW
@@ -431,6 +436,7 @@ model Driver {
   championshipAdjustments  ChampionshipAdjustment[]
   affectedPenaltyProposals PenaltyProposal[]
   fiaDecisions             Decision[]
+  seasonAssignments        DriverSeasonAssignment[]
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime                 @updatedAt
 
@@ -438,6 +444,26 @@ model Driver {
   @@index([leagueId, active])
   @@index([teamId])
   @@index([name])
+}
+
+model DriverSeasonAssignment {
+  id             Int                @id @default(autoincrement())
+  driverId       Int
+  seasonId       Int
+  leagueId       Int
+  organizationId Int?
+  lineupStatus   DriverLineupStatus @default(PRIMARY)
+  active         Boolean            @default(true)
+  driver         Driver             @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  season         Season             @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  league         League             @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  organization   TeamOrganization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([driverId, seasonId])
+  @@index([seasonId, leagueId, organizationId, lineupStatus, active])
+  @@index([organizationId, seasonId, leagueId])
 }
 
 model Team {
@@ -474,17 +500,18 @@ model Team {
 }
 
 model TeamOrganization {
-  id            Int                      @id @default(autoincrement())
-  name          String                   @db.VarChar(160)
-  shortName     String                   @db.VarChar(12)
-  color         String                   @db.Char(7)
-  active        Boolean                  @default(true)
-  teams         Team[]
-  seasons       TeamOrganizationSeason[]
-  standings     GlobalTeamStanding[]
-  contributions GlobalTeamContribution[]
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
+  id                Int                      @id @default(autoincrement())
+  name              String                   @db.VarChar(160)
+  shortName         String                   @db.VarChar(12)
+  color             String                   @db.Char(7)
+  active            Boolean                  @default(true)
+  teams             Team[]
+  seasons           TeamOrganizationSeason[]
+  standings         GlobalTeamStanding[]
+  contributions     GlobalTeamContribution[]
+  driverAssignments DriverSeasonAssignment[]
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
 
   @@unique([name])
   @@index([shortName])
@@ -534,6 +561,7 @@ model League {
   tickets                          FiaTicket[]
   raceSchedules                    RaceLeagueSchedule[]
   attendanceAuditEntries           AttendanceAudit[]
+  driverAssignments                DriverSeasonAssignment[]
   discordChannels                  DiscordChannelMapping[]
   discordDeliveries                DiscordDelivery[]
   createdAt                        DateTime                 @default(now())
@@ -557,6 +585,7 @@ model Season {
   currentForLeagues       League[]                 @relation("CurrentSeason")
   races                   Race[]
   teams                   Team[]
+  driverAssignments       DriverSeasonAssignment[]
   championships           Championship[]
   scoringConfigurations   ScoringConfiguration[]
   championshipAdjustments ChampionshipAdjustment[]

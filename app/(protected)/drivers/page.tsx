@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Users } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
+import CountryFlag from "@/components/ui/CountryFlag";
 import ListFilters from "@/components/master-data/ListFilters";
 import {
   hasPermission,
@@ -62,7 +63,7 @@ export default async function DriversPage({
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-3xl">{driver.flag}</p>
+                  <CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="lg" />
                   <h2 className="mt-3 text-xl font-semibold text-white">
                     {driver.name}
                   </h2>

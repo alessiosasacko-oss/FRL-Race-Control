@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { createTrackAction, deleteTrackAction, updateTrackAction } from "@/lib/tracks/actions";
 import { initialTrackActionState } from "@/lib/tracks/types";
+import CountrySelect from "@/components/ui/CountrySelect";
 
 type TrackItem = Awaited<ReturnType<typeof import("@/lib/tracks/queries").getTrackAdminData>>[number];
 
@@ -14,7 +15,7 @@ export default function TrackForm({ track }: { track?: TrackItem }) {
     <form action={formAction} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Field label="Streckenname" name="name" defaultValue={track?.name} required className="xl:col-span-2" />
-        <Field label="Ländercode" name="countryCode" defaultValue={track?.countryCode ?? "DE"} required maxLength={2} />
+        <label className="master-label">Land<CountrySelect defaultValue={track?.countryCode ?? "DE"} /></label>
         <label className="master-label">Status<select name="active" defaultValue={track?.active === false ? "off" : "on"} className="form-control mt-2"><option value="on">Aktiv</option><option value="off">Inaktiv</option></select></label>
         <Field label="Länge (km)" name="lengthKm" type="number" step="0.001" defaultValue={track?.lengthKm ?? undefined} />
         <Field label="Runden" name="lapCount" type="number" defaultValue={track?.lapCount ?? undefined} />

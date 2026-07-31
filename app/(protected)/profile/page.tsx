@@ -14,6 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
+import CountryFlag from "@/components/ui/CountryFlag";
 import { roleLabels } from "@/domain";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getProfileData } from "@/lib/profile/queries";
@@ -61,14 +62,14 @@ export default async function ProfilePage() {
                 Fahrerprofil
               </p>
               <h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
-                {data.driver?.flag}{" "}
+                {data.driver ? <CountryFlag countryCode={data.driver.countryCode} fallbackFlag={data.driver.flag} size="lg" /> : null}{" "}
                 {data.driver?.name ?? data.user.displayName}
               </h1>
               {data.driver ? (
                 <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-300">
                   <span>#{data.driver.number}</span>
                   <span>·</span>
-                  <span>{data.driver.countryCode}</span>
+                  <CountryFlag countryCode={data.driver.countryCode} fallbackFlag={data.driver.flag} showLabel />
                   <span>·</span>
                   <span>
                     {data.driver.team?.name ?? "Ohne Team"}
