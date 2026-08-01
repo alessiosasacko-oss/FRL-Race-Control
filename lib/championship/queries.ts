@@ -414,6 +414,7 @@ export async function getAttendancePageData(
           seasonId: selectedRaceRaw.seasonId,
           leagueId: selectedLeague.id,
           active: true,
+          archivedAt: null,
         },
         orderBy: { name: "asc" },
         select: { id: true, name: true },
@@ -1037,6 +1038,11 @@ export async function getResultAdminData(
       ]),
     ),
   );
+  const existingTeamIds = new Set(
+    selected.sessions.flatMap((resultSession) =>
+      resultSession.results.map((result) => result.representedTeamId),
+    ),
+  );
   const selectedRaceContext = eligibleRaces.find(
     (race) => race.id === selectedRaceId,
   );
@@ -1155,6 +1161,10 @@ export async function getResultAdminData(
       where: {
         seasonId: selected.race.season.id,
         leagueId: selected.race.season.league.id,
+        OR: [
+          { active: true, archivedAt: null },
+          { id: { in: [...existingTeamIds] } },
+        ],
       },
       orderBy: { name: "asc" },
       select: {
@@ -1376,6 +1386,8 @@ export async function getAdjustmentAdminData(
         where: {
           seasonId: selectedSeasonId,
           leagueId: selectedLeague?.id,
+          active: true,
+          archivedAt: null,
         },
         orderBy: { name: "asc" },
         select: { id: true, name: true },

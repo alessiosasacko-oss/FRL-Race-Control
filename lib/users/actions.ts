@@ -284,6 +284,7 @@ export async function updateUserSportAssignmentAction(
           seasonId: season.id,
           leagueId: league.id,
           active: true,
+          archivedAt: null,
         },
         select: { id: true },
       })

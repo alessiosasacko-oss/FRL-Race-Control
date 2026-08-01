@@ -162,7 +162,19 @@ export const teamSchema = z.object({
   organizationId: entityId,
   principalUserId: optionalId,
   driverIds: z.array(entityId).max(20),
-  active: checkbox,
+});
+
+export const teamArchiveSchema = z.object({
+  confirmed: z.literal("on"),
+  detachActiveDrivers: checkbox,
+});
+
+export const teamRestoreSchema = z.object({
+  confirmed: z.literal("on"),
+});
+
+export const teamDeleteSchema = z.object({
+  confirmationName: z.string().trim().min(1).max(160),
 });
 
 export const teamOrganizationSchema = z

@@ -36,6 +36,7 @@ export async function globalSearch(
       prisma.team.findMany({
         where: {
           active: true,
+          archivedAt: null,
           OR: [
             { name: { contains: q, mode: "insensitive" } },
             { shortName: { contains: q, mode: "insensitive" } },

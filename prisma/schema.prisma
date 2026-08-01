@@ -480,6 +480,7 @@ model Team {
   logoUrl                 String?                  @db.Text
   backgroundGradient      String?                  @db.VarChar(120)
   active                  Boolean                  @default(true)
+  archivedAt              DateTime?
   league                  League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   season                  Season                   @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   principal               User?                    @relation("TeamPrincipal", fields: [principalUserId], references: [id], onDelete: SetNull)
@@ -492,9 +493,8 @@ model Team {
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 
-  @@unique([leagueId, seasonId, name])
-  @@unique([leagueId, seasonId, shortName])
   @@index([leagueId, seasonId, active])
+  @@index([archivedAt])
   @@index([principalUserId])
   @@index([organizationId, seasonId])
 }

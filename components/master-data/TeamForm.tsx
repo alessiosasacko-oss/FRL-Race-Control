@@ -160,15 +160,6 @@ export default function TeamForm({ options, team }: TeamFormProps) {
           </span>
         </label>
       </div>
-      <label className="flex items-center gap-3 text-sm text-slate-300">
-        <input
-          type="checkbox"
-          name="active"
-          defaultChecked={team?.active ?? true}
-          className="h-4 w-4 accent-blue-600"
-        />
-        Team aktiv
-      </label>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <ActionMessage state={state} />
         <button disabled={pending} className="wizard-primary-button">

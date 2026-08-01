@@ -7,6 +7,7 @@ const leagueCodes = ["F1", "F2", "F3", "F4", "F5", "F6"] as const;
 export async function getGlobalTeamOverview(input: {
   q?: string;
   seasonId?: number;
+  includeArchived?: boolean;
 }) {
   const prisma = getPrismaClient();
   const season = input.seasonId
@@ -28,6 +29,16 @@ export async function getGlobalTeamOverview(input: {
 
   const organizations = await prisma.teamOrganization.findMany({
     where: {
+      active: input.includeArchived ? undefined : true,
+      teams: input.includeArchived
+        ? undefined
+        : {
+            some: {
+              seasonId: season.id,
+              active: true,
+              archivedAt: null,
+            },
+          },
       OR: input.q
         ? [
             { name: { contains: input.q, mode: "insensitive" } },
@@ -59,7 +70,11 @@ export async function getGlobalTeamOverview(input: {
         },
       },
       teams: {
-        where: { seasonId: season.id },
+        where: {
+          seasonId: season.id,
+          active: input.includeArchived ? undefined : true,
+          archivedAt: input.includeArchived ? undefined : null,
+        },
         orderBy: { league: { displayOrder: "asc" } },
         include: {
           league: { select: { id: true, code: true, name: true } },
@@ -108,9 +123,22 @@ export async function getGlobalTeamOverview(input: {
 
 export async function getGlobalTeamDetail(teamId: number, seasonId?: number) {
   const prisma = getPrismaClient();
-  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { organizationId: true, seasonId: true } });
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { organizationId: true, seasonId: true, archivedAt: true },
+  });
   if (!team?.organizationId) return null;
-  const overview = await getGlobalTeamOverview({ seasonId: seasonId ?? team.seasonId });
+  const overview = await getGlobalTeamOverview({
+    seasonId: seasonId ?? team.seasonId,
+    includeArchived: true,
+  });
   const organization = overview.organizations.find((candidate) => candidate.id === team.organizationId);
-  return organization ? { ...organization, season: overview.season, seasons: overview.seasons } : null;
+  return organization
+    ? {
+        ...organization,
+        archived: team.archivedAt !== null,
+        season: overview.season,
+        seasons: overview.seasons,
+      }
+    : null;
 }

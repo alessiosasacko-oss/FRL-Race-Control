@@ -12,6 +12,8 @@ import { getPrismaClient } from "@/lib/db/prisma";
 import { listQuerySchema } from "./schemas";
 import { formatLocalDateTimeInput } from "./timezone";
 import { publicRaceTrack } from "@/lib/races/visibility";
+import { getTeamDependencySnapshot } from "./team-dependencies";
+import { emptyTeamDependencyCounts } from "./team-lifecycle";
 import type {
   DriverDetail,
   DriverItem,
@@ -59,6 +61,7 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
       },
     }),
     prisma.team.findMany({
+      where: { active: true, archivedAt: null },
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -94,6 +97,7 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
       },
     }),
     prisma.teamOrganization.findMany({
+      where: { active: true },
       orderBy: [{ active: "desc" }, { name: "asc" }],
       select: {
         id: true,
@@ -526,13 +530,20 @@ export async function getDriverById(
 
 export async function getTeamItems(
   query: MasterDataListQuery,
+  lifecycle: "active" | "archived" | "all" = "all",
 ): Promise<TeamItem[]> {
   const prisma = getPrismaClient();
   const teams = await prisma.team.findMany({
     where: {
       leagueId: query.leagueId,
       seasonId: query.seasonId,
-      active: activeWhere(query.active),
+      archivedAt:
+        lifecycle === "active"
+          ? null
+          : lifecycle === "archived"
+            ? { not: null }
+            : undefined,
+      active: lifecycle === "active" ? true : undefined,
       OR: query.q
         ? [
             { name: { contains: query.q, mode: "insensitive" } },
@@ -581,18 +592,31 @@ export async function getTeamItems(
     },
   });
 
+  const dependencySnapshots = new Map(
+    (await Promise.all(
+      teams.map((team) => getTeamDependencySnapshot(prisma, team.id)),
+    )).flatMap((snapshot) => snapshot ? [[snapshot.team.id, snapshot] as const] : []),
+  );
+
   return teams.map((team) => ({
     id: team.id,
     name: team.name,
     shortName: team.shortName,
     color: team.color,
     active: team.active,
+    archivedAt: team.archivedAt?.toISOString() ?? null,
     league: team.league,
     season: team.season,
     organization: team.organization,
     principal: team.principal,
     drivers: team.drivers,
     updatedAt: team.updatedAt.toISOString(),
+    dependencies:
+      dependencySnapshots.get(team.id)?.dependencies ??
+      emptyTeamDependencyCounts,
+    activeDrivers: dependencySnapshots.get(team.id)?.activeDrivers ?? [],
+    canPermanentlyDelete:
+      dependencySnapshots.get(team.id)?.canPermanentlyDelete ?? false,
   }));
 }
 
@@ -632,6 +656,7 @@ export async function getTeamById(
   });
 
   if (!team) return null;
+  const dependencySnapshot = await getTeamDependencySnapshot(prisma, team.id);
 
   return {
     id: team.id,
@@ -639,12 +664,18 @@ export async function getTeamById(
     shortName: team.shortName,
     color: team.color,
     active: team.active,
+    archivedAt: team.archivedAt?.toISOString() ?? null,
     league: team.league,
     season: team.season,
     organization: team.organization,
     principal: team.principal,
     drivers: team.drivers,
     updatedAt: team.updatedAt.toISOString(),
+    dependencies:
+      dependencySnapshot?.dependencies ?? emptyTeamDependencyCounts,
+    activeDrivers: dependencySnapshot?.activeDrivers ?? [],
+    canPermanentlyDelete:
+      dependencySnapshot?.canPermanentlyDelete ?? false,
     standingCount: team._count.standings,
   };
 }

@@ -38,7 +38,7 @@ export default async function TeamDetailPage({ params, searchParams }: TeamDetai
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex items-center gap-4">
                 {team.logoUrl ? <Image src={team.logoUrl} alt={`${team.name} Logo`} width={80} height={80} className="size-16 rounded-2xl object-contain sm:size-20" /> : <span className="flex size-16 items-center justify-center rounded-2xl bg-slate-800 sm:size-20"><Flag size={28} /></span>}
-                <div><p className="eyebrow">{team.season?.name ?? "Keine Saison"}</p><h1 className="mt-2 break-words text-3xl font-black text-white sm:text-4xl">{team.name}</h1><p className="mt-1 font-mono text-slate-400">{team.shortName}</p></div>
+                <div><p className="eyebrow">{team.season?.name ?? "Keine Saison"}</p><div className="mt-2 flex flex-wrap items-center gap-3"><h1 className="break-words text-3xl font-black text-white sm:text-4xl">{team.name}</h1>{team.archived ? <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-200">Archiviert</span> : null}</div><p className="mt-1 font-mono text-slate-400">{team.shortName}</p></div>
               </div>
               <form action={`/teams/${id}`} className="grid gap-2 sm:grid-cols-[1fr_auto]"><select name="seasonId" defaultValue={team.season?.id ?? ""} className="form-control">{team.seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}</select><button className="wizard-secondary-button">Saison</button></form>
             </div>

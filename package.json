@@ -9,7 +9,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test lib/auth/logging.test.ts lib/design/theme.test.ts lib/design/background.test.ts lib/mobile/responsive.test.ts lib/users/management.test.ts lib/users/role-loading.test.ts lib/tracks/track-simplification.test.ts lib/championship/result-engine.test.ts lib/championship/result-workspace.test.ts lib/championship/attendance-policy.test.ts lib/championship/team-principal-policy.test.ts lib/fia/proposal-policy.test.ts lib/fia/archive-policy.test.ts lib/fia/chat-policy.test.ts lib/storage/evidence-constants.test.ts lib/storage/evidence-upload-client.test.ts",
+    "test": "tsx --test lib/auth/logging.test.ts lib/design/theme.test.ts lib/design/background.test.ts lib/mobile/responsive.test.ts lib/users/management.test.ts lib/users/role-loading.test.ts lib/tracks/track-simplification.test.ts lib/master-data/team-lifecycle.test.ts lib/championship/result-engine.test.ts lib/championship/result-workspace.test.ts lib/championship/attendance-policy.test.ts lib/championship/team-principal-policy.test.ts lib/fia/proposal-policy.test.ts lib/fia/archive-policy.test.ts lib/fia/chat-policy.test.ts lib/storage/evidence-constants.test.ts lib/storage/evidence-upload-client.test.ts",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",

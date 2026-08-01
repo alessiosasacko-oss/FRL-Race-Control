@@ -1,4 +1,8 @@
 import type { RaceSession, RaceStatus, Role } from "@/domain";
+import type {
+  TeamActiveDriver,
+  TeamDependencyCounts,
+} from "./team-lifecycle";
 
 export type MasterDataActionState = {
   status: "idle" | "success" | "error";
@@ -192,6 +196,7 @@ export type TeamItem = {
   shortName: string;
   color: string;
   active: boolean;
+  archivedAt: string | null;
   league: LeagueOption;
   season: { id: number; name: string };
   organization: TeamOrganizationOption | null;
@@ -208,6 +213,9 @@ export type TeamItem = {
     active: boolean;
   }>;
   updatedAt: string;
+  dependencies: TeamDependencyCounts;
+  activeDrivers: TeamActiveDriver[];
+  canPermanentlyDelete: boolean;
 };
 
 export type TeamDetail = TeamItem & {

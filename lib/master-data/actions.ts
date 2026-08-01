@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import {
+  type Prisma,
   ChampionshipAuditAction as PrismaChampionshipAuditAction,
   RaceSession as PrismaRaceSession,
   RaceStatus as PrismaRaceStatus,
@@ -28,6 +30,9 @@ import {
   raceDeadlineOverrideSchema,
   raceSchema,
   seasonSchema,
+  teamArchiveSchema,
+  teamDeleteSchema,
+  teamRestoreSchema,
   teamSchema,
   teamOrganizationSchema,
 } from "./schemas";
@@ -36,6 +41,12 @@ import { publicRaceTrack } from "@/lib/races/visibility";
 import { calculateLeagueRaceSchedule } from "@/lib/races/scheduling";
 import { countryCodeToFlagEmoji } from "@/lib/countries";
 import { writeSystemAudit } from "@/lib/audit/system";
+import { getTeamDependencySnapshot } from "./team-dependencies";
+import {
+  canPermanentlyDeleteTeam,
+  teamDeleteConfirmationMatches,
+  teamDependencyMessages,
+} from "./team-lifecycle";
 import type { MasterDataActionState } from "./types";
 
 function errorState(
@@ -982,7 +993,7 @@ async function driverTeamIsValid(
   const prisma = getPrismaClient();
   return Boolean(
     await prisma.team.findFirst({
-      where: { id: teamId, leagueId },
+      where: { id: teamId, leagueId, active: true, archivedAt: null },
       select: { id: true },
     }),
   );
@@ -1074,8 +1085,34 @@ function teamPayload(formData: FormData) {
     organizationId: formData.get("organizationId"),
     principalUserId: formData.get("principalUserId"),
     driverIds: formData.getAll("driverIds"),
-    active: formData.get("active"),
   };
+}
+
+async function activeTeamIdentityExists(
+  transaction: Prisma.TransactionClient,
+  input: {
+    teamId?: number;
+    leagueId: number;
+    seasonId: number;
+    name: string;
+    shortName: string;
+  },
+): Promise<boolean> {
+  return Boolean(
+    await transaction.team.findFirst({
+      where: {
+        id: input.teamId ? { not: input.teamId } : undefined,
+        leagueId: input.leagueId,
+        seasonId: input.seasonId,
+        archivedAt: null,
+        OR: [
+          { name: { equals: input.name, mode: "insensitive" } },
+          { shortName: { equals: input.shortName, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true },
+    }),
+  );
 }
 
 async function teamSeasonIsValid(
@@ -1147,7 +1184,12 @@ export async function createTeamAction(
 
   try {
     await prisma.$transaction(async (transaction) => {
-      const team = await transaction.team.create({ data: teamData });
+      if (await activeTeamIdentityExists(transaction, teamData)) {
+        throw new Error("TEAM_IDENTITY_CONFLICT");
+      }
+      const team = await transaction.team.create({
+        data: { ...teamData, active: true, archivedAt: null },
+      });
 
       if (driverIds.length > 0) {
         await transaction.driver.updateMany({
@@ -1155,8 +1197,11 @@ export async function createTeamAction(
           data: { teamId: team.id },
         });
       }
-    });
-  } catch {
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "TEAM_IDENTITY_CONFLICT") {
+      return errorState("Ein aktives Team mit diesem Namen oder Kürzel existiert bereits in Liga und Saison.");
+    }
     return databaseError();
   }
 
@@ -1206,9 +1251,19 @@ export async function updateTeamAction(
     await prisma.$transaction(async (transaction) => {
       const existing = await transaction.team.findUnique({
         where: { id: teamId.data },
-        select: { seasonId: true },
+        select: { seasonId: true, archivedAt: true },
       });
       if (!existing) throw new Error("NOT_FOUND");
+      if (existing.archivedAt) throw new Error("TEAM_ARCHIVED");
+      if (await activeTeamIdentityExists(transaction, {
+        teamId: teamId.data,
+        leagueId: teamData.leagueId,
+        seasonId: teamData.seasonId,
+        name: teamData.name,
+        shortName: teamData.shortName,
+      })) {
+        throw new Error("TEAM_IDENTITY_CONFLICT");
+      }
       await transaction.team.update({
         where: { id: teamId.data },
         data: teamData,
@@ -1242,13 +1297,204 @@ export async function updateTeamAction(
           race.id,
         );
       }
-    });
-  } catch {
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "TEAM_ARCHIVED") {
+      return errorState("Archivierte Teams müssen vor einer Bearbeitung wiederhergestellt werden.");
+    }
+    if (error instanceof Error && error.message === "TEAM_IDENTITY_CONFLICT") {
+      return errorState("Ein aktives Team mit diesem Namen oder Kürzel existiert bereits in Liga und Saison.");
+    }
     return databaseError();
   }
 
   revalidateMasterData();
   return successState("Team wurde aktualisiert.");
+}
+
+export async function archiveTeamAction(
+  teamIdInput: number,
+  _previousState: MasterDataActionState,
+  formData: FormData,
+): Promise<MasterDataActionState> {
+  const actor = await authorize();
+  const teamId = entityIdSchema.safeParse(teamIdInput);
+  const parsed = teamArchiveSchema.safeParse({
+    confirmed: formData.get("confirmed"),
+    detachActiveDrivers: formData.get("detachActiveDrivers"),
+  });
+  if (!teamId.success || !parsed.success) {
+    return errorState("Bitte bestätige die Archivierung.");
+  }
+
+  const prisma = getPrismaClient();
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const snapshot = await getTeamDependencySnapshot(transaction, teamId.data);
+      if (!snapshot) throw new Error("TEAM_NOT_FOUND");
+      if (snapshot.team.archivedAt) throw new Error("TEAM_ALREADY_ARCHIVED");
+      if (snapshot.activeDrivers.length > 0 && !parsed.data.detachActiveDrivers) {
+        throw new Error("TEAM_HAS_ACTIVE_DRIVERS");
+      }
+
+      if (parsed.data.detachActiveDrivers) {
+        await transaction.driver.updateMany({
+          where: { teamId: snapshot.team.id, active: true },
+          data: { teamId: null },
+        });
+        if (snapshot.team.organizationId) {
+          await transaction.driverSeasonAssignment.updateMany({
+            where: {
+              seasonId: snapshot.team.seasonId,
+              leagueId: snapshot.team.leagueId,
+              organizationId: snapshot.team.organizationId,
+              active: true,
+            },
+            data: { active: false },
+          });
+        }
+      }
+
+      const archivedAt = new Date();
+      await transaction.team.update({
+        where: { id: snapshot.team.id },
+        data: { active: false, archivedAt },
+      });
+      await writeSystemAudit(transaction, {
+        actorId: actor.id,
+        action: "TEAM_ARCHIVED",
+        entityType: "Team",
+        entityId: snapshot.team.id,
+        metadata: {
+          name: snapshot.team.name,
+          archivedAt: archivedAt.toISOString(),
+          detachedDriverIds: parsed.data.detachActiveDrivers
+            ? snapshot.activeDrivers.map((driver) => driver.id)
+            : [],
+          logoRetained: Boolean(snapshot.team.logoUrl),
+        },
+      });
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "TEAM_HAS_ACTIVE_DRIVERS") {
+      return errorState("Dieses Team besitzt noch aktive Fahrerzuordnungen. Weise die Fahrer einem anderen Team zu oder bestätige ausdrücklich ‚Ohne Team‘.");
+    }
+    if (error instanceof Error && error.message === "TEAM_ALREADY_ARCHIVED") {
+      return errorState("Dieses Team ist bereits archiviert.");
+    }
+    return errorState("Das Team konnte nicht archiviert werden.");
+  }
+
+  revalidateMasterData();
+  redirect("/admin/teams?view=archived&notice=archived");
+}
+
+export async function restoreTeamAction(
+  teamIdInput: number,
+  _previousState: MasterDataActionState,
+  formData: FormData,
+): Promise<MasterDataActionState> {
+  const actor = await authorize();
+  const teamId = entityIdSchema.safeParse(teamIdInput);
+  const parsed = teamRestoreSchema.safeParse({ confirmed: formData.get("confirmed") });
+  if (!teamId.success || !parsed.success) {
+    return errorState("Bitte bestätige die Wiederherstellung.");
+  }
+
+  const prisma = getPrismaClient();
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const snapshot = await getTeamDependencySnapshot(transaction, teamId.data);
+      if (!snapshot) throw new Error("TEAM_NOT_FOUND");
+      if (!snapshot.team.archivedAt) throw new Error("TEAM_NOT_ARCHIVED");
+      if (await activeTeamIdentityExists(transaction, {
+        teamId: snapshot.team.id,
+        leagueId: snapshot.team.leagueId,
+        seasonId: snapshot.team.seasonId,
+        name: snapshot.team.name,
+        shortName: snapshot.team.shortName,
+      })) {
+        throw new Error("TEAM_IDENTITY_CONFLICT");
+      }
+
+      await transaction.team.update({
+        where: { id: snapshot.team.id },
+        data: { active: true, archivedAt: null },
+      });
+      await writeSystemAudit(transaction, {
+        actorId: actor.id,
+        action: "TEAM_RESTORED",
+        entityType: "Team",
+        entityId: snapshot.team.id,
+        metadata: { name: snapshot.team.name },
+      });
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "TEAM_IDENTITY_CONFLICT") {
+      return errorState("Ein anderes aktives Team verwendet bereits denselben Namen oder dasselbe Kürzel in dieser Liga und Saison.");
+    }
+    if (error instanceof Error && error.message === "TEAM_NOT_ARCHIVED") {
+      return errorState("Dieses Team ist nicht archiviert.");
+    }
+    return errorState("Das Team konnte nicht wiederhergestellt werden.");
+  }
+
+  revalidateMasterData();
+  redirect("/admin/teams?view=active&notice=restored");
+}
+
+export async function permanentlyDeleteTeamAction(
+  teamIdInput: number,
+  _previousState: MasterDataActionState,
+  formData: FormData,
+): Promise<MasterDataActionState> {
+  const actor = await authorize();
+  const teamId = entityIdSchema.safeParse(teamIdInput);
+  const parsed = teamDeleteSchema.safeParse({
+    confirmationName: formData.get("confirmationName"),
+  });
+  if (!teamId.success || !parsed.success) {
+    return errorState("Gib den Teamnamen zur Bestätigung ein.");
+  }
+
+  const prisma = getPrismaClient();
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const snapshot = await getTeamDependencySnapshot(transaction, teamId.data);
+      if (!snapshot) throw new Error("TEAM_NOT_FOUND");
+      if (!teamDeleteConfirmationMatches(snapshot.team.name, parsed.data.confirmationName)) {
+        throw new Error("TEAM_NAME_MISMATCH");
+      }
+      if (!canPermanentlyDeleteTeam(snapshot.dependencies)) {
+        throw new Error(`TEAM_HAS_DEPENDENCIES:${teamDependencyMessages(snapshot.dependencies).join("|")}`);
+      }
+
+      await writeSystemAudit(transaction, {
+        actorId: actor.id,
+        action: "TEAM_PERMANENTLY_DELETED",
+        entityType: "Team",
+        entityId: snapshot.team.id,
+        metadata: {
+          name: snapshot.team.name,
+          shortName: snapshot.team.shortName,
+          logoDisposition: "no-owned-storage-asset",
+        },
+      });
+      await transaction.team.delete({ where: { id: snapshot.team.id } });
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "TEAM_NAME_MISMATCH") {
+      return errorState("Der eingegebene Teamname stimmt nicht mit der erforderlichen Bestätigung überein.");
+    }
+    if (error instanceof Error && error.message.startsWith("TEAM_HAS_DEPENDENCIES:")) {
+      const dependencies = error.message.slice("TEAM_HAS_DEPENDENCIES:".length).split("|").filter(Boolean);
+      return errorState(`Das Team kann nicht endgültig gelöscht werden: ${dependencies.join(", ")}. Archiviere das Team stattdessen.`);
+    }
+    return errorState("Das Team konnte nicht endgültig gelöscht werden.");
+  }
+
+  revalidateMasterData();
+  redirect("/admin/teams?view=all&notice=deleted");
 }
 
 function teamOrganizationPayload(formData: FormData) {
