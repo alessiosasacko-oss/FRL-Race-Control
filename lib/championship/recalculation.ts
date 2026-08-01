@@ -541,7 +541,14 @@ export async function recalculateChampionship(
       where: { championshipId: championship.id },
       orderBy: { position: "asc" },
       take: 5,
-      include: { team: { select: { name: true } } },
+      include: {
+        team: {
+          select: {
+            name: true,
+            organization: { select: { name: true } },
+          },
+        },
+      },
     }),
   ]);
   const href = `/championship?leagueId=${leagueId}&seasonId=${season.id}`;
@@ -572,7 +579,7 @@ export async function recalculateChampionship(
       league: league.name,
       season: season.name,
       fields: teamTop.map((standing) => ({
-        name: `${standing.position}. ${standing.team.name}`,
+        name: `${standing.position}. ${standing.team.organization?.name ?? standing.team.name}`,
         value: `${standing.points} Punkte`,
         inline: false,
       })),

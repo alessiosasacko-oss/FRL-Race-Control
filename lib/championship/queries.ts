@@ -635,6 +635,9 @@ export async function getChampionshipPageData(
                       id: true,
                       name: true,
                       color: true,
+                      organization: {
+                        select: { id: true, name: true, color: true },
+                      },
                     },
                   },
                 },
@@ -650,6 +653,14 @@ export async function getChampionshipPageData(
                   name: true,
                   shortName: true,
                   color: true,
+                  organization: {
+                    select: {
+                      id: true,
+                      name: true,
+                      shortName: true,
+                      color: true,
+                    },
+                  },
                 },
               },
             },
@@ -683,15 +694,15 @@ export async function getChampionshipPageData(
         standing.driver.name
           .toLocaleLowerCase("de-DE")
           .includes(search) ||
-        standing.driver.team?.name
-          .toLocaleLowerCase("de-DE")
+        (standing.driver.team?.organization?.name ?? standing.driver.team?.name)
+          ?.toLocaleLowerCase("de-DE")
           .includes(search),
     ) ?? [];
   const teamRows =
     season.championships[0]?.teamStandings.filter(
       (standing) =>
         !search ||
-        standing.team.name
+        (standing.team.organization?.name ?? standing.team.name)
           .toLocaleLowerCase("de-DE")
           .includes(search),
     ) ?? [];
@@ -732,7 +743,9 @@ export async function getChampionshipPageData(
         name: standing.driver.name,
         number: standing.driver.number,
         flag: standing.driver.flag,
-        team: standing.driver.team,
+        team: standing.driver.team
+          ? (standing.driver.team.organization ?? standing.driver.team)
+          : null,
       },
     })),
     teams: teamRows.map((standing) => ({
@@ -747,7 +760,7 @@ export async function getChampionshipPageData(
       polePositions: standing.polePositions,
       fastestLaps: standing.fastestLaps,
       tieBreakSummary: tieBreakSummary(standing.tieBreak),
-      team: standing.team,
+      team: standing.team.organization ?? standing.team,
     })),
     updatedAt:
       season.championships[0]?.updatedAt.toISOString() ?? null,
@@ -787,6 +800,12 @@ function resultRow(result: {
     name: string;
     shortName: string;
     color: string;
+    organization: {
+      id: number;
+      name: string;
+      shortName: string;
+      color: string;
+    } | null;
   };
   expectedDriver: { id: number; name: string } | null;
   penaltyApplications: Array<{
@@ -803,6 +822,7 @@ function resultRow(result: {
 }): ResultRowView {
   return {
     ...result,
+    representedTeam: result.representedTeam.organization ?? result.representedTeam,
     baseStatus: result.baseStatus as ResultStatus,
     status: result.status as ResultStatus,
     penaltyApplications: result.penaltyApplications.map(
@@ -875,6 +895,14 @@ export async function getRaceResults(
                   name: true,
                   shortName: true,
                   color: true,
+                  organization: {
+                    select: {
+                      id: true,
+                      name: true,
+                      shortName: true,
+                      color: true,
+                    },
+                  },
                 },
               },
               expectedDriver: { select: { id: true, name: true } },

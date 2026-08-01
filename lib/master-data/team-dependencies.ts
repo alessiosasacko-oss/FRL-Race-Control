@@ -9,17 +9,15 @@ import {
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 export type TeamDependencySnapshot = {
-  team: {
+  organization: {
     id: number;
     name: string;
     shortName: string;
     active: boolean;
     archivedAt: Date | null;
-    leagueId: number;
-    seasonId: number;
-    organizationId: number | null;
     logoUrl: string | null;
   };
+  slotIds: number[];
   dependencies: TeamDependencyCounts;
   activeDrivers: TeamActiveDriver[];
   canPermanentlyDelete: boolean;
@@ -27,135 +25,161 @@ export type TeamDependencySnapshot = {
 
 export async function getTeamDependencySnapshot(
   database: DatabaseClient,
-  teamId: number,
+  organizationId: number,
 ): Promise<TeamDependencySnapshot | null> {
-  const team = await database.team.findUnique({
-    where: { id: teamId },
+  const organization = await database.teamOrganization.findUnique({
+    where: { id: organizationId },
     select: {
       id: true,
       name: true,
       shortName: true,
       active: true,
       archivedAt: true,
-      leagueId: true,
-      seasonId: true,
-      organizationId: true,
-      principalUserId: true,
       logoUrl: true,
       secondaryColor: true,
       contrastColor: true,
-      backgroundGradient: true,
-      _count: {
+      teams: {
         select: {
-          drivers: true,
-          standings: true,
-          attendanceEntries: true,
-          representedResults: true,
-          championshipAdjustments: true,
+          id: true,
+          logoUrl: true,
+          secondaryColor: true,
+          contrastColor: true,
+          backgroundGradient: true,
         },
       },
     },
   });
-  if (!team) return null;
+  if (!organization) return null;
 
-  const assignmentWhere = team.organizationId
-    ? {
-        seasonId: team.seasonId,
-        leagueId: team.leagueId,
-        organizationId: team.organizationId,
-      }
-    : null;
-  const [seasonAssignments, organizationPrincipals, fiaData, notifications, directDrivers, assignedDrivers] =
-    await Promise.all([
-      assignmentWhere
-        ? database.driverSeasonAssignment.count({ where: assignmentWhere })
-        : Promise.resolve(0),
-      team.organizationId
-        ? database.teamOrganizationSeason.count({
-            where: {
-              organizationId: team.organizationId,
-              seasonId: team.seasonId,
-              principalUserId: { not: null },
-            },
-          })
-        : Promise.resolve(0),
-      database.fiaTicketDriver.count({
-        where: {
-          driver: {
-            OR: [
-              { teamId: team.id },
-              ...(assignmentWhere
-                ? [{ seasonAssignments: { some: assignmentWhere } }]
-                : []),
-            ],
-          },
-        },
-      }),
-      database.notification.count({
-        where: { relatedEntityType: "Team", relatedEntityId: team.id },
-      }),
-      database.driver.findMany({
-        where: { teamId: team.id, active: true },
-        select: {
-          id: true,
-          name: true,
-          league: { select: { code: true } },
-        },
-      }),
-      assignmentWhere
-        ? database.driverSeasonAssignment.findMany({
-            where: { ...assignmentWhere, active: true, driver: { active: true } },
-            select: {
-              driver: { select: { id: true, name: true } },
-              league: { select: { code: true } },
-            },
-          })
-        : Promise.resolve([]),
-    ]);
+  const slotIds = organization.teams.map((team) => team.id);
+  const [
+    directDrivers,
+    seasonAssignments,
+    organizationPrincipals,
+    slotPrincipals,
+    results,
+    standings,
+    globalStandings,
+    contributions,
+    adjustments,
+    attendance,
+    notifications,
+  ] = await Promise.all([
+    database.driver.findMany({
+      where: { teamId: { in: slotIds } },
+      select: {
+        id: true,
+        name: true,
+        active: true,
+        league: { select: { code: true } },
+      },
+    }),
+    database.driverSeasonAssignment.findMany({
+      where: { organizationId },
+      select: {
+        driverId: true,
+        active: true,
+        driver: { select: { id: true, name: true, active: true } },
+        league: { select: { code: true } },
+      },
+    }),
+    database.teamOrganizationSeason.count({
+      where: { organizationId, principalUserId: { not: null } },
+    }),
+    database.team.count({
+      where: { organizationId, principalUserId: { not: null } },
+    }),
+    database.raceResult.count({
+      where: { representedTeamId: { in: slotIds } },
+    }),
+    database.teamStanding.count({ where: { teamId: { in: slotIds } } }),
+    database.globalTeamStanding.count({ where: { organizationId } }),
+    database.globalTeamContribution.count({ where: { organizationId } }),
+    database.championshipAdjustment.count({
+      where: { teamId: { in: slotIds } },
+    }),
+    database.raceAttendance.count({
+      where: { representedTeamId: { in: slotIds } },
+    }),
+    database.notification.count({
+      where: {
+        OR: [
+          { relatedEntityType: "TeamOrganization", relatedEntityId: organizationId },
+          ...(slotIds.length
+            ? [{ relatedEntityType: "Team", relatedEntityId: { in: slotIds } }]
+            : []),
+        ],
+      },
+    }),
+  ]);
+
+  const driverIds = new Set([
+    ...directDrivers.map((driver) => driver.id),
+    ...seasonAssignments.map((assignment) => assignment.driverId),
+  ]);
+  const fiaData = driverIds.size
+    ? await database.fiaTicketDriver.count({
+        where: { driverId: { in: [...driverIds] } },
+      })
+    : 0;
 
   const activeDriverMap = new Map<number, TeamActiveDriver>();
-  for (const driver of [...directDrivers, ...assignedDrivers]) {
-    const identity = "driver" in driver ? driver.driver : driver;
-    activeDriverMap.set(identity.id, {
-      id: identity.id,
-      name: identity.name,
+  for (const driver of directDrivers) {
+    if (!driver.active) continue;
+    activeDriverMap.set(driver.id, {
+      id: driver.id,
+      name: driver.name,
       leagueCode: driver.league.code,
     });
   }
-  const activeDrivers = [...activeDriverMap.values()].sort((left, right) =>
-    left.leagueCode.localeCompare(right.leagueCode) ||
-    left.name.localeCompare(right.name, "de"),
+  for (const assignment of seasonAssignments) {
+    if (!assignment.active || !assignment.driver.active) continue;
+    activeDriverMap.set(assignment.driver.id, {
+      id: assignment.driver.id,
+      name: assignment.driver.name,
+      leagueCode: assignment.league.code,
+    });
+  }
+  const activeDrivers = [...activeDriverMap.values()].sort(
+    (left, right) =>
+      left.leagueCode.localeCompare(right.leagueCode) ||
+      left.name.localeCompare(right.name, "de"),
   );
+
   const dependencies: TeamDependencyCounts = {
-    drivers: team._count.drivers,
-    seasonAssignments,
-    teamPrincipals: (team.principalUserId ? 1 : 0) + organizationPrincipals,
-    results: team._count.representedResults,
-    standings: team._count.standings,
-    adjustments: team._count.championshipAdjustments,
-    attendance: team._count.attendanceEntries,
+    technicalSlots: slotIds.length,
+    drivers: directDrivers.length,
+    seasonAssignments: seasonAssignments.length,
+    teamPrincipals: organizationPrincipals + slotPrincipals,
+    results,
+    standings,
+    globalStandings,
+    contributions,
+    adjustments,
+    attendance,
     fiaData,
     notifications,
-    brandingAssets: [
-      team.logoUrl,
-      team.secondaryColor,
-      team.contrastColor,
-      team.backgroundGradient,
-    ].filter(Boolean).length,
+    brandingAssets: new Set(
+      [
+        organization.logoUrl,
+        ...organization.teams.flatMap((team) => [
+          team.logoUrl,
+          team.backgroundGradient,
+        ]),
+      ].filter((value): value is string => Boolean(value)),
+    ).size,
   };
 
   return {
-    team: {
-      id: team.id,
-      name: team.name,
-      shortName: team.shortName,
-      active: team.active,
-      archivedAt: team.archivedAt,
-      leagueId: team.leagueId,
-      seasonId: team.seasonId,
-      organizationId: team.organizationId,
-      logoUrl: team.logoUrl,
+    organization: {
+      id: organization.id,
+      name: organization.name,
+      shortName: organization.shortName,
+      active: organization.active,
+      archivedAt: organization.archivedAt,
+      logoUrl: organization.logoUrl,
     },
+    slotIds,
     dependencies,
     activeDrivers,
     canPermanentlyDelete: canPermanentlyDeleteTeam(dependencies),

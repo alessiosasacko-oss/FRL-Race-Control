@@ -10,12 +10,16 @@ export const teamSchema = z
     id: entityIdSchema,
     leagueId: entityIdSchema,
     seasonId: entityIdSchema,
-    organizationId: entityIdSchema.nullable(),
+    organizationId: entityIdSchema.nullable().default(null),
     principalUserId: entityIdSchema.nullable(),
     name: titleSchema,
     shortName: z.string().trim().min(2).max(12),
     color: hexColorSchema,
+    secondaryColor: hexColorSchema.nullable().default(null),
+    contrastColor: hexColorSchema.nullable().default(null),
+    logoUrl: z.string().url().nullable().default(null),
     active: z.boolean(),
+    archivedAt: z.coerce.date().nullable().default(null),
   })
   .strict();
 
@@ -27,7 +31,11 @@ export const teamOrganizationSchema = z
     name: titleSchema,
     shortName: z.string().trim().min(2).max(12),
     color: hexColorSchema,
+    secondaryColor: hexColorSchema.nullable().default(null),
+    contrastColor: hexColorSchema.nullable().default(null),
+    logoUrl: z.string().url().nullable().default(null),
     active: z.boolean(),
+    archivedAt: z.coerce.date().nullable().default(null),
   })
   .strict();
 

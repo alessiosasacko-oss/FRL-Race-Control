@@ -30,15 +30,7 @@ export async function getGlobalTeamOverview(input: {
   const organizations = await prisma.teamOrganization.findMany({
     where: {
       active: input.includeArchived ? undefined : true,
-      teams: input.includeArchived
-        ? undefined
-        : {
-            some: {
-              seasonId: season.id,
-              active: true,
-              archivedAt: null,
-            },
-          },
+      archivedAt: input.includeArchived ? undefined : null,
       OR: input.q
         ? [
             { name: { contains: input.q, mode: "insensitive" } },
@@ -90,11 +82,11 @@ export async function getGlobalTeamOverview(input: {
     leagues,
     organizations: organizations.map((organization) => ({
       id: organization.id,
-      representativeTeamId: organization.teams[0]?.id ?? null,
+      representativeTeamId: organization.id,
       name: organization.name,
       shortName: organization.shortName,
       color: organization.color,
-      logoUrl: organization.teams.find((team) => team.logoUrl)?.logoUrl ?? null,
+      logoUrl: organization.logoUrl ?? organization.teams.find((team) => team.logoUrl)?.logoUrl ?? null,
       active: organization.active,
       principalName:
         organization.seasons[0]?.principal?.displayName ??
@@ -121,22 +113,29 @@ export async function getGlobalTeamOverview(input: {
   };
 }
 
-export async function getGlobalTeamDetail(teamId: number, seasonId?: number) {
+export async function getGlobalTeamDetail(organizationId: number, seasonId?: number) {
   const prisma = getPrismaClient();
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { organizationId: true, seasonId: true, archivedAt: true },
+  const directOrganization = await prisma.teamOrganization.findUnique({
+    where: { id: organizationId },
+    select: { id: true, archivedAt: true },
   });
-  if (!team?.organizationId) return null;
+  const legacyTeam = directOrganization
+    ? null
+    : await prisma.team.findUnique({
+        where: { id: organizationId },
+        select: { organizationId: true, seasonId: true, archivedAt: true },
+      });
+  const resolvedOrganizationId = directOrganization?.id ?? legacyTeam?.organizationId;
+  if (!resolvedOrganizationId) return null;
   const overview = await getGlobalTeamOverview({
-    seasonId: seasonId ?? team.seasonId,
+    seasonId: seasonId ?? legacyTeam?.seasonId,
     includeArchived: true,
   });
-  const organization = overview.organizations.find((candidate) => candidate.id === team.organizationId);
+  const organization = overview.organizations.find((candidate) => candidate.id === resolvedOrganizationId);
   return organization
     ? {
         ...organization,
-        archived: team.archivedAt !== null,
+        archived: (directOrganization?.archivedAt ?? legacyTeam?.archivedAt) !== null,
         season: overview.season,
         seasons: overview.seasons,
       }

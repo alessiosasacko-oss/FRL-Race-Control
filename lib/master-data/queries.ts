@@ -13,7 +13,6 @@ import { listQuerySchema } from "./schemas";
 import { formatLocalDateTimeInput } from "./timezone";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import { getTeamDependencySnapshot } from "./team-dependencies";
-import { emptyTeamDependencyCounts } from "./team-lifecycle";
 import type {
   DriverDetail,
   DriverItem,
@@ -22,8 +21,6 @@ import type {
   MasterDataOptions,
   RaceItem,
   SeasonAdminItem,
-  TeamDetail,
-  TeamItem,
   TeamOrganizationItem,
 } from "./types";
 
@@ -61,7 +58,12 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
       },
     }),
     prisma.team.findMany({
-      where: { active: true, archivedAt: null },
+      where: {
+        active: true,
+        archivedAt: null,
+        systemManaged: true,
+        organization: { active: true, archivedAt: null },
+      },
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -528,162 +530,33 @@ export async function getDriverById(
   };
 }
 
-export async function getTeamItems(
-  query: MasterDataListQuery,
+export async function getTeamOrganizationItems(
   lifecycle: "active" | "archived" | "all" = "all",
-): Promise<TeamItem[]> {
+): Promise<
+  TeamOrganizationItem[]
+> {
   const prisma = getPrismaClient();
-  const teams = await prisma.team.findMany({
+  const [currentSeason, leagues] = await Promise.all([
+    prisma.season.findFirst({
+      where: { active: true, archivedAt: null },
+      orderBy: { startsOn: "desc" },
+      select: { id: true, name: true },
+    }),
+    prisma.league.findMany({
+      where: { code: { in: ["F1", "F2", "F3", "F4", "F5", "F6"] } },
+      orderBy: { displayOrder: "asc" },
+      select: { id: true, code: true, name: true },
+    }),
+  ]);
+  const organizations = await prisma.teamOrganization.findMany({
     where: {
-      leagueId: query.leagueId,
-      seasonId: query.seasonId,
       archivedAt:
         lifecycle === "active"
           ? null
           : lifecycle === "archived"
             ? { not: null }
             : undefined,
-      active: lifecycle === "active" ? true : undefined,
-      OR: query.q
-        ? [
-            { name: { contains: query.q, mode: "insensitive" } },
-            { shortName: { contains: query.q, mode: "insensitive" } },
-            {
-              principal: {
-                displayName: { contains: query.q, mode: "insensitive" },
-              },
-            },
-            {
-              drivers: {
-                some: {
-                  name: { contains: query.q, mode: "insensitive" },
-                },
-              },
-            },
-          ]
-        : undefined,
     },
-    orderBy: [{ active: "desc" }, { name: "asc" }],
-    include: {
-      league: { select: { id: true, code: true, name: true } },
-      season: { select: { id: true, name: true } },
-      principal: {
-        select: { id: true, displayName: true, discordId: true },
-      },
-      drivers: {
-        orderBy: { number: "asc" },
-        select: {
-          id: true,
-          name: true,
-          number: true,
-          flag: true,
-          active: true,
-        },
-      },
-      organization: {
-        select: {
-          id: true,
-          name: true,
-          shortName: true,
-          color: true,
-          active: true,
-        },
-      },
-    },
-  });
-
-  const dependencySnapshots = new Map(
-    (await Promise.all(
-      teams.map((team) => getTeamDependencySnapshot(prisma, team.id)),
-    )).flatMap((snapshot) => snapshot ? [[snapshot.team.id, snapshot] as const] : []),
-  );
-
-  return teams.map((team) => ({
-    id: team.id,
-    name: team.name,
-    shortName: team.shortName,
-    color: team.color,
-    active: team.active,
-    archivedAt: team.archivedAt?.toISOString() ?? null,
-    league: team.league,
-    season: team.season,
-    organization: team.organization,
-    principal: team.principal,
-    drivers: team.drivers,
-    updatedAt: team.updatedAt.toISOString(),
-    dependencies:
-      dependencySnapshots.get(team.id)?.dependencies ??
-      emptyTeamDependencyCounts,
-    activeDrivers: dependencySnapshots.get(team.id)?.activeDrivers ?? [],
-    canPermanentlyDelete:
-      dependencySnapshots.get(team.id)?.canPermanentlyDelete ?? false,
-  }));
-}
-
-export async function getTeamById(
-  teamId: number,
-): Promise<TeamDetail | null> {
-  const prisma = getPrismaClient();
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    include: {
-      league: { select: { id: true, code: true, name: true } },
-      season: { select: { id: true, name: true } },
-      principal: {
-        select: { id: true, displayName: true, discordId: true },
-      },
-      drivers: {
-        orderBy: { number: "asc" },
-        select: {
-          id: true,
-          name: true,
-          number: true,
-          flag: true,
-          active: true,
-        },
-      },
-      organization: {
-        select: {
-          id: true,
-          name: true,
-          shortName: true,
-          color: true,
-          active: true,
-        },
-      },
-      _count: { select: { standings: true } },
-    },
-  });
-
-  if (!team) return null;
-  const dependencySnapshot = await getTeamDependencySnapshot(prisma, team.id);
-
-  return {
-    id: team.id,
-    name: team.name,
-    shortName: team.shortName,
-    color: team.color,
-    active: team.active,
-    archivedAt: team.archivedAt?.toISOString() ?? null,
-    league: team.league,
-    season: team.season,
-    organization: team.organization,
-    principal: team.principal,
-    drivers: team.drivers,
-    updatedAt: team.updatedAt.toISOString(),
-    dependencies:
-      dependencySnapshot?.dependencies ?? emptyTeamDependencyCounts,
-    activeDrivers: dependencySnapshot?.activeDrivers ?? [],
-    canPermanentlyDelete:
-      dependencySnapshot?.canPermanentlyDelete ?? false,
-    standingCount: team._count.standings,
-  };
-}
-
-export async function getTeamOrganizationItems(): Promise<
-  TeamOrganizationItem[]
-> {
-  const organizations = await getPrismaClient().teamOrganization.findMany({
     orderBy: [{ active: "desc" }, { name: "asc" }],
     include: {
       seasons: {
@@ -694,18 +567,98 @@ export async function getTeamOrganizationItems(): Promise<
           principal: { select: { id: true, displayName: true } },
         },
       },
+      driverAssignments: {
+            where: currentSeason
+              ? { seasonId: currentSeason.id, active: true }
+              : { id: -1 },
+            orderBy: { driver: { number: "asc" } },
+            select: {
+              leagueId: true,
+              lineupStatus: true,
+              driver: {
+                select: {
+                  id: true,
+                  userId: true,
+                  name: true,
+                  number: true,
+                  countryCode: true,
+                  active: true,
+                },
+              },
+            },
+          },
     },
   });
-  return organizations.map((organization) => ({
-    id: organization.id,
-    name: organization.name,
-    shortName: organization.shortName,
-    color: organization.color,
-    active: organization.active,
-    seasons: organization.seasons.map((season) => ({
-      seasonId: season.seasonId,
-      seasonName: season.season.name,
-      principal: season.principal,
-    })),
-  }));
+
+  const dependencySnapshots = new Map(
+    (await Promise.all(
+      organizations.map((organization) =>
+        getTeamDependencySnapshot(prisma, organization.id),
+      ),
+    )).flatMap((snapshot) =>
+      snapshot ? [[snapshot.organization.id, snapshot] as const] : [],
+    ),
+  );
+
+  return organizations.map((organization) => {
+    const currentSeasonAssignment = currentSeason
+      ? organization.seasons.find(
+          (season) => season.seasonId === currentSeason.id,
+        )
+      : null;
+    const snapshot = dependencySnapshots.get(organization.id);
+    return {
+      id: organization.id,
+      name: organization.name,
+      shortName: organization.shortName,
+      color: organization.color,
+      secondaryColor: organization.secondaryColor,
+      contrastColor: organization.contrastColor,
+      logoUrl: organization.logoUrl,
+      active: organization.active,
+      archivedAt: organization.archivedAt?.toISOString() ?? null,
+      currentSeasonId: currentSeason?.id ?? null,
+      currentSeasonName: currentSeason?.name ?? null,
+      principal: currentSeasonAssignment?.principal ?? null,
+      seasons: organization.seasons.map((season) => ({
+        seasonId: season.seasonId,
+        seasonName: season.season.name,
+        principal: season.principal,
+      })),
+      leagues: leagues.map((league) => {
+        const assignments = organization.driverAssignments.filter(
+          (assignment) =>
+            assignment.leagueId === league.id && assignment.driver.active,
+        );
+        const mapDriver = (assignment: (typeof assignments)[number]) =>
+          assignment.driver;
+        return {
+          ...league,
+          primaryDrivers: assignments
+            .filter((assignment) => assignment.lineupStatus === "PRIMARY")
+            .map(mapDriver),
+          substitutes: assignments
+            .filter((assignment) => assignment.lineupStatus === "SUBSTITUTE")
+            .map(mapDriver),
+        };
+      }),
+      dependencies: snapshot?.dependencies ?? {
+        technicalSlots: 0,
+        drivers: 0,
+        seasonAssignments: 0,
+        teamPrincipals: 0,
+        results: 0,
+        standings: 0,
+        globalStandings: 0,
+        contributions: 0,
+        adjustments: 0,
+        attendance: 0,
+        fiaData: 0,
+        notifications: 0,
+        brandingAssets: 0,
+      },
+      activeDrivers: snapshot?.activeDrivers ?? [],
+      canPermanentlyDelete: snapshot?.canPermanentlyDelete ?? false,
+    };
+  });
 }

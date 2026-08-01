@@ -1151,11 +1151,20 @@ async function teamLineupIsValid(
   return validDriverCount === new Set(driverIds).size;
 }
 
+function manualTeamCrudDisabled(): boolean {
+  return true;
+}
+
 export async function createTeamAction(
   _previousState: MasterDataActionState,
   formData: FormData,
 ): Promise<MasterDataActionState> {
   await authorize();
+  if (manualTeamCrudDisabled()) {
+    return errorState(
+      "Technische Saison-/Liga-Slots werden ausschließlich automatisch verwaltet.",
+    );
+  }
   const parsed = teamSchema.safeParse(teamPayload(formData));
 
   if (!parsed.success) return validationState(parsed);
@@ -1214,6 +1223,11 @@ export async function updateTeamAction(
   formData: FormData,
 ): Promise<MasterDataActionState> {
   await authorize();
+  if (manualTeamCrudDisabled()) {
+    return errorState(
+      "Technische Saison-/Liga-Slots können nicht direkt bearbeitet werden.",
+    );
+  }
   const teamId = entityIdSchema.safeParse(teamIdInput);
   const parsed = teamSchema.safeParse(teamPayload(formData));
 
@@ -1331,46 +1345,47 @@ export async function archiveTeamAction(
     await prisma.$transaction(async (transaction) => {
       const snapshot = await getTeamDependencySnapshot(transaction, teamId.data);
       if (!snapshot) throw new Error("TEAM_NOT_FOUND");
-      if (snapshot.team.archivedAt) throw new Error("TEAM_ALREADY_ARCHIVED");
+      if (snapshot.organization.archivedAt) throw new Error("TEAM_ALREADY_ARCHIVED");
       if (snapshot.activeDrivers.length > 0 && !parsed.data.detachActiveDrivers) {
         throw new Error("TEAM_HAS_ACTIVE_DRIVERS");
       }
 
       if (parsed.data.detachActiveDrivers) {
         await transaction.driver.updateMany({
-          where: { teamId: snapshot.team.id, active: true },
+          where: { teamId: { in: snapshot.slotIds }, active: true },
           data: { teamId: null },
         });
-        if (snapshot.team.organizationId) {
-          await transaction.driverSeasonAssignment.updateMany({
-            where: {
-              seasonId: snapshot.team.seasonId,
-              leagueId: snapshot.team.leagueId,
-              organizationId: snapshot.team.organizationId,
-              active: true,
-            },
-            data: { active: false },
-          });
-        }
+        await transaction.driverSeasonAssignment.updateMany({
+          where: {
+            organizationId: snapshot.organization.id,
+            active: true,
+          },
+          data: { active: false },
+        });
       }
 
       const archivedAt = new Date();
-      await transaction.team.update({
-        where: { id: snapshot.team.id },
+      await transaction.teamOrganization.update({
+        where: { id: snapshot.organization.id },
         data: { active: false, archivedAt },
+      });
+      await transaction.team.updateMany({
+        where: { organizationId: snapshot.organization.id },
+        data: { active: false, archivedAt, principalUserId: null },
       });
       await writeSystemAudit(transaction, {
         actorId: actor.id,
         action: "TEAM_ARCHIVED",
-        entityType: "Team",
-        entityId: snapshot.team.id,
+        entityType: "TeamOrganization",
+        entityId: snapshot.organization.id,
         metadata: {
-          name: snapshot.team.name,
+          name: snapshot.organization.name,
           archivedAt: archivedAt.toISOString(),
           detachedDriverIds: parsed.data.detachActiveDrivers
             ? snapshot.activeDrivers.map((driver) => driver.id)
             : [],
-          logoRetained: Boolean(snapshot.team.logoUrl),
+          internalSlotIds: snapshot.slotIds,
+          logoRetained: Boolean(snapshot.organization.logoUrl),
         },
       });
     }, { isolationLevel: "Serializable" });
@@ -1405,32 +1420,34 @@ export async function restoreTeamAction(
     await prisma.$transaction(async (transaction) => {
       const snapshot = await getTeamDependencySnapshot(transaction, teamId.data);
       if (!snapshot) throw new Error("TEAM_NOT_FOUND");
-      if (!snapshot.team.archivedAt) throw new Error("TEAM_NOT_ARCHIVED");
-      if (await activeTeamIdentityExists(transaction, {
-        teamId: snapshot.team.id,
-        leagueId: snapshot.team.leagueId,
-        seasonId: snapshot.team.seasonId,
-        name: snapshot.team.name,
-        shortName: snapshot.team.shortName,
+      if (!snapshot.organization.archivedAt) throw new Error("TEAM_NOT_ARCHIVED");
+      if (await activeOrganizationIdentityExists(transaction, {
+        organizationId: snapshot.organization.id,
+        name: snapshot.organization.name,
+        shortName: snapshot.organization.shortName,
       })) {
         throw new Error("TEAM_IDENTITY_CONFLICT");
       }
 
-      await transaction.team.update({
-        where: { id: snapshot.team.id },
+      await transaction.teamOrganization.update({
+        where: { id: snapshot.organization.id },
         data: { active: true, archivedAt: null },
+      });
+      await transaction.team.updateMany({
+        where: { organizationId: snapshot.organization.id },
+        data: { active: true, archivedAt: null, systemManaged: true },
       });
       await writeSystemAudit(transaction, {
         actorId: actor.id,
         action: "TEAM_RESTORED",
-        entityType: "Team",
-        entityId: snapshot.team.id,
-        metadata: { name: snapshot.team.name },
+        entityType: "TeamOrganization",
+        entityId: snapshot.organization.id,
+        metadata: { name: snapshot.organization.name, internalSlotIds: snapshot.slotIds },
       });
     }, { isolationLevel: "Serializable" });
   } catch (error: unknown) {
     if (error instanceof Error && error.message === "TEAM_IDENTITY_CONFLICT") {
-      return errorState("Ein anderes aktives Team verwendet bereits denselben Namen oder dasselbe Kürzel in dieser Liga und Saison.");
+      return errorState("Ein anderes aktives Team verwendet bereits denselben Namen oder dasselbe Kürzel.");
     }
     if (error instanceof Error && error.message === "TEAM_NOT_ARCHIVED") {
       return errorState("Dieses Team ist nicht archiviert.");
@@ -1461,7 +1478,7 @@ export async function permanentlyDeleteTeamAction(
     await prisma.$transaction(async (transaction) => {
       const snapshot = await getTeamDependencySnapshot(transaction, teamId.data);
       if (!snapshot) throw new Error("TEAM_NOT_FOUND");
-      if (!teamDeleteConfirmationMatches(snapshot.team.name, parsed.data.confirmationName)) {
+      if (!teamDeleteConfirmationMatches(snapshot.organization.name, parsed.data.confirmationName)) {
         throw new Error("TEAM_NAME_MISMATCH");
       }
       if (!canPermanentlyDeleteTeam(snapshot.dependencies)) {
@@ -1471,15 +1488,21 @@ export async function permanentlyDeleteTeamAction(
       await writeSystemAudit(transaction, {
         actorId: actor.id,
         action: "TEAM_PERMANENTLY_DELETED",
-        entityType: "Team",
-        entityId: snapshot.team.id,
+        entityType: "TeamOrganization",
+        entityId: snapshot.organization.id,
         metadata: {
-          name: snapshot.team.name,
-          shortName: snapshot.team.shortName,
+          name: snapshot.organization.name,
+          shortName: snapshot.organization.shortName,
+          removedInternalSlotCount: snapshot.slotIds.length,
           logoDisposition: "no-owned-storage-asset",
         },
       });
-      await transaction.team.delete({ where: { id: snapshot.team.id } });
+      await transaction.team.deleteMany({
+        where: { organizationId: snapshot.organization.id },
+      });
+      await transaction.teamOrganization.delete({
+        where: { id: snapshot.organization.id },
+      });
     }, { isolationLevel: "Serializable" });
   } catch (error: unknown) {
     if (error instanceof Error && error.message === "TEAM_NAME_MISMATCH") {
@@ -1501,10 +1524,47 @@ function teamOrganizationPayload(formData: FormData) {
     name: formData.get("name"),
     shortName: formData.get("shortName"),
     color: formData.get("color"),
+    secondaryColor: formData.get("secondaryColor"),
+    contrastColor: formData.get("contrastColor"),
+    logoUrl: formData.get("logoUrl"),
     active: formData.get("active"),
-    seasonId: formData.get("seasonId"),
     principalUserId: formData.get("principalUserId"),
   };
+}
+
+function hasForbiddenManualTeamDimensions(formData: FormData): boolean {
+  return ["leagueId", "seasonId", "organizationId", "driverIds"].some(
+    (field) => formData.has(field),
+  );
+}
+
+async function currentTeamSeason(
+  transaction: Prisma.TransactionClient,
+): Promise<{ id: number; name: string } | null> {
+  return transaction.season.findFirst({
+    where: { active: true, archivedAt: null },
+    orderBy: { startsOn: "desc" },
+    select: { id: true, name: true },
+  });
+}
+
+async function activeOrganizationIdentityExists(
+  transaction: Prisma.TransactionClient,
+  input: { organizationId?: number; name: string; shortName: string },
+): Promise<boolean> {
+  return Boolean(
+    await transaction.teamOrganization.findFirst({
+      where: {
+        id: input.organizationId ? { not: input.organizationId } : undefined,
+        archivedAt: null,
+        OR: [
+          { name: { equals: input.name, mode: "insensitive" } },
+          { shortName: { equals: input.shortName, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true },
+    }),
+  );
 }
 
 export async function createTeamOrganizationAction(
@@ -1512,24 +1572,38 @@ export async function createTeamOrganizationAction(
   formData: FormData,
 ): Promise<MasterDataActionState> {
   const actor = await authorize();
+  if (hasForbiddenManualTeamDimensions(formData)) {
+    return errorState(
+      "Teams werden global erstellt. Liga, Saison und Fahrer werden ausschließlich in der Benutzerverwaltung zugeordnet.",
+    );
+  }
   const parsed = teamOrganizationSchema.safeParse(
     teamOrganizationPayload(formData),
   );
   if (!parsed.success) return validationState(parsed);
-  const {
-    seasonId,
-    principalUserId,
-    ...organizationData
-  } = parsed.data;
+  const { principalUserId, ...organizationData } = parsed.data;
   try {
     await getPrismaClient().$transaction(async (transaction) => {
+      if (await activeOrganizationIdentityExists(transaction, organizationData)) {
+        throw new Error("TEAM_IDENTITY_CONFLICT");
+      }
+      const season = await currentTeamSeason(transaction);
+      if (principalUserId && !season) throw new Error("NO_ACTIVE_SEASON");
       const organization = await transaction.teamOrganization.create({
         data: {
           ...organizationData,
-          seasons: seasonId
-            ? { create: { seasonId, principalUserId } }
+          archivedAt: organizationData.active ? null : new Date(),
+          seasons: season
+            ? { create: { seasonId: season.id, principalUserId } }
             : undefined,
         },
+      });
+      await writeSystemAudit(transaction, {
+        actorId: actor.id,
+        action: "TEAM_CREATED",
+        entityType: "TeamOrganization",
+        entityId: organization.id,
+        metadata: { name: organization.name, shortName: organization.shortName },
       });
       if (principalUserId) {
         await writeSystemAudit(transaction, {
@@ -1537,22 +1611,28 @@ export async function createTeamOrganizationAction(
           action: "TEAM_PRINCIPAL_CHANGED",
           entityType: "TeamOrganization",
           entityId: organization.id,
-          metadata: { seasonId, previous: null, next: principalUserId },
+          metadata: { seasonId: season?.id, previous: null, next: principalUserId },
         });
         await writeSystemAudit(transaction, {
           actorId: actor.id,
           action: "TEAM_PRINCIPAL_CHANGED",
           entityType: "User",
           entityId: principalUserId,
-          metadata: { organizationId: organization.id, seasonId, previous: null, next: principalUserId },
+          metadata: { organizationId: organization.id, seasonId: season?.id, previous: null, next: principalUserId },
         });
       }
-    });
-  } catch {
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "TEAM_IDENTITY_CONFLICT") {
+      return errorState("Ein aktives Team mit diesem Namen oder Kürzel existiert bereits.");
+    }
+    if (error instanceof Error && error.message === "NO_ACTIVE_SEASON") {
+      return errorState("Für die Teamchef-Zuordnung muss zuerst eine aktive Saison bestehen.");
+    }
     return databaseError();
   }
   revalidateMasterData();
-  return successState("Teamorganisation wurde erstellt.");
+  return successState("Team wurde erstellt.");
 }
 
 export async function updateTeamOrganizationAction(
@@ -1561,62 +1641,94 @@ export async function updateTeamOrganizationAction(
   formData: FormData,
 ): Promise<MasterDataActionState> {
   const actor = await authorize();
+  if (hasForbiddenManualTeamDimensions(formData)) {
+    return errorState(
+      "Technische Saison-/Liga-Slots können nicht direkt bearbeitet werden.",
+    );
+  }
   const organizationId = entityIdSchema.safeParse(organizationIdInput);
   const parsed = teamOrganizationSchema.safeParse(
     teamOrganizationPayload(formData),
   );
   if (!organizationId.success || !parsed.success) {
     return parsed.success
-      ? errorState("Ungültige Teamorganisation.")
+      ? errorState("Ungültiges Team.")
       : validationState(parsed);
   }
-  const {
-    seasonId,
-    principalUserId,
-    ...organizationData
-  } = parsed.data;
+  const { principalUserId, ...organizationData } = parsed.data;
   try {
     const prisma = getPrismaClient();
-    const previous = seasonId
-      ? await prisma.teamOrganizationSeason.findUnique({
-          where: {
-            organizationId_seasonId: {
-              organizationId: organizationId.data,
-              seasonId,
-            },
-          },
-          select: { principalUserId: true },
-        })
-      : null;
     await prisma.$transaction(async (transaction) => {
+      const existing = await transaction.teamOrganization.findUnique({
+        where: { id: organizationId.data },
+        select: { active: true, archivedAt: true },
+      });
+      if (!existing) throw new Error("TEAM_NOT_FOUND");
+      if (existing.archivedAt) throw new Error("TEAM_ARCHIVED");
+      if (organizationData.active !== existing.active) {
+        throw new Error("TEAM_LIFECYCLE_REQUIRED");
+      }
+      if (await activeOrganizationIdentityExists(transaction, {
+        organizationId: organizationId.data,
+        name: organizationData.name,
+        shortName: organizationData.shortName,
+      })) {
+        throw new Error("TEAM_IDENTITY_CONFLICT");
+      }
+      const season = await currentTeamSeason(transaction);
+      if (principalUserId && !season) throw new Error("NO_ACTIVE_SEASON");
+      const previous = season
+        ? await transaction.teamOrganizationSeason.findUnique({
+            where: {
+              organizationId_seasonId: {
+                organizationId: organizationId.data,
+                seasonId: season.id,
+              },
+            },
+            select: { principalUserId: true },
+          })
+        : null;
       await transaction.teamOrganization.update({
         where: { id: organizationId.data },
         data: {
           ...organizationData,
-          seasons: seasonId
+          seasons: season
             ? {
                 upsert: {
                   where: {
                     organizationId_seasonId: {
                       organizationId: organizationId.data,
-                      seasonId,
+                      seasonId: season.id,
                     },
                   },
                   update: { principalUserId },
-                  create: { seasonId, principalUserId },
+                  create: { seasonId: season.id, principalUserId },
                 },
               }
             : undefined,
         },
       });
-      if (seasonId && previous?.principalUserId !== principalUserId) {
+      await transaction.team.updateMany({
+        where: { organizationId: organizationId.data },
+        data: {
+          name: organizationData.name,
+          shortName: organizationData.shortName,
+          color: organizationData.color,
+          secondaryColor: organizationData.secondaryColor,
+          contrastColor: organizationData.contrastColor,
+          logoUrl: organizationData.logoUrl,
+          principalUserId: null,
+          systemManaged: true,
+        },
+      });
+      if (season && previous?.principalUserId !== principalUserId) {
         await writeSystemAudit(transaction, {
           actorId: actor.id,
           action: "TEAM_PRINCIPAL_CHANGED",
           entityType: "TeamOrganization",
           entityId: organizationId.data,
           metadata: {
-            seasonId,
+            seasonId: season.id,
             previous: previous?.principalUserId ?? null,
             next: principalUserId,
           },
@@ -1634,17 +1746,29 @@ export async function updateTeamOrganizationAction(
             entityId: affectedUserId,
             metadata: {
               organizationId: organizationId.data,
-              seasonId,
+              seasonId: season.id,
               previous: previous?.principalUserId ?? null,
               next: principalUserId,
             },
           });
         }
       }
-    });
-  } catch {
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "TEAM_IDENTITY_CONFLICT") {
+      return errorState("Ein aktives Team mit diesem Namen oder Kürzel existiert bereits.");
+    }
+    if (error instanceof Error && error.message === "TEAM_ARCHIVED") {
+      return errorState("Archivierte Teams müssen vor der Bearbeitung wiederhergestellt werden.");
+    }
+    if (error instanceof Error && error.message === "TEAM_LIFECYCLE_REQUIRED") {
+      return errorState("Nutze zum Archivieren oder Wiederherstellen die sichere Teamaktion.");
+    }
+    if (error instanceof Error && error.message === "NO_ACTIVE_SEASON") {
+      return errorState("Für die Teamchef-Zuordnung muss zuerst eine aktive Saison bestehen.");
+    }
     return databaseError();
   }
   revalidateMasterData();
-  return successState("Teamorganisation wurde aktualisiert.");
+  return successState("Team wurde aktualisiert.");
 }

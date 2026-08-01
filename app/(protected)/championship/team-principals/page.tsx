@@ -49,14 +49,14 @@ export default async function TeamPrincipalChampionshipPage({
       <div className="page-stack">
         <PageHeader
           title="Teamchef-WM"
-          subtitle="Globale Organisationswertung aus den finalisierten Liga-Ergebnissen eines gemeinsamen Rennwochenendes."
+          subtitle="Ligaübergreifende Teamwertung aus den finalisierten Ergebnissen eines gemeinsamen Rennwochenendes."
           eyebrow="Cross-league championship"
           icon={Building2}
         >
           {canManage ? (
             <Link href="/admin/teams" className="wizard-primary-button">
               <Settings size={18} />
-              Organisationen verwalten
+              Teams verwalten
             </Link>
           ) : null}
         </PageHeader>

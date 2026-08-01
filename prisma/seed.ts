@@ -122,15 +122,42 @@ async function seed(): Promise<void> {
     });
   }
 
+  const organizationByTeamId = new Map<number, number>();
   for (const team of teams) {
+    const organization = await prisma.teamOrganization.upsert({
+      where: { name: team.name },
+      update: {
+        shortName: team.shortName,
+        color: team.color,
+        active: team.active,
+        archivedAt: team.active ? null : new Date(),
+      },
+      create: {
+        name: team.name,
+        shortName: team.shortName,
+        color: team.color,
+        active: team.active,
+        archivedAt: team.active ? null : new Date(),
+      },
+    });
+    organizationByTeamId.set(team.id, organization.id);
+  }
+
+  for (const team of teams) {
+    const organizationId = organizationByTeamId.get(team.id);
+    if (!organizationId) throw new Error(`Missing organization for team ${team.id}`);
     const data = {
       leagueId: team.leagueId,
       seasonId: team.seasonId,
-      principalUserId: team.principalUserId,
+      organizationId,
+      principalUserId: null,
       name: team.name,
       shortName: team.shortName,
       color: team.color,
       active: team.active,
+      archivedAt: team.active ? null : new Date(),
+      systemManaged: true,
+      internalSlotKey: `organization:${organizationId}:season:${team.seasonId}:league:${team.leagueId}`,
     };
 
     await prisma.team.upsert({

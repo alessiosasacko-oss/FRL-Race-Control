@@ -24,7 +24,7 @@ export default async function TeamsPage({ searchParams }: TeamsPageProps) {
   return (
     <AppLayout>
       <div className="page-stack page-accent-teams">
-        <PageHeader title="Teams" eyebrow="FRL Organisationen" subtitle="Jedes Team einmal – mit seiner Besetzung von F1 bis F6." icon={Flag}>
+        <PageHeader title="Teams" eyebrow="FRL Teams" subtitle="Jedes Team einmal – mit seiner Besetzung von F1 bis F6." icon={Flag}>
           {canManage ? <Link href="/admin/teams" className="wizard-primary-button">Teams verwalten</Link> : null}
         </PageHeader>
 
@@ -61,7 +61,7 @@ export default async function TeamsPage({ searchParams }: TeamsPageProps) {
               </article>
             ))}
           </div>
-        ) : <EmptyState icon={<Flag size={23} />} title="Keine Teams gefunden" description="Für diese Saison wurden noch keine globalen Teamorganisationen angelegt." />}
+        ) : <EmptyState icon={<Flag size={23} />} title="Keine Teams gefunden" description="Für diese Saison wurden noch keine Teams angelegt." />}
       </div>
     </AppLayout>
   );

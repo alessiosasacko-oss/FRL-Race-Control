@@ -135,8 +135,8 @@ export async function getDesignAdminData() {
       orderBy: [{ displayOrder: "asc" }, { code: "asc" }],
       select: { id: true, code: true, name: true, color: true },
     }),
-    prisma.team.findMany({
-      where: { active: true },
+    prisma.teamOrganization.findMany({
+      where: { active: true, archivedAt: null },
       orderBy: [{ name: "asc" }],
       select: {
         id: true,
@@ -146,8 +146,6 @@ export async function getDesignAdminData() {
         secondaryColor: true,
         contrastColor: true,
         logoUrl: true,
-        backgroundGradient: true,
-        league: { select: { code: true } },
       },
     }),
   ]);

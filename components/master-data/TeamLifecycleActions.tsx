@@ -9,12 +9,12 @@ import {
 } from "@/lib/master-data/actions";
 import {
   initialMasterDataActionState,
-  type TeamItem,
+  type TeamOrganizationItem,
 } from "@/lib/master-data/types";
 import { teamDependencyMessages } from "@/lib/master-data/team-lifecycle";
 import ActionMessage from "./ActionMessage";
 
-export default function TeamLifecycleActions({ team }: { team: TeamItem }) {
+export default function TeamLifecycleActions({ team }: { team: TeamOrganizationItem }) {
   const archiveDialog = useRef<HTMLDialogElement>(null);
   const restoreDialog = useRef<HTMLDialogElement>(null);
   const deleteDialog = useRef<HTMLDialogElement>(null);
@@ -31,7 +31,7 @@ export default function TeamLifecycleActions({ team }: { team: TeamItem }) {
     initialMasterDataActionState,
   );
   const driversByLeague = useMemo(() =>
-    team.activeDrivers.reduce<Record<string, TeamItem["activeDrivers"]>>(
+    team.activeDrivers.reduce<Record<string, TeamOrganizationItem["activeDrivers"]>>(
       (groups, driver) => ({
         ...groups,
         [driver.leagueCode]: [...(groups[driver.leagueCode] ?? []), driver],

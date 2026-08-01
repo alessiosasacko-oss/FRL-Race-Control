@@ -273,19 +273,23 @@ export async function updateTeamBrandingAction(formData: FormData): Promise<void
   const logoUrl = teamLogoReferenceSchema.safeParse(formData.get("logoUrl") ?? "");
   if (!Number.isInteger(id) || id <= 0 || !color.success || !secondaryColor.success || !logoUrl.success) return;
   const contrastColor = readableTextColor(color.data);
-  const backgroundGradient = formData.get("gradientEnabled") === "on"
-    ? `linear-gradient(135deg, ${color.data}, ${secondaryColor.data})`
-    : null;
-  await getPrismaClient().team.update({
-    where: { id },
-    data: { color: color.data, secondaryColor: secondaryColor.data, contrastColor, logoUrl: logoUrl.data || null, backgroundGradient },
+  const prisma = getPrismaClient();
+  await prisma.$transaction(async (transaction) => {
+    await transaction.teamOrganization.update({
+      where: { id, active: true, archivedAt: null },
+      data: { color: color.data, secondaryColor: secondaryColor.data, contrastColor, logoUrl: logoUrl.data || null },
+    });
+    await transaction.team.updateMany({
+      where: { organizationId: id },
+      data: { color: color.data, secondaryColor: secondaryColor.data, contrastColor, logoUrl: logoUrl.data || null, systemManaged: true },
+    });
   });
-  await writeSystemAudit(getPrismaClient(), {
+  await writeSystemAudit(prisma, {
     actorId: user.id,
     action: "TEAM_BRANDING_UPDATED",
-    entityType: "Team",
+    entityType: "TeamOrganization",
     entityId: id,
-    metadata: { color: color.data, secondaryColor: secondaryColor.data, logoUpdated: Boolean(logoUrl.data), gradientEnabled: Boolean(backgroundGradient) },
+    metadata: { color: color.data, secondaryColor: secondaryColor.data, logoUpdated: Boolean(logoUrl.data) },
   });
   revalidateDesign();
 }

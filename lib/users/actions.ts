@@ -6,6 +6,7 @@ import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { writeSystemAudit } from "@/lib/audit/system";
+import { ensureInternalTeamSlot } from "@/lib/master-data/internal-team-slots";
 import {
   activeUserRoleRequirementMessage,
   primarySlotAvailable,
@@ -248,10 +249,23 @@ export async function updateUserSportAssignmentAction(
         },
       },
     }),
-    prisma.season.findUnique({ where: { id: parsed.data.seasonId }, select: { id: true, name: true } }),
+    prisma.season.findFirst({
+      where: {
+        id: parsed.data.seasonId,
+        participatingLeagues: { some: { id: parsed.data.leagueId } },
+      },
+      select: { id: true, name: true },
+    }),
     prisma.league.findFirst({ where: { id: parsed.data.leagueId, code: { in: ["F1", "F2", "F3", "F4", "F5", "F6"] } }, select: { id: true, code: true } }),
     parsed.data.organizationId
-      ? prisma.teamOrganization.findUnique({ where: { id: parsed.data.organizationId }, select: { id: true, name: true } })
+      ? prisma.teamOrganization.findFirst({
+          where: {
+            id: parsed.data.organizationId,
+            active: true,
+            archivedAt: null,
+          },
+          select: { id: true, name: true },
+        })
       : Promise.resolve(null),
     parsed.data.replacementDriverId
       ? prisma.driverSeasonAssignment.findUnique({
@@ -276,18 +290,6 @@ export async function updateUserSportAssignmentAction(
     return { status: "error", message: "Der ausgewählte Stammfahrer gehört nicht zu diesem Saison-, Liga- und Team-Slot." };
   }
 
-  const matchingTeam = organization
-    ? await prisma.team.findFirst({
-        where: {
-          organizationId: organization.id,
-          seasonId: season.id,
-          leagueId: league.id,
-          active: true,
-          archivedAt: null,
-        },
-        select: { id: true },
-      })
-    : null;
   if (parsed.data.lineupStatus === DriverLineupStatus.Primary && organization) {
     const existingPrimaryDrivers = await prisma.driverSeasonAssignment.count({
       where: {
@@ -366,6 +368,14 @@ export async function updateUserSportAssignmentAction(
         });
       }
 
+      const internalTeamSlot = organization
+        ? await ensureInternalTeamSlot(transaction, {
+            organizationId: organization.id,
+            seasonId: season.id,
+            leagueId: league.id,
+          })
+        : null;
+
       const driver = target.driver
       ? await transaction.driver.update({
           where: { id: target.driver.id },
@@ -375,7 +385,7 @@ export async function updateUserSportAssignmentAction(
             countryCode: parsed.data.countryCode,
             flag: parsed.data.countryCode,
             leagueId: league.id,
-            teamId: matchingTeam?.id ?? null,
+            teamId: internalTeamSlot?.id ?? null,
             active: parsed.data.active,
           },
         })
@@ -387,7 +397,7 @@ export async function updateUserSportAssignmentAction(
             countryCode: parsed.data.countryCode,
             flag: parsed.data.countryCode,
             leagueId: league.id,
-            teamId: matchingTeam?.id ?? null,
+            teamId: internalTeamSlot?.id ?? null,
             active: parsed.data.active,
           },
         });

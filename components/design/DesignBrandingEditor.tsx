@@ -60,8 +60,6 @@ type AdminData = {
     secondaryColor: string | null;
     contrastColor: string | null;
     logoUrl: string | null;
-    backgroundGradient: string | null;
-    league: { code: string };
   }>;
 };
 
@@ -524,10 +522,9 @@ function LeagueTeamSettings({ leagues, teams }: Pick<AdminData, "leagues" | "tea
               <input type="hidden" name="teamId" value={team.id} />
               <input aria-label={`${team.name} Primärfarbe`} type="color" name="color" defaultValue={team.color} className="size-10" />
               <input aria-label={`${team.name} Sekundärfarbe`} type="color" name="secondaryColor" defaultValue={team.secondaryColor ?? team.color} className="size-10" />
-              <span className="min-w-0 truncate"><strong>{team.shortName}</strong><small className="ml-2 text-[var(--color-text-muted)]">{team.league.code}</small></span>
+              <span className="min-w-0 truncate"><strong>{team.shortName}</strong><small className="ml-2 text-[var(--color-text-muted)]">{team.name}</small></span>
               <button className="wizard-secondary-button min-h-9 px-3 py-1">Speichern</button>
               <label className="master-label sm:col-span-3">Logo-URL<input name="logoUrl" defaultValue={team.logoUrl ?? ""} placeholder="/assets/teams/... oder https://..." className="form-control mt-1" /></label>
-              <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="gradientEnabled" defaultChecked={Boolean(team.backgroundGradient)} /> Verlauf</label>
             </form>
           ))}
         </div>

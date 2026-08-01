@@ -1,9 +1,12 @@
 export type TeamDependencyCounts = {
+  technicalSlots: number;
   drivers: number;
   seasonAssignments: number;
   teamPrincipals: number;
   results: number;
   standings: number;
+  globalStandings: number;
+  contributions: number;
   adjustments: number;
   attendance: number;
   fiaData: number;
@@ -17,12 +20,23 @@ export type TeamActiveDriver = {
   leagueCode: string;
 };
 
+export function internalTeamSlotKey(input: {
+  organizationId: number;
+  seasonId: number;
+  leagueId: number;
+}): string {
+  return `organization:${input.organizationId}:season:${input.seasonId}:league:${input.leagueId}`;
+}
+
 export const emptyTeamDependencyCounts: TeamDependencyCounts = {
+  technicalSlots: 0,
   drivers: 0,
   seasonAssignments: 0,
   teamPrincipals: 0,
   results: 0,
   standings: 0,
+  globalStandings: 0,
+  contributions: 0,
   adjustments: 0,
   attendance: 0,
   fiaData: 0,
@@ -31,11 +45,14 @@ export const emptyTeamDependencyCounts: TeamDependencyCounts = {
 };
 
 const dependencyLabels: Record<keyof TeamDependencyCounts, string> = {
-  drivers: "Fahrerzuordnungen",
+  technicalSlots: "technische Saison-/Liga-Slots (werden gemeinsam entfernt)",
+  drivers: "direkte Fahrerzuordnungen",
   seasonAssignments: "saisonale Fahrerzuordnungen",
-  teamPrincipals: "Teamleiter-Zuordnungen",
+  teamPrincipals: "historische Teamchef-Zuordnungen",
   results: "Rennergebnisse",
-  standings: "Saisonwertungen",
+  standings: "Liga-Teamwertungen",
+  globalStandings: "ligaübergreifende Teamwertungen",
+  contributions: "ligaübergreifende Punktebeiträge",
   adjustments: "Meisterschaftsanpassungen",
   attendance: "Rennanmeldungen",
   fiaData: "FIA-Verknüpfungen",
@@ -43,17 +60,28 @@ const dependencyLabels: Record<keyof TeamDependencyCounts, string> = {
   brandingAssets: "gespeicherte Logos oder Branding-Assets",
 };
 
+const removableDependencyKeys = new Set<keyof TeamDependencyCounts>([
+  "technicalSlots",
+]);
+
 export function canPermanentlyDeleteTeam(
   dependencies: TeamDependencyCounts,
 ): boolean {
-  return Object.values(dependencies).every((count) => count === 0);
+  return Object.entries(dependencies).every(
+    ([key, count]) =>
+      removableDependencyKeys.has(key as keyof TeamDependencyCounts) ||
+      count === 0,
+  );
 }
 
 export function teamDependencyMessages(
   dependencies: TeamDependencyCounts,
+  includeRemovable = false,
 ): string[] {
   return Object.entries(dependencies).flatMap(([key, count]) =>
-    count > 0
+    count > 0 &&
+    (includeRemovable ||
+      !removableDependencyKeys.has(key as keyof TeamDependencyCounts))
       ? [`${count} ${dependencyLabels[key as keyof TeamDependencyCounts]}`]
       : [],
   );

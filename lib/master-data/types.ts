@@ -77,6 +77,16 @@ export type TeamOrganizationOption = {
 };
 
 export type TeamOrganizationItem = TeamOrganizationOption & {
+  secondaryColor: string | null;
+  contrastColor: string | null;
+  logoUrl: string | null;
+  archivedAt: string | null;
+  currentSeasonId: number | null;
+  currentSeasonName: string | null;
+  principal: {
+    id: number;
+    displayName: string;
+  } | null;
   seasons: Array<{
     seasonId: number;
     seasonName: string;
@@ -85,6 +95,28 @@ export type TeamOrganizationItem = TeamOrganizationOption & {
       displayName: string;
     } | null;
   }>;
+  leagues: Array<{
+    id: number;
+    code: string;
+    name: string;
+    primaryDrivers: Array<{
+      id: number;
+      userId: number | null;
+      name: string;
+      number: number;
+      countryCode: string;
+    }>;
+    substitutes: Array<{
+      id: number;
+      userId: number | null;
+      name: string;
+      number: number;
+      countryCode: string;
+    }>;
+  }>;
+  dependencies: TeamDependencyCounts;
+  activeDrivers: TeamActiveDriver[];
+  canPermanentlyDelete: boolean;
 };
 
 export type LeagueAdminItem = LeagueOption & {
@@ -187,37 +219,5 @@ export type DriverItem = {
 
 export type DriverDetail = DriverItem & {
   ticketCount: number;
-  standingCount: number;
-};
-
-export type TeamItem = {
-  id: number;
-  name: string;
-  shortName: string;
-  color: string;
-  active: boolean;
-  archivedAt: string | null;
-  league: LeagueOption;
-  season: { id: number; name: string };
-  organization: TeamOrganizationOption | null;
-  principal: {
-    id: number;
-    displayName: string;
-    discordId: string | null;
-  } | null;
-  drivers: Array<{
-    id: number;
-    name: string;
-    number: number;
-    flag: string;
-    active: boolean;
-  }>;
-  updatedAt: string;
-  dependencies: TeamDependencyCounts;
-  activeDrivers: TeamActiveDriver[];
-  canPermanentlyDelete: boolean;
-};
-
-export type TeamDetail = TeamItem & {
   standingCount: number;
 };

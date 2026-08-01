@@ -187,19 +187,21 @@ export const teamOrganizationSchema = z
       .max(12)
       .transform((value) => value.toUpperCase()),
     color: hexColorSchema,
+    secondaryColor: z.preprocess(
+      (value) => (value === "" || value === null ? null : value),
+      hexColorSchema.nullable(),
+    ),
+    contrastColor: z.preprocess(
+      (value) => (value === "" || value === null ? null : value),
+      hexColorSchema.nullable(),
+    ),
+    logoUrl: z.preprocess(
+      (value) => (value === "" || value === null ? null : value),
+      z.string().trim().url().max(2_000).nullable(),
+    ),
     active: checkbox,
-    seasonId: optionalId,
     principalUserId: optionalId,
-  })
-  .refine(
-    (organization) =>
-      organization.seasonId !== null ||
-      organization.principalUserId === null,
-    {
-      path: ["seasonId"],
-      message: "Für einen Teamchef muss eine Saison gewählt werden.",
-    },
-  );
+  });
 
 const firstValue = (value: unknown) =>
   Array.isArray(value) ? value[0] : value;

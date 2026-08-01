@@ -183,7 +183,11 @@ export async function getDashboardData(
                   take: 5,
                   include: {
                     team: {
-                      select: { name: true, color: true },
+                      select: {
+                        name: true,
+                        color: true,
+                        organization: { select: { name: true, color: true } },
+                      },
                     },
                   },
                 },
@@ -473,8 +477,8 @@ export async function getDashboardData(
       topTeams:
         championship?.teamStandings.map((standing) => ({
           position: standing.position,
-          name: standing.team.name,
-          color: standing.team.color,
+          name: standing.team.organization?.name ?? standing.team.name,
+          color: standing.team.organization?.color ?? standing.team.color,
           points: standing.points,
         })) ?? [],
     },

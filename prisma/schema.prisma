@@ -481,6 +481,8 @@ model Team {
   backgroundGradient      String?                  @db.VarChar(120)
   active                  Boolean                  @default(true)
   archivedAt              DateTime?
+  systemManaged           Boolean                  @default(false)
+  internalSlotKey         String?                  @unique @db.VarChar(96)
   league                  League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   season                  Season                   @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   principal               User?                    @relation("TeamPrincipal", fields: [principalUserId], references: [id], onDelete: SetNull)
@@ -497,6 +499,7 @@ model Team {
   @@index([archivedAt])
   @@index([principalUserId])
   @@index([organizationId, seasonId])
+  @@index([organizationId, seasonId, leagueId, systemManaged])
 }
 
 model TeamOrganization {
@@ -504,7 +507,11 @@ model TeamOrganization {
   name              String                   @db.VarChar(160)
   shortName         String                   @db.VarChar(12)
   color             String                   @db.Char(7)
+  secondaryColor    String?                  @db.Char(7)
+  contrastColor     String?                  @db.Char(7)
+  logoUrl           String?                  @db.Text
   active            Boolean                  @default(true)
+  archivedAt        DateTime?
   teams             Team[]
   seasons           TeamOrganizationSeason[]
   standings         GlobalTeamStanding[]
@@ -516,6 +523,7 @@ model TeamOrganization {
   @@unique([name])
   @@index([shortName])
   @@index([active, name])
+  @@index([archivedAt])
 }
 
 model TeamOrganizationSeason {
