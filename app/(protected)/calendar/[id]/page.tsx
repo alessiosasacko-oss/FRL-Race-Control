@@ -74,10 +74,9 @@ export default async function RaceWeekendPage({
               </h1>
               <p className="mt-4 flex items-start gap-2 text-base text-[var(--color-text-muted)] lg:text-lg">
                 <MapPin size={20} className="mt-0.5 shrink-0 text-[var(--page-accent)]" />
-                <span>
+                <span className="inline-flex min-w-0 items-center gap-2">
                   {race.countryCode ? <CountryFlag countryCode={race.countryCode} size="sm" /> : null}
-                  {race.circuit ?? "Mystery Track"}
-                  {race.countryCode ? ` · ${race.countryCode}` : ""}
+                  <span>{race.circuit ?? "Mystery Track"}</span>
                 </span>
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:mt-7 lg:flex lg:flex-wrap">

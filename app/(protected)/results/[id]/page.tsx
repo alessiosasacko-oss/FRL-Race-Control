@@ -63,11 +63,9 @@ export default async function ResultPage({
             aria-hidden="true"
             className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_0%,rgba(37,99,235,0.28),transparent_32%)]"
           />
-          <p className="text-lg font-semibold text-white">
-            {data.race.revealMystery ? data.race.circuit : "Mystery Track"}
-            {data.race.revealMystery && data.race.countryCode !== "–"
-              ? ` · ${data.race.countryCode}`
-              : ""}
+          <p className="flex items-center gap-2 text-lg font-semibold text-white">
+            {data.race.revealMystery && data.race.countryCode !== "–" ? <CountryFlag countryCode={data.race.countryCode} size="sm" /> : null}
+            <span>{data.race.revealMystery ? data.race.circuit : "Mystery Track"}</span>
           </p>
           {!data.race.revealMystery ? (
             <p className="mt-4 flex max-w-2xl items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">

@@ -39,7 +39,6 @@ import {
 import { zonedLocalToUtc } from "./timezone";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import { calculateLeagueRaceSchedule } from "@/lib/races/scheduling";
-import { countryCodeToFlagEmoji } from "@/lib/countries";
 import { writeSystemAudit } from "@/lib/audit/system";
 import { getTeamDependencySnapshot } from "./team-dependencies";
 import {
@@ -1022,7 +1021,7 @@ export async function createDriverAction(
     await prisma.driver.create({
       data: {
         ...parsed.data,
-        flag: countryCodeToFlagEmoji(parsed.data.countryCode) ?? "🌐",
+        flag: parsed.data.countryCode,
       },
     });
   } catch {
@@ -1064,7 +1063,7 @@ export async function updateDriverAction(
       where: { id: driverId.data },
       data: {
         ...parsed.data,
-        flag: countryCodeToFlagEmoji(parsed.data.countryCode) ?? "🌐",
+        flag: parsed.data.countryCode,
       },
     });
   } catch {

@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { DriverLineupStatus, Role, roleLabels } from "@/domain";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
-import { countryCodeToFlagEmoji } from "@/lib/countries";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { writeSystemAudit } from "@/lib/audit/system";
 import {
@@ -374,7 +373,7 @@ export async function updateUserSportAssignmentAction(
             name: parsed.data.driverName,
             number: parsed.data.number,
             countryCode: parsed.data.countryCode,
-            flag: countryCodeToFlagEmoji(parsed.data.countryCode) ?? "🌐",
+            flag: parsed.data.countryCode,
             leagueId: league.id,
             teamId: matchingTeam?.id ?? null,
             active: parsed.data.active,
@@ -386,7 +385,7 @@ export async function updateUserSportAssignmentAction(
             name: parsed.data.driverName,
             number: parsed.data.number,
             countryCode: parsed.data.countryCode,
-            flag: countryCodeToFlagEmoji(parsed.data.countryCode) ?? "🌐",
+            flag: parsed.data.countryCode,
             leagueId: league.id,
             teamId: matchingTeam?.id ?? null,
             active: parsed.data.active,

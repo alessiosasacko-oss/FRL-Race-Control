@@ -94,7 +94,7 @@ export default function RaceForm({
               className="form-control mt-2"
             >
               <option value="">Keine Streckendaten zuordnen</option>
-              {tracks.map((track) => <option key={track.id} value={track.id}>{track.countryCode} · {track.name}</option>)}
+              {tracks.map((track) => <option key={track.id} value={track.id}>{track.name}</option>)}
             </select>
           </label>
           {!hideTrackFields ? (

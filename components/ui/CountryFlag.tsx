@@ -1,6 +1,11 @@
+"use client";
+
+import Image from "next/image";
+import { useState } from "react";
 import { Globe2 } from "lucide-react";
 import {
-  countryCodeToFlagEmoji,
+  countryCodeFromLegacyFlag,
+  countryFlagPath,
   countryName as resolveCountryName,
   normalizeCountryCode,
 } from "@/lib/countries";
@@ -14,10 +19,10 @@ type CountryFlagProps = {
   className?: string;
 };
 
-const sizeClasses = {
-  sm: "text-base",
-  md: "text-xl",
-  lg: "text-3xl",
+const sizes = {
+  sm: { width: 20, height: 14, className: "h-[14px] w-5", icon: 16 },
+  md: { width: 28, height: 19, className: "h-[19px] w-7", icon: 20 },
+  lg: { width: 40, height: 27, className: "h-[27px] w-10", icon: 28 },
 } as const;
 
 export default function CountryFlag({
@@ -28,33 +33,53 @@ export default function CountryFlag({
   showLabel = false,
   className = "",
 }: CountryFlagProps) {
-  const normalized = normalizeCountryCode(countryCode);
-  const normalizedFallback = normalizeCountryCode(fallbackFlag);
-  const flag =
-    countryCodeToFlagEmoji(normalized) ??
-    countryCodeToFlagEmoji(normalizedFallback) ??
-    (fallbackFlag && fallbackFlag.trim().length <= 8 ? fallbackFlag.trim() : null);
-  const label = countryName ?? resolveCountryName(normalized);
+  const code = normalizeCountryCode(countryCode) ?? countryCodeFromLegacyFlag(fallbackFlag);
+  const path = countryFlagPath(code);
+  const label = code ? (countryName ?? resolveCountryName(code)) : "Land nicht angegeben";
 
   return (
     <span className={`inline-flex min-w-0 items-center gap-2 ${className}`}>
-      {flag ? (
-        <span
-          role="img"
-          aria-label={`Flagge: ${label}`}
-          className={`${sizeClasses[size]} shrink-0 leading-none`}
-        >
-          {flag}
-        </span>
+      {path ? (
+        <FlagImage key={path} path={path} label={label} size={size} />
       ) : (
-        <span className="inline-flex shrink-0 items-center text-slate-500">
-          <Globe2 aria-hidden="true" size={size === "lg" ? 28 : size === "md" ? 20 : 16} />
-          <span className="sr-only">Land nicht angegeben</span>
-        </span>
+        <FlagFallback size={size} />
       )}
-      {showLabel ? (
-        <span className="min-w-0 break-words">{label}</span>
-      ) : null}
+      {showLabel ? <span className="min-w-0 break-words">{label}</span> : null}
+    </span>
+  );
+}
+
+function FlagImage({
+  path,
+  label,
+  size,
+}: {
+  path: string;
+  label: string;
+  size: keyof typeof sizes;
+}) {
+  const [failed, setFailed] = useState(false);
+  const dimensions = sizes[size];
+  if (failed) return <FlagFallback size={size} />;
+
+  return (
+    <Image
+      src={path}
+      alt={`Flagge: ${label}`}
+      width={dimensions.width}
+      height={dimensions.height}
+      unoptimized
+      onError={() => setFailed(true)}
+      className={`${dimensions.className} shrink-0 rounded-[3px] border border-white/15 object-cover`}
+    />
+  );
+}
+
+function FlagFallback({ size }: { size: keyof typeof sizes }) {
+  return (
+    <span className="inline-flex shrink-0 items-center justify-center text-slate-500">
+      <Globe2 aria-hidden="true" size={sizes[size].icon} />
+      <span className="sr-only">Land nicht angegeben</span>
     </span>
   );
 }

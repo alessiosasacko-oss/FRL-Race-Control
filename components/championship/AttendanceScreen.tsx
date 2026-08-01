@@ -157,11 +157,9 @@ export default async function AttendanceScreen({
                   <h2 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-5xl">
                     {selectedRace.name}
                   </h2>
-                  <p className="mt-3 text-base text-slate-300">
-                    {selectedRace.circuit ?? "Mystery Track"}
-                    {selectedRace.countryCode
-                      ? ` · ${selectedRace.countryCode}`
-                      : ""}
+                  <p className="mt-3 flex items-center gap-2 text-base text-slate-300">
+                    {selectedRace.countryCode ? <CountryFlag countryCode={selectedRace.countryCode} size="sm" /> : null}
+                    <span>{selectedRace.circuit ?? "Mystery Track"}</span>
                   </p>
                   <div className="mt-6 flex flex-wrap gap-3 text-sm">
                     <span className="rounded-xl border border-slate-700/80 bg-slate-950/55 px-3 py-2 text-slate-200">

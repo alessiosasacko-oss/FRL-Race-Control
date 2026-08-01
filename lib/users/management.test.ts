@@ -5,7 +5,7 @@ import { DriverLineupStatus, Role } from "@/domain";
 import { countryCodeSchema } from "@/domain/common";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import {
-  countryCodeToFlagEmoji,
+  countryFlagPath,
   normalizeCountryCode,
 } from "@/lib/countries";
 import {
@@ -130,11 +130,11 @@ test("direct user administration URL requires ManageUsers", () => {
 });
 
 test("IT renders as the Italian flag", () => {
-  assert.equal(countryCodeToFlagEmoji("IT"), "🇮🇹");
+  assert.equal(countryFlagPath("IT"), "/flags/it.svg");
 });
 
 test("DE renders as the German flag", () => {
-  assert.equal(countryCodeToFlagEmoji("DE"), "🇩🇪");
+  assert.equal(countryFlagPath("DE"), "/flags/de.svg");
 });
 
 test("lowercase country code is normalized", () => {
@@ -143,17 +143,17 @@ test("lowercase country code is normalized", () => {
 
 test("null and invalid country values are safe", () => {
   assert.equal(normalizeCountryCode(null), null);
-  assert.equal(countryCodeToFlagEmoji(undefined), null);
+  assert.equal(countryFlagPath(undefined), null);
 });
 
 test("invalid country code uses the central visual fallback", () => {
-  assert.equal(countryCodeToFlagEmoji("Italy"), null);
+  assert.equal(countryFlagPath("Italy"), null);
   assert.match(source("components/ui/CountryFlag.tsx"), /Globe2/);
 });
 
 test("country selection persists a normalized ISO code", () => {
   assert.equal(countryCodeSchema.parse(" it "), "IT");
-  assert.match(source("components/ui/CountrySelect.tsx"), /value=\{country\.code\}/);
+  assert.match(source("components/ui/CountrySelect.tsx"), /name=\{name\} value=\{selectedCode\}/);
 });
 
 test("result editor uses the central CountryFlag", () => {

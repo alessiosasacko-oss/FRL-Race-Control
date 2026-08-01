@@ -5,7 +5,6 @@ import { NotificationType as PrismaNotificationType } from "@/generated/prisma/c
 import { WebhookEventType } from "@/domain";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
-import { countryCodeToFlagEmoji } from "@/lib/countries";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import {
   notificationSettingsSchema,
@@ -88,7 +87,7 @@ export async function updateProfileSettingsAction(
           data: {
             name: parsed.data.displayName,
             countryCode: parsed.data.countryCode as string,
-            flag: countryCodeToFlagEmoji(parsed.data.countryCode) ?? "🌐",
+            flag: parsed.data.countryCode as string,
             number: parsed.data.driverNumber as number,
           },
         });

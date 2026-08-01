@@ -4,6 +4,10 @@ const ISO_COUNTRY_CODES = new Set(
   ),
 );
 
+export const countryFlagAssetCodes = Object.freeze(
+  [...ISO_COUNTRY_CODES].sort(),
+);
+
 export const countryOptions = [...ISO_COUNTRY_CODES]
   .map((code) => ({ code, name: countryName(code) }))
   .sort((left, right) => left.name.localeCompare(right.name, "de"));
@@ -16,28 +20,41 @@ export function normalizeCountryCode(
   return ISO_COUNTRY_CODES.has(normalized) ? normalized : null;
 }
 
-export function countryCodeToFlagEmoji(
+export function countryCodeFromLegacyFlag(
+  value: string | null | undefined,
+): string | null {
+  const normalizedCode = normalizeCountryCode(value);
+  if (normalizedCode) return normalizedCode;
+  if (!value) return null;
+
+  const symbols = [...value.trim()];
+  if (symbols.length !== 2) return null;
+  const regionalA = 0x1f1e6;
+  const code = symbols
+    .map((symbol) => symbol.codePointAt(0))
+    .map((point) => point === undefined ? "" : String.fromCharCode(point - regionalA + 65))
+    .join("");
+  return normalizeCountryCode(code);
+}
+
+export function countryFlagPath(
   value: string | null | undefined,
 ): string | null {
   const code = normalizeCountryCode(value);
-  if (!code) return null;
-  return [...code]
-    .map((character) =>
-      String.fromCodePoint(character.charCodeAt(0) + 127397),
-    )
-    .join("");
+  return code ? `/flags/${code.toLowerCase()}.svg` : null;
 }
 
 export function countryName(
   value: string | null | undefined,
 ): string {
-  const code = value?.trim().toUpperCase();
-  if (!code || !/^[A-Z]{2}$/.test(code)) return "Land nicht angegeben";
+  const code = normalizeCountryCode(value);
+  if (!code) return "Land nicht angegeben";
   try {
     return (
-      new Intl.DisplayNames(["de"], { type: "region" }).of(code) ?? code
+      new Intl.DisplayNames(["de"], { type: "region" }).of(code) ??
+      "Land nicht angegeben"
     );
   } catch {
-    return code;
+    return "Land nicht angegeben";
   }
 }

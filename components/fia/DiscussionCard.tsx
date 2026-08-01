@@ -43,7 +43,6 @@ import {
   initialFiaActionState,
   type FiaTicketDetail,
 } from "@/lib/fia/types";
-import { countryCodeToFlagEmoji } from "@/lib/countries";
 import ActionMessage from "./ActionMessage";
 import PenaltyProposalCard from "./PenaltyProposalCard";
 
@@ -528,7 +527,7 @@ export default function DiscussionCard({
                     </option>
                     {drivers.map((driver) => (
                       <option key={driver.id} value={driver.id}>
-                        {countryCodeToFlagEmoji(driver.flag) ?? driver.flag} {driver.name} · #{driver.number}
+                        {driver.name} · #{driver.number}
                       </option>
                     ))}
                   </select>
