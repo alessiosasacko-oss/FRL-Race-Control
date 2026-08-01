@@ -28,8 +28,6 @@ const roleContext = {
   targetId: 2,
   currentRoles: [Role.Driver],
   activeSuperAdminCount: 2,
-  hasDriverProfile: true,
-  hasTeamAssignment: true,
 };
 
 test("admin can add DRIVER when a driver profile exists", () => {
@@ -37,7 +35,15 @@ test("admin can add DRIVER when a driver profile exists", () => {
 });
 
 test("admin can add STEWARD independently from the sports assignment", () => {
-  assert.equal(validateRoleChange({ ...roleContext, actorRoles: [Role.Admin], nextRoles: [Role.Driver, Role.Steward], hasTeamAssignment: false }), null);
+  assert.equal(validateRoleChange({ ...roleContext, actorRoles: [Role.Admin], nextRoles: [Role.Driver, Role.Steward] }), null);
+});
+
+test("admin can add DRIVER without a driver profile", () => {
+  assert.equal(validateRoleChange({ ...roleContext, actorRoles: [Role.Admin], currentRoles: [Role.Steward], nextRoles: [Role.Steward, Role.Driver] }), null);
+});
+
+test("admin can add TEAM_PRINCIPAL without a team assignment", () => {
+  assert.equal(validateRoleChange({ ...roleContext, actorRoles: [Role.Admin], nextRoles: [Role.Driver, Role.TeamPrincipal] }), null);
 });
 
 test("driver cannot invoke the role action without ManageUsers", () => {
@@ -97,6 +103,16 @@ test("effective permissions show role-derived steward actions", () => {
   const access = effectiveUserAccess({ roles: [Role.Steward], hasDriverProfile: false });
   assert.equal(access.actions.find((item) => item.id === "vote")?.status, "ALLOWED");
   assert.match(access.actions.find((item) => item.id === "vote")?.reason ?? "", /Steward/i);
+});
+
+test("driver role without a profile keeps attendance context restricted", () => {
+  const access = effectiveUserAccess({ roles: [Role.Driver], hasDriverProfile: false });
+  assert.equal(access.actions.find((item) => item.id === "own-attendance")?.status, "RESTRICTED");
+});
+
+test("team principal role without a team keeps team actions restricted", () => {
+  const access = effectiveUserAccess({ roles: [Role.TeamPrincipal], teamName: null });
+  assert.equal(access.actions.find((item) => item.id === "team-attendance")?.status, "RESTRICTED");
 });
 
 test("permission preview can never write", () => {

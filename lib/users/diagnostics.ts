@@ -1,5 +1,31 @@
 type ErrorWithCode = Error & { code?: unknown };
 
+type RoleAdministrationEvent = {
+  phase:
+    | "action-start"
+    | "policy-result"
+    | "transaction-start"
+    | "transaction-result"
+    | "revalidation-result";
+  actorId: number;
+  targetId: number;
+  previousRoles?: readonly string[];
+  nextRoles?: readonly string[];
+  result?:
+    | "allowed"
+    | "rejected"
+    | "started"
+    | "committed"
+    | "completed"
+    | "failed";
+};
+
+export function logUserRoleAdministrationEvent(
+  event: RoleAdministrationEvent,
+): void {
+  console.info("[user-administration] Role update.", event);
+}
+
 export function logUserAdministrationFailure(
   phase: string,
   error: unknown,

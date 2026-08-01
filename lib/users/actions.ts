@@ -1,14 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { DriverLineupStatus, Role } from "@/domain";
+import { DriverLineupStatus, Role, roleLabels } from "@/domain";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { countryCodeToFlagEmoji } from "@/lib/countries";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { writeSystemAudit } from "@/lib/audit/system";
-import { primarySlotAvailable, validateRoleChange } from "./policy";
-import { logUserAdministrationFailure } from "./diagnostics";
+import {
+  activeUserRoleRequirementMessage,
+  primarySlotAvailable,
+  validateRoleChange,
+} from "./policy";
+import {
+  logUserAdministrationFailure,
+  logUserRoleAdministrationEvent,
+} from "./diagnostics";
 import {
   userRoleUpdateSchema,
   userSportAssignmentSchema,
@@ -45,13 +52,31 @@ export async function updateUserRolesAction(
   formData: FormData,
 ): Promise<UserAdminActionState> {
   const actor = await requirePermission(Permission.ManageUsers);
+  const submittedRoles = roleValues(formData);
+  logUserRoleAdministrationEvent({
+    phase: "action-start",
+    actorId: actor.id,
+    targetId: userId,
+  });
+  if (submittedRoles.length === 0) {
+    return {
+      status: "error",
+      message: activeUserRoleRequirementMessage,
+    };
+  }
+  if (formData.get("confirmed") !== "on") {
+    return {
+      status: "error",
+      message: "Bitte bestätige die angezeigte Rollenänderung.",
+    };
+  }
   const parsed = userRoleUpdateSchema.safeParse({
-    roles: roleValues(formData),
+    roles: submittedRoles,
     confirmed: formData.get("confirmed"),
     reason: formData.get("reason"),
   });
   if (!parsed.success) {
-    return { status: "error", message: "Bitte Rollenänderung prüfen und bestätigen." };
+    return { status: "error", message: "Die ausgewählten Rollen sind ungültig." };
   }
 
   const prisma = getPrismaClient();
@@ -82,9 +107,14 @@ export async function updateUserRolesAction(
     currentRoles,
     nextRoles,
     activeSuperAdminCount,
-    hasDriverProfile: Boolean(target.driver) || !target.active,
-    hasTeamAssignment:
-      Boolean(target.principalTeams.length || target.organizationSeasons.length),
+  });
+  logUserRoleAdministrationEvent({
+    phase: "policy-result",
+    actorId: actor.id,
+    targetId: target.id,
+    previousRoles: currentRoles,
+    nextRoles,
+    result: policyError ? "rejected" : "allowed",
   });
   if (policyError) return { status: "error", message: policyError };
 
@@ -95,6 +125,14 @@ export async function updateUserRolesAction(
   }
 
   try {
+    logUserRoleAdministrationEvent({
+      phase: "transaction-start",
+      actorId: actor.id,
+      targetId: target.id,
+      previousRoles: currentRoles,
+      nextRoles,
+      result: "started",
+    });
     await prisma.$transaction(async (transaction) => {
       await transaction.user.update({ where: { id: target.id }, data: { roles: nextRoles } });
       for (const role of added) {
@@ -121,21 +159,66 @@ export async function updateUserRolesAction(
       });
       if (!reloaded) throw new Error("UPDATED_USER_NOT_FOUND");
     });
+    logUserRoleAdministrationEvent({
+      phase: "transaction-result",
+      actorId: actor.id,
+      targetId: target.id,
+      previousRoles: currentRoles,
+      nextRoles,
+      result: "committed",
+    });
   } catch (error: unknown) {
     logUserAdministrationFailure("role-update-transaction", error);
     return {
       status: "error",
-      message: "Die Rollen konnten nicht gespeichert werden. Es wurden keine Teiländerungen übernommen.",
+      message: "Die Rollen konnten nicht gespeichert werden. Es wurden keine Teiländerungen übernommen. Fehlerreferenz: ROLE-7F31",
     };
   }
 
-  refreshUserAdministration(target.id);
+  let revalidationFailed = false;
+  try {
+    refreshUserAdministration(target.id);
+    logUserRoleAdministrationEvent({
+      phase: "revalidation-result",
+      actorId: actor.id,
+      targetId: target.id,
+      previousRoles: currentRoles,
+      nextRoles,
+      result: "completed",
+    });
+  } catch (error: unknown) {
+    revalidationFailed = true;
+    logUserAdministrationFailure("role-update-revalidation", error);
+    logUserRoleAdministrationEvent({
+      phase: "revalidation-result",
+      actorId: actor.id,
+      targetId: target.id,
+      previousRoles: currentRoles,
+      nextRoles,
+      result: "failed",
+    });
+  }
+  const advisories = [
+    added.includes(Role.Driver) && !target.driver
+      ? "Fahrerrolle gespeichert. Für Rennanmeldung und Liga-Zuordnung muss noch ein Fahrerprofil eingerichtet werden."
+      : null,
+    added.includes(Role.TeamPrincipal) &&
+    target.principalTeams.length === 0 &&
+    target.organizationSeasons.length === 0
+      ? "Teamchefrolle gespeichert. Teambezogene Rechte werden erst nach einer Teamzuordnung aktiv."
+      : null,
+    revalidationFailed
+      ? "Die Rollen wurden gespeichert, die Verwaltungsansicht konnte aber nicht automatisch aktualisiert werden. Bitte lade die Seite neu. Fehlerreferenz: ROLE-2C18"
+      : null,
+  ].filter((message): message is string => Boolean(message));
   return {
     status: "success",
-    message: "Rollen wurden gespeichert. Die neuen Rechte gelten ab dem nächsten Request.",
+    message: advisories.length
+      ? advisories.join(" ")
+      : "Rollen wurden gespeichert. Die neuen Rechte gelten ab dem nächsten Request.",
     changes: [
-      ...added.map((role) => `${role}: hinzugefügt`),
-      ...removed.map((role) => `${role}: entfernt`),
+      ...added.map((role) => `${roleLabels[role]}: hinzugefügt`),
+      ...removed.map((role) => `${roleLabels[role]}: entfernt`),
     ],
   };
 }

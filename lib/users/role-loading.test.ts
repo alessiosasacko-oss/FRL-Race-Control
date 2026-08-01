@@ -23,8 +23,6 @@ const basePolicy = {
   targetId: 2,
   currentRoles: [Role.Driver],
   activeSuperAdminCount: 2,
-  hasDriverProfile: true,
-  hasTeamAssignment: true,
 };
 
 test("admin can add DRIVER", () => {
@@ -64,8 +62,33 @@ test("legacy FIA_PRESIDENT remains recognized", () => {
   assert.match(source("components/users/UserAdminForms.tsx"), /Legacy-Rolle/);
 });
 
-test("team principal without a real team assignment is rejected clearly", () => {
-  assert.match(validateRoleChange({ ...basePolicy, nextRoles: [Role.Driver, Role.TeamPrincipal], hasTeamAssignment: false }) ?? "", /Team.*zuordnung/i);
+test("team principal without a real team assignment can be stored", () => {
+  assert.equal(validateRoleChange({ ...basePolicy, nextRoles: [Role.Driver, Role.TeamPrincipal] }), null);
+});
+
+test("driver without a profile can be stored", () => {
+  assert.equal(validateRoleChange({ ...basePolicy, currentRoles: [Role.Steward], nextRoles: [Role.Steward, Role.Driver] }), null);
+});
+
+test("roleless active users receive the explicit policy message", () => {
+  assert.match(source("lib/users/policy.ts"), /Ein aktives Benutzerkonto benötigt mindestens eine Systemrolle/);
+  assert.match(source("lib/users/schemas.ts"), /activeUserRoleRequirementMessage/);
+});
+
+test("missing role confirmation receives the explicit message", () => {
+  assert.match(actions, /Bitte bestätige die angezeigte Rollenänderung/);
+});
+
+test("driver and team principal assignments produce non-blocking guidance", () => {
+  assert.match(actions, /Fahrerrolle gespeichert\. Für Rennanmeldung und Liga-Zuordnung/);
+  assert.match(actions, /Teamchefrolle gespeichert\. Teambezogene Rechte/);
+});
+
+test("role save button follows the actual role diff", () => {
+  const forms = source("components/users/UserAdminForms.tsx");
+  assert.match(forms, /const hasChanges = changes\.length > 0/);
+  assert.match(forms, /disabled=\{pending \|\| !hasChanges \|\| selected\.length === 0\}/);
+  assert.match(forms, /Keine Änderungen/);
 });
 
 test("role update and audit share one database transaction", () => {
@@ -122,6 +145,19 @@ test("migration or Prisma mismatch is diagnosed without exposing secrets", () =>
   assert.match(diagnostics, /prismaCode/);
   assert.match(diagnostics, /errorClass/);
   assert.doesNotMatch(diagnostics, /DATABASE_URL|cookie|token|secret/i);
+});
+
+test("role mutations log only safe identifiers and lifecycle phases", () => {
+  assert.match(diagnostics, /actorId/);
+  assert.match(diagnostics, /targetId/);
+  assert.match(diagnostics, /transaction-result/);
+  assert.match(diagnostics, /revalidation-result/);
+  assert.doesNotMatch(diagnostics, /email|discordId|DATABASE_URL|cookie|token|secret/i);
+});
+
+test("failed role mutations provide a short error reference", () => {
+  assert.match(actions, /ROLE-7F31/);
+  assert.match(actions, /ROLE-2C18/);
 });
 
 test("development Prisma singleton is never disconnected during hot reload", () => {

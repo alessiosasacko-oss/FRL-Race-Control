@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { DriverLineupStatus, Role } from "@/domain";
 import { countryCodeSchema } from "@/domain/common";
+import { activeUserRoleRequirementMessage } from "./policy";
 
 const entityId = z.coerce.number().int().positive();
 
 export const userRoleUpdateSchema = z.object({
-  roles: z.array(z.enum(Role)).min(1),
+  roles: z.array(z.enum(Role)).min(1, activeUserRoleRequirementMessage),
   confirmed: z.literal("on"),
   reason: z.string().trim().max(500).optional().default(""),
 });

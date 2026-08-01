@@ -9,6 +9,7 @@ import {
   updateUserSportAssignmentAction,
   updateUserStatusAction,
 } from "@/lib/users/actions";
+import { activeUserRoleRequirementMessage } from "@/lib/users/policy";
 
 const editableRoles = [
   Role.Driver,
@@ -59,6 +60,7 @@ export function RoleEditor({
     ...selected.filter((role) => !roles.includes(role)).map((role) => `${roleLabels[role]}: hinzugefügt`),
     ...roles.filter((role) => !selected.includes(role)).map((role) => `${roleLabels[role]}: entfernt`),
   ], [roles, selected]);
+  const hasChanges = changes.length > 0;
 
   return (
     <form action={action} className="space-y-4">
@@ -88,13 +90,18 @@ export function RoleEditor({
         <p className="font-bold text-white">Änderungsübersicht</p>
         {changes.length ? (
           <ul className="mt-2 space-y-1 text-slate-300">{changes.map((change) => <li key={change}>{change}</li>)}</ul>
-        ) : <p className="mt-2 text-slate-500">Keine Rollenänderung.</p>}
+        ) : <p className="mt-2 text-slate-500">Keine Änderungen</p>}
       </div>
       <ReasonAndConfirmation />
-      <ActionState state={state} />
-      <button disabled={pending || selected.length === 0} className="wizard-primary-button w-full sm:w-auto">
+      {selected.length === 0 ? (
+        <p className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+          {activeUserRoleRequirementMessage}
+        </p>
+      ) : null}
+      <button disabled={pending || !hasChanges || selected.length === 0} className="wizard-primary-button min-h-11 w-full sm:w-auto">
         {pending ? "Speichert…" : "Rollen speichern"}
       </button>
+      <ActionState state={state} />
     </form>
   );
 }

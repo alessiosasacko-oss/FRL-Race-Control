@@ -1,5 +1,10 @@
 import { Role } from "@/domain";
 
+// Protected sessions require at least one canonical system role. Missing sports
+// context is allowed, but an active roleless account is intentionally not.
+export const activeUserRoleRequirementMessage =
+  "Ein aktives Benutzerkonto benötigt mindestens eine Systemrolle.";
+
 export function validateRoleChange(input: {
   actorRoles: readonly Role[];
   actorId: number;
@@ -7,8 +12,6 @@ export function validateRoleChange(input: {
   currentRoles: readonly Role[];
   nextRoles: readonly Role[];
   activeSuperAdminCount: number;
-  hasDriverProfile: boolean;
-  hasTeamAssignment: boolean;
 }): string | null {
   const actorIsSuperAdmin = input.actorRoles.includes(Role.SuperAdmin);
   const currentIsSuperAdmin = input.currentRoles.includes(Role.SuperAdmin);
@@ -31,12 +34,6 @@ export function validateRoleChange(input: {
     input.activeSuperAdminCount <= 1
   ) {
     return "Du kannst dir nicht selbst den letzten Super-Admin-Zugang entziehen.";
-  }
-  if (input.nextRoles.includes(Role.TeamPrincipal) && !input.hasTeamAssignment) {
-    return "Die Teamchefrolle benötigt eine gültige Teamzuordnung.";
-  }
-  if (input.nextRoles.includes(Role.Driver) && !input.hasDriverProfile) {
-    return "Die Fahrerrolle benötigt für ein aktives Konto ein Fahrerprofil.";
   }
   return null;
 }
