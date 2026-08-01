@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { Role } from "@/domain";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
@@ -16,6 +18,16 @@ const detailPage = source("app/(protected)/admin/users/[id]/page.tsx");
 const adapter = source("lib/auth/adapter.ts");
 const prismaClient = source("lib/db/prisma.ts");
 const diagnostics = source("lib/users/diagnostics.ts");
+const actionState = source("lib/users/action-state.ts");
+const userForms = source("components/users/UserAdminForms.tsx");
+
+function typescriptFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return typescriptFiles(path);
+    return /\.(?:ts|tsx)$/.test(entry.name) ? [path] : [];
+  });
+}
 
 const basePolicy = {
   actorRoles: [Role.Admin],
@@ -27,6 +39,43 @@ const basePolicy = {
 
 test("admin can add DRIVER", () => {
   assert.equal(validateRoleChange({ ...basePolicy, currentRoles: [Role.Steward], nextRoles: [Role.Steward, Role.Driver] }), null);
+});
+
+test("user actions export only async runtime functions", () => {
+  const runtimeExports = [...actions.matchAll(/^export\s+(?!type\s|interface\s)(.+)$/gm)]
+    .map((match) => match[0]);
+  assert.deepEqual(runtimeExports, [
+    "export async function updateUserRolesAction(",
+    "export async function updateUserSportAssignmentAction(",
+    "export async function updateUserStatusAction(",
+  ]);
+});
+
+test("all use-server modules export only async runtime functions", () => {
+  const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
+  const sourceFiles = ["app", "components", "lib"].flatMap((directory) =>
+    typescriptFiles(join(repositoryRoot, directory)),
+  );
+  const violations = sourceFiles.flatMap((path) => {
+    const content = readFileSync(path, "utf8");
+    if (!/^\s*["']use server["'];?/m.test(content)) return [];
+    return [...content.matchAll(/^export\s+(?!type\s|interface\s)(.+)$/gm)]
+      .map((match) => match[0])
+      .filter((statement) => !statement.startsWith("export async function"))
+      .map((statement) => `${path}: ${statement}`);
+  });
+  assert.deepEqual(violations, []);
+});
+
+test("user action state lives outside the use-server module", () => {
+  assert.doesNotMatch(actionState, /use server/);
+  assert.match(actionState, /export const initialUserAdminActionState/);
+  assert.doesNotMatch(actions, /export const initialUserAdminActionState/);
+});
+
+test("user admin forms import initial state from the neutral module", () => {
+  assert.match(userForms, /from "@\/lib\/users\/action-state"/);
+  assert.doesNotMatch(userForms, /initialUserAdminActionState,[\s\S]*from "@\/lib\/users\/actions"/);
 });
 
 test("admin can add STEWARD", () => {

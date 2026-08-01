@@ -21,17 +21,7 @@ import {
   userSportAssignmentSchema,
   userStatusUpdateSchema,
 } from "./schemas";
-
-export type UserAdminActionState = {
-  status: "idle" | "success" | "error";
-  message: string;
-  changes?: string[];
-};
-
-export const initialUserAdminActionState: UserAdminActionState = {
-  status: "idle",
-  message: "",
-};
+import type { UserAdminActionState } from "./action-state";
 
 function roleValues(formData: FormData): string[] {
   return formData.getAll("roles").map(String);

@@ -3,8 +3,8 @@
 import { useActionState, useMemo, useState } from "react";
 import { DriverLineupStatus, Role, roleLabels } from "@/domain";
 import CountrySelect from "@/components/ui/CountrySelect";
+import { initialUserAdminActionState } from "@/lib/users/action-state";
 import {
-  initialUserAdminActionState,
   updateUserRolesAction,
   updateUserSportAssignmentAction,
   updateUserStatusAction,
