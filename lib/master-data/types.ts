@@ -1,4 +1,9 @@
-import type { RaceSession, RaceStatus, Role } from "@/domain";
+import type {
+  DriverLineupStatus,
+  RaceSession,
+  RaceStatus,
+  Role,
+} from "@/domain";
 import type {
   TeamActiveDriver,
   TeamDependencyCounts,
@@ -30,18 +35,12 @@ export type SeasonOption = {
   archived: boolean;
 };
 
-export type TeamOption = {
-  id: number;
-  leagueId: number;
-  seasonId: number;
-  name: string;
-};
-
 export type UserOption = {
   id: number;
   displayName: string;
   discordId: string | null;
   roles: Role[];
+  driverId: number | null;
 };
 
 export type DriverOption = {
@@ -62,10 +61,16 @@ export type MasterDataFilterOptions = {
 export type MasterDataOptions = {
   leagues: LeagueOption[];
   seasons: SeasonOption[];
-  teams: TeamOption[];
   users: UserOption[];
   drivers: DriverOption[];
   organizations: TeamOrganizationOption[];
+};
+
+export type DriverFormOptions = {
+  leagues: LeagueOption[];
+  seasons: SeasonOption[];
+  organizations: TeamOrganizationOption[];
+  users: UserOption[];
 };
 
 export type TeamOrganizationOption = {
@@ -209,6 +214,15 @@ export type DriverItem = {
     shortName: string;
     color: string;
   } | null;
+  assignment: {
+    season: SeasonOption;
+    league: LeagueOption;
+    organization: TeamOrganizationOption | null;
+    lineupStatus: DriverLineupStatus;
+    active: boolean;
+    source: "CANONICAL" | "LEGACY_FALLBACK";
+  } | null;
+  diagnostics: string[];
   user: {
     id: number;
     displayName: string;

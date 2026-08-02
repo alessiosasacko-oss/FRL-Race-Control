@@ -7,14 +7,15 @@ import {
 } from "@/lib/master-data/actions";
 import {
   initialMasterDataActionState,
+  type DriverFormOptions,
   type DriverItem,
-  type MasterDataOptions,
 } from "@/lib/master-data/types";
+import { DriverLineupStatus } from "@/domain";
 import CountrySelect from "@/components/ui/CountrySelect";
 import ActionMessage from "./ActionMessage";
 
 type DriverFormProps = {
-  options: MasterDataOptions;
+  options: DriverFormOptions;
   driver?: DriverItem;
 };
 
@@ -29,9 +30,17 @@ export default function DriverForm({
     action,
     initialMasterDataActionState,
   );
+  const assignment = driver?.assignment;
+  const availableUsers = options.users.filter(
+    (user) => user.driverId === null || user.driverId === driver?.id,
+  );
+  const defaultSeasonId =
+    assignment?.season.id ?? options.seasons[0]?.id;
+  const configurationReady =
+    options.seasons.length > 0 && options.leagues.length > 0;
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="min-w-0 space-y-4 overflow-x-hidden">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="master-label">
           Name
@@ -56,14 +65,30 @@ export default function DriverForm({
           />
         </label>
         <label className="master-label">
-          Ländercode
+          Land
           <CountrySelect defaultValue={driver?.countryCode ?? "DE"} />
+        </label>
+        <label className="master-label">
+          Saison
+          <select
+            name="seasonId"
+            defaultValue={defaultSeasonId}
+            required
+            className="form-control mt-2"
+          >
+            {options.seasons.map((season) => (
+              <option key={season.id} value={season.id}>
+                {season.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="master-label">
           Liga
           <select
             name="leagueId"
-            defaultValue={driver?.league.id ?? options.leagues[0]?.id}
+            defaultValue={assignment?.league.id ?? driver?.league.id ?? options.leagues[0]?.id}
+            required
             className="form-control mt-2"
           >
             {options.leagues.map((league) => (
@@ -76,28 +101,27 @@ export default function DriverForm({
         <label className="master-label">
           Team
           <select
-            name="teamId"
-            defaultValue={driver?.team?.id ?? ""}
+            name="organizationId"
+            defaultValue={assignment?.organization?.id ?? driver?.team?.id ?? ""}
             className="form-control mt-2"
           >
             <option value="">Kein Team</option>
-            {options.teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {options.leagues.find(
-                  (league) => league.id === team.leagueId,
-                )?.code ?? "–"}{" "}
-                · {team.name}
-                {options.seasons.find(
-                  (season) => season.id === team.seasonId,
-                )
-                  ? ` · ${
-                      options.seasons.find(
-                        (season) => season.id === team.seasonId,
-                      )?.name
-                    }`
-                  : ""}
+            {options.organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {organization.name}
               </option>
             ))}
+          </select>
+        </label>
+        <label className="master-label">
+          Fahrerstatus
+          <select
+            name="lineupStatus"
+            defaultValue={assignment?.lineupStatus ?? DriverLineupStatus.Primary}
+            className="form-control mt-2"
+          >
+            <option value={DriverLineupStatus.Primary}>Stammfahrer</option>
+            <option value={DriverLineupStatus.Substitute}>Ersatzfahrer</option>
           </select>
         </label>
         <label className="master-label sm:col-span-2">
@@ -108,7 +132,7 @@ export default function DriverForm({
             className="form-control mt-2"
           >
             <option value="">Nicht verknüpft</option>
-            {options.users.map((user) => (
+            {availableUsers.map((user) => (
               <option key={user.id} value={user.id}>
                 {user.displayName}
                 {user.discordId ? ` · ${user.discordId}` : ""}
@@ -117,7 +141,12 @@ export default function DriverForm({
           </select>
         </label>
       </div>
-      <label className="flex items-center gap-3 text-sm text-slate-300">
+      {!configurationReady ? (
+        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+          Zum Speichern werden mindestens eine aktive Saison und eine aktive FRL-Liga benötigt.
+        </p>
+      ) : null}
+      <label className="flex min-h-11 items-center gap-3 text-sm text-slate-300">
         <input
           type="checkbox"
           name="active"
@@ -128,7 +157,7 @@ export default function DriverForm({
       </label>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <ActionMessage state={state} />
-        <button disabled={pending} className="wizard-primary-button">
+        <button disabled={pending || !configurationReady} className="wizard-primary-button min-h-11 w-full sm:w-auto">
           {pending
             ? "Speichert…"
             : driver

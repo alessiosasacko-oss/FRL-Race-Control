@@ -10,6 +10,7 @@ import {
 } from "@/generated/prisma/client";
 import {
   DiscordChannelPurpose,
+  DriverLineupStatus,
   NotificationType,
   RaceSession,
 } from "@/domain";
@@ -47,6 +48,7 @@ import {
   teamDependencyMessages,
 } from "./team-lifecycle";
 import type { MasterDataActionState } from "./types";
+import { ensureInternalTeamSlot } from "./internal-team-slots";
 
 function errorState(
   message: string,
@@ -978,54 +980,315 @@ function driverPayload(formData: FormData) {
     number: formData.get("number"),
     countryCode: formData.get("countryCode"),
     userId: formData.get("userId"),
+    seasonId: formData.get("seasonId"),
     leagueId: formData.get("leagueId"),
-    teamId: formData.get("teamId"),
+    organizationId: formData.get("organizationId"),
+    lineupStatus: formData.get("lineupStatus"),
     active: formData.get("active"),
   };
 }
 
-async function driverTeamIsValid(
-  leagueId: number,
-  teamId: number | null,
-): Promise<boolean> {
-  if (!teamId) return true;
-  const prisma = getPrismaClient();
-  return Boolean(
-    await prisma.team.findFirst({
-      where: { id: teamId, leagueId, active: true, archivedAt: null },
+type DriverAssignmentInput = ReturnType<typeof driverSchema.parse>;
+
+function prismaErrorCode(error: unknown): string | null {
+  return typeof error === "object" && error !== null && "code" in error
+    ? String(error.code)
+    : null;
+}
+
+function driverAssignmentError(
+  error: unknown,
+  input: DriverAssignmentInput,
+): MasterDataActionState {
+  const message = error instanceof Error ? error.message : "";
+  if (message === "SEASON_INACTIVE") {
+    return errorState("Die ausgewählte Saison ist nicht aktiv.");
+  }
+  if (message === "ASSIGNMENT_INCONSISTENT") {
+    return errorState(
+      "Die Fahrerzuordnung ist nicht konsistent. Bitte Liga und Team erneut auswählen.",
+    );
+  }
+  if (message === "TEAM_ARCHIVED") {
+    return errorState(
+      "Dieses Team ist archiviert und kann nicht für neue Fahrer verwendet werden.",
+    );
+  }
+  if (message.startsWith("PRIMARY_SLOT_FULL:")) {
+    const [, organizationName, leagueCode] = message.split(":");
+    return errorState(
+      `${organizationName} besitzt in ${leagueCode} bereits zwei aktive Stammfahrer.`,
+    );
+  }
+  if (message.startsWith("DRIVER_NUMBER_CONFLICT:")) {
+    const leagueCode = message.split(":")[1];
+    return errorState(
+      `Die Startnummer ${input.number} ist in ${leagueCode} bereits vergeben.`,
+    );
+  }
+  if (prismaErrorCode(error) === "P2002") {
+    return errorState(
+      `Die Startnummer ${input.number} ist in der gewählten Liga bereits vergeben.`,
+    );
+  }
+  if (message === "USER_ALREADY_LINKED" || message === "USER_UNAVAILABLE") {
+    return errorState(
+      "Der ausgewählte Discord-Benutzer ist bereits mit einem anderen Fahrer verknüpft.",
+    );
+  }
+  if (message === "TECHNICAL_TEAM_SLOT_FAILED") {
+    return errorState("Der technische Teamplatz konnte nicht vorbereitet werden.");
+  }
+  if (prismaErrorCode(error) === "P2034") {
+    return errorState(
+      "Die Zuordnung wurde gleichzeitig geändert. Bitte prüfe Startnummer und Stammplätze und versuche es erneut.",
+    );
+  }
+  return databaseError();
+}
+
+async function saveDriverAssignment(
+  transaction: Prisma.TransactionClient,
+  input: DriverAssignmentInput,
+  actorId: number,
+  driverId: number | null,
+): Promise<void> {
+  const [season, league, organization, existingDriver] = await Promise.all([
+    transaction.season.findUnique({
+      where: { id: input.seasonId },
+      select: {
+        id: true,
+        active: true,
+        archivedAt: true,
+        participatingLeagues: {
+          where: { id: input.leagueId },
+          select: { id: true },
+        },
+      },
+    }),
+    transaction.league.findUnique({
+      where: { id: input.leagueId },
+      select: { id: true, code: true, active: true },
+    }),
+    input.organizationId
+      ? transaction.teamOrganization.findUnique({
+          where: { id: input.organizationId },
+          select: { id: true, name: true, active: true, archivedAt: true },
+        })
+      : Promise.resolve(null),
+    driverId
+      ? transaction.driver.findUnique({
+          where: { id: driverId },
+          select: {
+            id: true,
+            userId: true,
+            leagueId: true,
+            teamId: true,
+            name: true,
+            number: true,
+            countryCode: true,
+            active: true,
+          },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  if (driverId && !existingDriver) throw new Error("DRIVER_NOT_FOUND");
+  if (!season || !season.active || season.archivedAt) {
+    throw new Error("SEASON_INACTIVE");
+  }
+  if (
+    !league ||
+    !league.active ||
+    !["F1", "F2", "F3", "F4", "F5", "F6"].includes(league.code) ||
+    season.participatingLeagues.length === 0
+  ) {
+    throw new Error("ASSIGNMENT_INCONSISTENT");
+  }
+  if (input.organizationId && !organization) {
+    throw new Error("ASSIGNMENT_INCONSISTENT");
+  }
+  if (organization && (!organization.active || organization.archivedAt)) {
+    throw new Error("TEAM_ARCHIVED");
+  }
+
+  const [numberConflict, selectedUser] = await Promise.all([
+    transaction.driver.findFirst({
+      where: {
+        leagueId: league.id,
+        number: input.number,
+        id: driverId ? { not: driverId } : undefined,
+      },
       select: { id: true },
     }),
-  );
+    input.userId
+      ? transaction.user.findUnique({
+          where: { id: input.userId },
+          select: {
+            active: true,
+            driver: { select: { id: true } },
+          },
+        })
+      : Promise.resolve(null),
+  ]);
+  if (numberConflict) {
+    throw new Error(`DRIVER_NUMBER_CONFLICT:${league.code}`);
+  }
+  if (input.userId && (!selectedUser || !selectedUser.active)) {
+    throw new Error("USER_UNAVAILABLE");
+  }
+  if (
+    selectedUser?.driver &&
+    selectedUser.driver.id !== driverId
+  ) {
+    throw new Error("USER_ALREADY_LINKED");
+  }
+
+  if (
+    input.active &&
+    input.lineupStatus === DriverLineupStatus.Primary &&
+    organization
+  ) {
+    const primaryCount = await transaction.driverSeasonAssignment.count({
+      where: {
+        seasonId: season.id,
+        leagueId: league.id,
+        organizationId: organization.id,
+        lineupStatus: DriverLineupStatus.Primary,
+        active: true,
+        driverId: driverId ? { not: driverId } : undefined,
+      },
+    });
+    if (primaryCount >= 2) {
+      throw new Error(`PRIMARY_SLOT_FULL:${organization.name}:${league.code}`);
+    }
+  }
+
+  let internalTeamSlot: { id: number } | null = null;
+  if (organization) {
+    try {
+      internalTeamSlot = await ensureInternalTeamSlot(transaction, {
+        organizationId: organization.id,
+        seasonId: season.id,
+        leagueId: league.id,
+      });
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        error.message === "TEAM_ORGANIZATION_UNAVAILABLE"
+      ) {
+        throw new Error("TEAM_ARCHIVED");
+      }
+      throw new Error("TECHNICAL_TEAM_SLOT_FAILED");
+    }
+  }
+
+  const driver = existingDriver
+    ? await transaction.driver.update({
+        where: { id: existingDriver.id },
+        data: {
+          userId: input.userId,
+          teamId: internalTeamSlot?.id ?? null,
+          leagueId: league.id,
+          name: input.name,
+          number: input.number,
+          flag: input.countryCode,
+          countryCode: input.countryCode,
+          active: input.active,
+        },
+        select: { id: true },
+      })
+    : await transaction.driver.create({
+        data: {
+          userId: input.userId,
+          teamId: internalTeamSlot?.id ?? null,
+          leagueId: league.id,
+          name: input.name,
+          number: input.number,
+          flag: input.countryCode,
+          countryCode: input.countryCode,
+          active: input.active,
+        },
+        select: { id: true },
+      });
+
+  await transaction.driverSeasonAssignment.updateMany({
+    where: {
+      driverId: driver.id,
+      seasonId: { not: season.id },
+      active: true,
+      ...(input.active
+        ? { season: { active: true, archivedAt: null } }
+        : {}),
+    },
+    data: { active: false },
+  });
+  await transaction.driverSeasonAssignment.upsert({
+    where: {
+      driverId_seasonId: { driverId: driver.id, seasonId: season.id },
+    },
+    create: {
+      driverId: driver.id,
+      seasonId: season.id,
+      leagueId: league.id,
+      organizationId: organization?.id ?? null,
+      lineupStatus: input.lineupStatus,
+      active: input.active,
+    },
+    update: {
+      leagueId: league.id,
+      organizationId: organization?.id ?? null,
+      lineupStatus: input.lineupStatus,
+      active: input.active,
+    },
+  });
+  await writeSystemAudit(transaction, {
+    actorId,
+    action: existingDriver ? "DRIVER_UPDATED" : "DRIVER_CREATED",
+    entityType: "Driver",
+    entityId: driver.id,
+    metadata: {
+      previous: existingDriver
+        ? {
+            leagueId: existingDriver.leagueId,
+            teamId: existingDriver.teamId,
+            number: existingDriver.number,
+            countryCode: existingDriver.countryCode,
+            active: existingDriver.active,
+          }
+        : null,
+      next: {
+        seasonId: season.id,
+        leagueId: league.id,
+        organizationId: organization?.id ?? null,
+        lineupStatus: input.lineupStatus,
+        internalTeamSlotId: internalTeamSlot?.id ?? null,
+        number: input.number,
+        countryCode: input.countryCode,
+        active: input.active,
+      },
+    },
+  });
 }
 
 export async function createDriverAction(
   _previousState: MasterDataActionState,
   formData: FormData,
 ): Promise<MasterDataActionState> {
-  await authorize();
+  const actor = await authorize();
   const parsed = driverSchema.safeParse(driverPayload(formData));
 
   if (!parsed.success) return validationState(parsed);
-  if (
-    !(await driverTeamIsValid(
-      parsed.data.leagueId,
-      parsed.data.teamId,
-    ))
-  ) {
-    return errorState("Das Team gehört nicht zur gewählten Liga.");
-  }
-
   const prisma = getPrismaClient();
 
   try {
-    await prisma.driver.create({
-      data: {
-        ...parsed.data,
-        flag: parsed.data.countryCode,
-      },
-    });
-  } catch {
-    return databaseError();
+    await prisma.$transaction(
+      (transaction) =>
+        saveDriverAssignment(transaction, parsed.data, actor.id, null),
+      { isolationLevel: "Serializable" },
+    );
+  } catch (error: unknown) {
+    return driverAssignmentError(error, parsed.data);
   }
 
   revalidateMasterData();
@@ -1037,7 +1300,7 @@ export async function updateDriverAction(
   _previousState: MasterDataActionState,
   formData: FormData,
 ): Promise<MasterDataActionState> {
-  await authorize();
+  const actor = await authorize();
   const driverId = entityIdSchema.safeParse(driverIdInput);
   const parsed = driverSchema.safeParse(driverPayload(formData));
 
@@ -1047,27 +1310,21 @@ export async function updateDriverAction(
       : validationState(parsed);
   }
 
-  if (
-    !(await driverTeamIsValid(
-      parsed.data.leagueId,
-      parsed.data.teamId,
-    ))
-  ) {
-    return errorState("Das Team gehört nicht zur gewählten Liga.");
-  }
-
   const prisma = getPrismaClient();
 
   try {
-    await prisma.driver.update({
-      where: { id: driverId.data },
-      data: {
-        ...parsed.data,
-        flag: parsed.data.countryCode,
-      },
-    });
-  } catch {
-    return databaseError();
+    await prisma.$transaction(
+      (transaction) =>
+        saveDriverAssignment(
+          transaction,
+          parsed.data,
+          actor.id,
+          driverId.data,
+        ),
+      { isolationLevel: "Serializable" },
+    );
+  } catch (error: unknown) {
+    return driverAssignmentError(error, parsed.data);
   }
 
   revalidateMasterData();

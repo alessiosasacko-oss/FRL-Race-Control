@@ -5,7 +5,7 @@ import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import {
   getDriverItems,
-  getMasterDataOptions,
+  getDriverFormOptions,
 } from "@/lib/master-data/queries";
 
 const allDriversQuery = { q: "", active: "all" as const };
@@ -14,7 +14,7 @@ export default async function DriverAdminPage() {
   await requirePermission(Permission.ManageMasterData);
   const [drivers, options] = await Promise.all([
     getDriverItems(allDriversQuery),
-    getMasterDataOptions(),
+    getDriverFormOptions(),
   ]);
 
   return (
@@ -45,6 +45,7 @@ export default async function DriverAdminPage() {
                     </h2>
                     <p className="mt-1 text-sm text-slate-400">
                       {driver.league.code} · {driver.team?.name ?? "Ohne Team"}
+                      {driver.assignment ? ` · ${driver.assignment.season.name} · ${driver.assignment.lineupStatus === "PRIMARY" ? "Stammfahrer" : "Ersatzfahrer"}` : ""}
                     </p>
                   </div>
                   <span className={driver.active ? "text-green-300" : "text-slate-500"}>
@@ -53,6 +54,19 @@ export default async function DriverAdminPage() {
                 </div>
               </summary>
               <div className="mt-5 border-t border-slate-800 pt-5">
+                {driver.diagnostics.length > 0 ? (
+                  <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+                    <strong>Zuordnungsdiagnose</strong>
+                    <ul className="mt-2 space-y-1">
+                      {driver.diagnostics.map((diagnostic) => (
+                        <li key={diagnostic}>• {diagnostic}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-xs text-amber-200/80">
+                      Widersprüchliche Werte werden nicht geraten. Eine bestätigte Auswahl im Formular normalisiert die Legacy-Felder sicher.
+                    </p>
+                  </div>
+                ) : null}
                 <DriverForm options={options} driver={driver} />
               </div>
             </details>

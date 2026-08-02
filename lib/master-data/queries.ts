@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  DriverLineupStatus,
   RaceSession,
   RaceStatus,
   Role,
@@ -15,6 +16,7 @@ import { publicRaceTrack } from "@/lib/races/visibility";
 import { getTeamDependencySnapshot } from "./team-dependencies";
 import type {
   DriverDetail,
+  DriverFormOptions,
   DriverItem,
   LeagueAdminItem,
   MasterDataFilterOptions,
@@ -40,7 +42,7 @@ export function parseMasterDataListQuery(
 
 export async function getMasterDataOptions(): Promise<MasterDataOptions> {
   const prisma = getPrismaClient();
-  const [leagues, seasons, teams, users, drivers, organizations] =
+  const [leagues, seasons, users, drivers, organizations] =
     await prisma.$transaction([
     prisma.league.findMany({
       orderBy: { code: "asc" },
@@ -57,21 +59,6 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
         participatingLeagues: { select: { id: true } },
       },
     }),
-    prisma.team.findMany({
-      where: {
-        active: true,
-        archivedAt: null,
-        systemManaged: true,
-        organization: { active: true, archivedAt: null },
-      },
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        leagueId: true,
-        seasonId: true,
-        name: true,
-      },
-    }),
     prisma.user.findMany({
       where: { active: true },
       orderBy: { displayName: "asc" },
@@ -80,6 +67,7 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
         displayName: true,
         discordId: true,
         roles: true,
+        driver: { select: { id: true } },
       },
     }),
     prisma.driver.findMany({
@@ -113,10 +101,12 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
 
   return {
     leagues,
-    teams,
     users: users.map((user) => ({
-      ...user,
+      id: user.id,
+      displayName: user.displayName,
+      discordId: user.discordId,
       roles: user.roles as Role[],
+      driverId: user.driver?.id ?? null,
     })),
     drivers: drivers.map((driver) => ({
       id: driver.id,
@@ -137,6 +127,76 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
       name: season.name,
       active: season.active,
       archived: season.archivedAt !== null,
+    })),
+  };
+}
+
+export async function getDriverFormOptions(): Promise<DriverFormOptions> {
+  const prisma = getPrismaClient();
+  const [leagues, seasons, organizations, users] = await prisma.$transaction([
+    prisma.league.findMany({
+      where: {
+        active: true,
+        code: { in: ["F1", "F2", "F3", "F4", "F5", "F6"] },
+      },
+      orderBy: [{ displayOrder: "asc" }, { code: "asc" }],
+      select: { id: true, code: true, name: true },
+    }),
+    prisma.season.findMany({
+      where: { active: true, archivedAt: null },
+      orderBy: [{ startsOn: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        leagueId: true,
+        name: true,
+        active: true,
+        archivedAt: true,
+        participatingLeagues: { select: { id: true } },
+      },
+    }),
+    prisma.teamOrganization.findMany({
+      where: { active: true, archivedAt: null },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        shortName: true,
+        color: true,
+        active: true,
+      },
+    }),
+    prisma.user.findMany({
+      where: { active: true },
+      orderBy: { displayName: "asc" },
+      select: {
+        id: true,
+        displayName: true,
+        discordId: true,
+        roles: true,
+        driver: { select: { id: true } },
+      },
+    }),
+  ]);
+
+  return {
+    leagues,
+    seasons: seasons.map((season) => ({
+      id: season.id,
+      leagueId: season.leagueId,
+      participatingLeagueIds: season.participatingLeagues.map(
+        (league) => league.id,
+      ),
+      name: season.name,
+      active: season.active,
+      archived: season.archivedAt !== null,
+    })),
+    organizations,
+    users: users.map((user) => ({
+      id: user.id,
+      displayName: user.displayName,
+      discordId: user.discordId,
+      roles: user.roles as Role[],
+      driverId: user.driver?.id ?? null,
     })),
   };
 }
@@ -444,8 +504,19 @@ export async function getDriverItems(
         ? [
             { name: { contains: query.q, mode: "insensitive" } },
             {
+              seasonAssignments: {
+                some: {
+                  organization: {
+                    name: { contains: query.q, mode: "insensitive" },
+                  },
+                },
+              },
+            },
+            {
               team: {
-                name: { contains: query.q, mode: "insensitive" },
+                organization: {
+                  name: { contains: query.q, mode: "insensitive" },
+                },
               },
             },
             {
@@ -457,35 +528,10 @@ export async function getDriverItems(
         : undefined,
     },
     orderBy: [{ active: "desc" }, { name: "asc" }],
-    include: {
-      league: { select: { id: true, code: true, name: true } },
-      team: {
-        select: {
-          id: true,
-          name: true,
-          shortName: true,
-          color: true,
-        },
-      },
-      user: {
-        select: { id: true, displayName: true, discordId: true },
-      },
-    },
+    include: driverItemInclude,
   });
 
-  return drivers.map((driver) => ({
-    id: driver.id,
-    name: driver.name,
-    number: driver.number,
-    flag: driver.flag,
-    countryCode: driver.countryCode,
-    active: driver.active,
-    userId: driver.userId,
-    league: driver.league,
-    team: driver.team,
-    user: driver.user,
-    updatedAt: driver.updatedAt.toISOString(),
-  }));
+  return drivers.map(mapDriverItem);
 }
 
 export async function getDriverById(
@@ -495,24 +541,166 @@ export async function getDriverById(
   const driver = await prisma.driver.findUnique({
     where: { id: driverId },
     include: {
-      league: { select: { id: true, code: true, name: true } },
-      team: {
-        select: {
-          id: true,
-          name: true,
-          shortName: true,
-          color: true,
-        },
-      },
-      user: {
-        select: { id: true, displayName: true, discordId: true },
-      },
+      ...driverItemInclude,
       _count: { select: { ticketLinks: true, standings: true } },
     },
   });
 
   if (!driver) return null;
 
+  return {
+    ...mapDriverItem(driver),
+    ticketCount: driver._count.ticketLinks,
+    standingCount: driver._count.standings,
+  };
+}
+
+const driverItemInclude = {
+  league: { select: { id: true, code: true, name: true } },
+  team: {
+    select: {
+      id: true,
+      leagueId: true,
+      seasonId: true,
+      organizationId: true,
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          color: true,
+          active: true,
+        },
+      },
+      season: {
+        select: {
+          id: true,
+          leagueId: true,
+          name: true,
+          active: true,
+          archivedAt: true,
+          participatingLeagues: { select: { id: true } },
+        },
+      },
+      league: { select: { id: true, code: true, name: true } },
+    },
+  },
+  seasonAssignments: {
+    where: { season: { active: true, archivedAt: null } },
+    orderBy: [{ active: "desc" as const }, { seasonId: "desc" as const }],
+    take: 1,
+    include: {
+      season: {
+        select: {
+          id: true,
+          leagueId: true,
+          name: true,
+          active: true,
+          archivedAt: true,
+          participatingLeagues: { select: { id: true } },
+        },
+      },
+      league: { select: { id: true, code: true, name: true } },
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          color: true,
+          active: true,
+        },
+      },
+    },
+  },
+  user: {
+    select: { id: true, displayName: true, discordId: true },
+  },
+} satisfies Prisma.DriverInclude;
+
+type DriverItemRecord = Prisma.DriverGetPayload<{
+  include: typeof driverItemInclude;
+}>;
+
+function mapDriverItem(driver: DriverItemRecord): DriverItem {
+  const canonicalAssignment = driver.seasonAssignments[0] ?? null;
+  const legacySlotIsConsistent = Boolean(
+    driver.team?.organization &&
+      driver.team.leagueId === driver.leagueId,
+  );
+  const fallbackAssignment =
+    !canonicalAssignment && legacySlotIsConsistent && driver.team?.organization
+      ? {
+          season: driver.team.season,
+          league: driver.team.league,
+          organization: driver.team.organization,
+          lineupStatus: DriverLineupStatus.Primary,
+          active: driver.active,
+          source: "LEGACY_FALLBACK" as const,
+        }
+      : null;
+  const assignment = canonicalAssignment
+    ? {
+        season: {
+          id: canonicalAssignment.season.id,
+          leagueId: canonicalAssignment.season.leagueId,
+          participatingLeagueIds:
+            canonicalAssignment.season.participatingLeagues.map(
+              (league) => league.id,
+            ),
+          name: canonicalAssignment.season.name,
+          active: canonicalAssignment.season.active,
+          archived: canonicalAssignment.season.archivedAt !== null,
+        },
+        league: canonicalAssignment.league,
+        organization: canonicalAssignment.organization,
+        lineupStatus: canonicalAssignment.lineupStatus as DriverLineupStatus,
+        active: canonicalAssignment.active,
+        source: "CANONICAL" as const,
+      }
+    : fallbackAssignment
+      ? {
+          ...fallbackAssignment,
+          season: {
+            id: fallbackAssignment.season.id,
+            leagueId: fallbackAssignment.season.leagueId,
+            participatingLeagueIds:
+              fallbackAssignment.season.participatingLeagues.map(
+                (league) => league.id,
+              ),
+            name: fallbackAssignment.season.name,
+            active: fallbackAssignment.season.active,
+            archived: fallbackAssignment.season.archivedAt !== null,
+          },
+        }
+      : null;
+  const diagnostics: string[] = [];
+
+  if (!canonicalAssignment && driver.team?.organization) {
+    diagnostics.push(
+      legacySlotIsConsistent
+        ? "Für den konsistenten technischen Teamplatz fehlt eine DriverSeasonAssignment. Die Auswahl wird beim Speichern ergänzt."
+        : `Legacy-Widerspruch: Fahrer-Liga ${driver.league.code}, technischer Teamplatz ${driver.team.league.code}. Es wurde keine Liga geraten.`,
+    );
+  }
+  if (canonicalAssignment) {
+    if (driver.leagueId !== canonicalAssignment.leagueId) {
+      diagnostics.push(
+        `Legacy-Widerspruch: Driver.leagueId verweist auf ${driver.league.code}, die aktuelle Zuordnung auf ${canonicalAssignment.league.code}.`,
+      );
+    }
+    const slotMatchesAssignment = canonicalAssignment.organizationId
+      ? driver.team?.organizationId === canonicalAssignment.organizationId &&
+        driver.team.leagueId === canonicalAssignment.leagueId &&
+        driver.team.seasonId === canonicalAssignment.seasonId
+      : driver.teamId === null;
+    if (!slotMatchesAssignment) {
+      diagnostics.push(
+        "Der technische Teamplatz stimmt nicht mit der kanonischen Saison-, Liga- und Teamzuordnung überein und wird beim Speichern korrigiert.",
+      );
+    }
+  }
+
+  const visibleOrganization = assignment?.organization ?? null;
   return {
     id: driver.id,
     name: driver.name,
@@ -521,12 +709,19 @@ export async function getDriverById(
     countryCode: driver.countryCode,
     active: driver.active,
     userId: driver.userId,
-    league: driver.league,
-    team: driver.team,
+    league: assignment?.league ?? driver.league,
+    team: visibleOrganization
+      ? {
+          id: visibleOrganization.id,
+          name: visibleOrganization.name,
+          shortName: visibleOrganization.shortName,
+          color: visibleOrganization.color,
+        }
+      : null,
+    assignment,
+    diagnostics,
     user: driver.user,
     updatedAt: driver.updatedAt.toISOString(),
-    ticketCount: driver._count.ticketLinks,
-    standingCount: driver._count.standings,
   };
 }
 

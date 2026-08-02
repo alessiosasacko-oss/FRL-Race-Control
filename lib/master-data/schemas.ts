@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  DriverLineupStatus,
   RaceStatus,
   countryCodeSchema,
   hexColorSchema,
@@ -143,8 +144,10 @@ export const driverSchema = z.object({
   number: z.coerce.number().int().min(1).max(999),
   countryCode: countryCodeSchema,
   userId: optionalId,
+  seasonId: entityId,
   leagueId: entityId,
-  teamId: optionalId,
+  organizationId: optionalId,
+  lineupStatus: z.enum(DriverLineupStatus),
   active: checkbox,
 });
 
