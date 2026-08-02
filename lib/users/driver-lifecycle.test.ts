@@ -19,6 +19,8 @@ const actions = source("lib/users/actions.ts");
 const dependencies = source("lib/users/driver-dependencies.ts");
 const dangerZone = source("components/users/DriverDangerZone.tsx");
 const userPage = source("app/(protected)/admin/users/[id]/page.tsx");
+const driverAdminPage = source("app/(protected)/admin/drivers/page.tsx");
+const driverDetailPage = source("app/(protected)/admin/drivers/[id]/page.tsx");
 const schema = source("prisma/schema.prisma");
 const teamQueries = source("lib/teams/queries.ts");
 
@@ -33,11 +35,23 @@ function actionBlock(name: string, nextName?: string): string {
 const profileDelete = actionBlock("deleteDriverProfileAction", "deleteUserAndDriverAction");
 const fullDelete = actionBlock("deleteUserAndDriverAction", "anonymizeDriverAction");
 const anonymize = actionBlock("anonymizeDriverAction");
+const profileDeleteCore = actions.slice(
+  actions.indexOf("async function performDriverProfileDeletion"),
+  actions.indexOf("function driverProfileDeletionError"),
+);
+const statusCore = actions.slice(
+  actions.indexOf("async function performDriverStatusChange"),
+  actions.indexOf("async function updateDriverStatus"),
+);
+const anonymizeCore = actions.slice(
+  actions.indexOf("async function performDriverAnonymization"),
+  actions.indexOf("function driverAnonymizationError"),
+);
 
 test("admin can delete an unused driver profile", () => {
   assert.equal(hasPermission([Role.Admin], Permission.ManageUsers), true);
   assert.equal(hasDependencies(emptyDriverHistoricalDependencies), false);
-  assert.match(profileDelete, /transaction\.driver\.delete/);
+  assert.match(profileDeleteCore, /transaction\.driver\.delete/);
 });
 
 test("normal driver cannot delete a driver profile", () => {
@@ -71,7 +85,7 @@ test("user remains when only the driver profile is deleted", () => {
 });
 
 test("DRIVER role can be removed with the profile", () => {
-  assert.match(profileDelete, /role !== Role\.Driver/);
+  assert.match(profileDeleteCore, /role !== Role\.Driver/);
   assert.match(dangerZone, /name="removeDriverRole" defaultChecked/);
 });
 
@@ -96,7 +110,7 @@ test("championship data blocks hard driver deletion", () => {
 });
 
 test("used driver can be deactivated", () => {
-  assert.match(actions, /action: parsed\.data\.active \? "DRIVER_REACTIVATED" : "DRIVER_DEACTIVATED"/);
+  assert.match(statusCore, /action: active \? "DRIVER_REACTIVATED" : "DRIVER_DEACTIVATED"/);
   assert.match(actions, /driverSeasonAssignment\.updateMany/);
 });
 
@@ -142,9 +156,9 @@ test("wrong server-side name confirmation blocks deletion", () => {
 });
 
 test("all destructive mutations use serializable transactions", () => {
-  assert.match(profileDelete, /isolationLevel: "Serializable"/);
+  assert.match(profileDeleteCore, /isolationLevel: "Serializable"/);
   assert.match(fullDelete, /isolationLevel: "Serializable"/);
-  assert.match(anonymize, /isolationLevel: "Serializable"/);
+  assert.match(anonymizeCore, /isolationLevel: "Serializable"/);
 });
 
 test("every lifecycle action writes a safe audit record", () => {
@@ -160,4 +174,39 @@ test("mobile danger zone is scrollable, contained and touch safe", () => {
   assert.match(dangerZone, /max-lg:w-full/);
   assert.match(dangerZone, /min-h-11/);
   assert.doesNotMatch(dangerZone, /<table/);
+});
+
+test("unlinked drivers use a driverId based deletion snapshot", () => {
+  assert.match(dependencies, /getDriverDeletionSnapshotByDriverId/);
+  assert.match(dependencies, /userId: true/);
+  assert.match(actions, /deleteDriverByIdAction/);
+});
+
+test("driver administration exposes edit, status and delete entries", () => {
+  assert.match(driverAdminPage, /Bearbeiten/);
+  assert.match(driverAdminPage, /Deaktivieren/);
+  assert.match(driverAdminPage, /Fahrer löschen/);
+});
+
+test("driver detail keeps a linked user account separate", () => {
+  assert.match(driverDetailPage, /Benutzerkonto separat verwalten/);
+  assert.match(driverDetailPage, /mode="driver"/);
+});
+
+test("driver deletion redirects to a visible success notice", () => {
+  assert.match(actions, /redirect\("\/admin\/drivers\?notice=deleted"\)/);
+  assert.match(driverAdminPage, /notice === "deleted"/);
+});
+
+test("driverId lifecycle actions remain server authorized", () => {
+  for (const actionName of [
+    "updateDriverStatusByIdAction",
+    "deleteDriverByIdAction",
+    "anonymizeDriverByIdAction",
+  ]) {
+    assert.match(actions, new RegExp(`export async function ${actionName}`));
+  }
+  assert.match(actions, /async function updateDriverStatus[\s\S]*Permission\.ManageUsers/);
+  assert.match(actionBlock("deleteDriverByIdAction", "deleteDriverProfileAction"), /Permission\.ManageUsers/);
+  assert.match(actionBlock("anonymizeDriverByIdAction", "anonymizeDriverAction"), /Permission\.ManageUsers/);
 });

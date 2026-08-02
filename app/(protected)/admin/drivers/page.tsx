@@ -10,8 +10,13 @@ import {
 
 const allDriversQuery = { q: "", active: "all" as const };
 
-export default async function DriverAdminPage() {
+type DriverAdminPageProps = {
+  searchParams: Promise<{ notice?: string }>;
+};
+
+export default async function DriverAdminPage({ searchParams }: DriverAdminPageProps) {
   await requirePermission(Permission.ManageMasterData);
+  const notice = (await searchParams).notice;
   const [drivers, options] = await Promise.all([
     getDriverItems(allDriversQuery),
     getDriverFormOptions(),
@@ -28,6 +33,11 @@ export default async function DriverAdminPage() {
             Fahrerprofile, Discord-Verknüpfung und sportliche Zuordnung.
           </p>
         </div>
+        {notice === "deleted" ? (
+          <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-semibold text-emerald-200">
+            Der Fahrer wurde endgültig gelöscht. Ein verknüpftes Benutzerkonto ist erhalten geblieben.
+          </p>
+        ) : null}
         <section className="master-card">
           <h2 className="mb-5 text-xl font-semibold text-white">
             Neuer Fahrer
@@ -38,7 +48,7 @@ export default async function DriverAdminPage() {
           {drivers.map((driver) => (
             <details key={driver.id} className="master-card">
               <summary className="cursor-pointer list-none">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="font-semibold text-white">
                       <span className="inline-flex items-center gap-2"><CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="sm" />#{driver.number} {driver.name}</span>
@@ -53,6 +63,11 @@ export default async function DriverAdminPage() {
                   </span>
                 </div>
               </summary>
+              <nav aria-label={`Aktionen für ${driver.name}`} className="mt-4 grid gap-2 border-t border-slate-800 pt-4 sm:grid-cols-3">
+                <Link href={`/admin/drivers/${driver.id}#edit`} className="wizard-secondary-button min-h-11 w-full"><Pencil size={17} />Bearbeiten</Link>
+                <Link href={`/admin/drivers/${driver.id}#danger-zone`} className="wizard-secondary-button min-h-11 w-full"><Power size={17} />{driver.active ? "Deaktivieren" : "Reaktivieren"}</Link>
+                <Link href={`/admin/drivers/${driver.id}#danger-zone`} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 font-bold text-red-200 hover:bg-red-500/20"><Trash2 size={17} />Fahrer löschen</Link>
+              </nav>
               <div className="mt-5 border-t border-slate-800 pt-5">
                 {driver.diagnostics.length > 0 ? (
                   <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
@@ -81,3 +96,5 @@ export default async function DriverAdminPage() {
     </AppLayout>
   );
 }
+import Link from "next/link";
+import { Pencil, Power, Trash2 } from "lucide-react";

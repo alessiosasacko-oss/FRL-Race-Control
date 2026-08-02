@@ -48,9 +48,12 @@ test("user actions export only async runtime functions", () => {
     "export async function updateUserRolesAction(",
     "export async function updateUserSportAssignmentAction(",
     "export async function updateUserStatusAction(",
+    "export async function updateDriverStatusByIdAction(",
     "export async function updateDriverStatusAction(",
+    "export async function deleteDriverByIdAction(",
     "export async function deleteDriverProfileAction(",
     "export async function deleteUserAndDriverAction(",
+    "export async function anonymizeDriverByIdAction(",
     "export async function anonymizeDriverAction(",
   ]);
 });

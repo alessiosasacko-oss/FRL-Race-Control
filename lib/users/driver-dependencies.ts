@@ -10,6 +10,35 @@ import {
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
+type RemovableDriverData = {
+  seasonAssignments: number;
+  accounts: number;
+  sessions: number;
+  notifications: number;
+  settings: number;
+  incompleteEvidenceUploads: number;
+  retainedSystemAudits: number;
+};
+
+export type DriverProfileDeletionSnapshot = {
+  driver: {
+    id: number;
+    name: string;
+    active: boolean;
+    userId: number | null;
+  };
+  user: {
+    id: number;
+    displayName: string;
+    roles: string[];
+    active: boolean;
+  } | null;
+  removable: RemovableDriverData;
+  driverDependencies: DriverHistoricalDependencyCounts;
+  driverBlockingMessages: string[];
+  canDeleteDriverProfile: boolean;
+};
+
 export type DriverDeletionSnapshot = {
   user: {
     id: number;
@@ -22,15 +51,7 @@ export type DriverDeletionSnapshot = {
     name: string;
     active: boolean;
   } | null;
-  removable: {
-    seasonAssignments: number;
-    accounts: number;
-    sessions: number;
-    notifications: number;
-    settings: number;
-    incompleteEvidenceUploads: number;
-    retainedSystemAudits: number;
-  };
+  removable: RemovableDriverData;
   driverDependencies: DriverHistoricalDependencyCounts;
   userDependencies: UserHistoricalDependencyCounts;
   driverBlockingMessages: string[];
@@ -38,6 +59,127 @@ export type DriverDeletionSnapshot = {
   canDeleteDriverProfile: boolean;
   canDeleteUserAndDriver: boolean;
 };
+
+async function getDriverHistoricalState(
+  database: DatabaseClient,
+  driverId: number,
+): Promise<{
+  dependencies: DriverHistoricalDependencyCounts;
+  seasonAssignments: number;
+}> {
+  const [
+    standings,
+    results,
+    attendance,
+    attendanceAudits,
+    adjustments,
+    fiaTickets,
+    penaltyProposals,
+    decisions,
+    seasonAssignments,
+  ] = await Promise.all([
+    database.driverStanding.count({ where: { driverId } }),
+    database.raceResult.count({
+      where: { OR: [{ driverId }, { expectedDriverId: driverId }] },
+    }),
+    database.raceAttendance.count({
+      where: { OR: [{ driverId }, { substituteDriverId: driverId }] },
+    }),
+    database.attendanceAudit.count({ where: { driverId } }),
+    database.championshipAdjustment.count({ where: { driverId } }),
+    database.fiaTicketDriver.count({ where: { driverId } }),
+    database.penaltyProposal.count({ where: { affectedDriverId: driverId } }),
+    database.decision.count({ where: { affectedDriverId: driverId } }),
+    database.driverSeasonAssignment.count({ where: { driverId } }),
+  ]);
+
+  return {
+    dependencies: {
+      standings,
+      results,
+      attendance,
+      attendanceAudits,
+      adjustments,
+      fiaTickets,
+      penaltyProposals,
+      decisions,
+    },
+    seasonAssignments,
+  };
+}
+
+export async function getDriverDeletionSnapshotByDriverId(
+  database: DatabaseClient,
+  driverId: number,
+): Promise<DriverProfileDeletionSnapshot | null> {
+  const driver = await database.driver.findUnique({
+    where: { id: driverId },
+    select: {
+      id: true,
+      name: true,
+      active: true,
+      userId: true,
+      user: {
+        select: { id: true, displayName: true, roles: true, active: true },
+      },
+    },
+  });
+  if (!driver) return null;
+
+  const [historicalState, accountCounts, retainedSystemAudits] = await Promise.all([
+    getDriverHistoricalState(database, driver.id),
+    driver.userId
+      ? Promise.all([
+          database.account.count({ where: { userId: driver.userId } }),
+          database.session.count({ where: { userId: driver.userId } }),
+          database.notification.count({ where: { userId: driver.userId } }),
+          database.userSettings.count({ where: { userId: driver.userId } }),
+          database.evidenceUpload.count({
+            where: {
+              userId: driver.userId,
+              evidenceId: null,
+              status: { not: "COMPLETED" },
+            },
+          }),
+        ])
+      : Promise.resolve([0, 0, 0, 0, 0]),
+    database.systemAuditLog.count({
+      where: {
+        OR: [
+          { entityType: "Driver", entityId: driver.id },
+          ...(driver.userId
+            ? [{ entityType: "User", entityId: driver.userId }]
+            : []),
+        ],
+      },
+    }),
+  ]);
+  const driverBlockingMessages = driverDependencyMessages(
+    historicalState.dependencies,
+  );
+
+  return {
+    driver: {
+      id: driver.id,
+      name: driver.name,
+      active: driver.active,
+      userId: driver.userId,
+    },
+    user: driver.user,
+    removable: {
+      seasonAssignments: historicalState.seasonAssignments,
+      accounts: accountCounts[0],
+      sessions: accountCounts[1],
+      notifications: accountCounts[2],
+      settings: accountCounts[3],
+      incompleteEvidenceUploads: accountCounts[4],
+      retainedSystemAudits,
+    },
+    driverDependencies: historicalState.dependencies,
+    driverBlockingMessages,
+    canDeleteDriverProfile: !hasDependencies(historicalState.dependencies),
+  };
+}
 
 export async function getDriverDeletionSnapshot(
   database: DatabaseClient,
@@ -57,15 +199,7 @@ export async function getDriverDeletionSnapshot(
   const driverId = user.driver?.id;
 
   const [
-    standings,
-    results,
-    attendance,
-    attendanceAudits,
-    adjustments,
-    fiaTickets,
-    penaltyProposals,
-    decisions,
-    seasonAssignments,
+    historicalState,
     reportedTickets,
     archivedTickets,
     stewardAssignments,
@@ -99,29 +233,21 @@ export async function getDriverDeletionSnapshot(
     settings,
     incompleteEvidenceUploads,
   ] = await Promise.all([
-    driverId ? database.driverStanding.count({ where: { driverId } }) : 0,
     driverId
-      ? database.raceResult.count({
-          where: { OR: [{ driverId }, { expectedDriverId: driverId }] },
-        })
-      : 0,
-    driverId
-      ? database.raceAttendance.count({
-          where: { OR: [{ driverId }, { substituteDriverId: driverId }] },
-        })
-      : 0,
-    driverId ? database.attendanceAudit.count({ where: { driverId } }) : 0,
-    driverId
-      ? database.championshipAdjustment.count({ where: { driverId } })
-      : 0,
-    driverId ? database.fiaTicketDriver.count({ where: { driverId } }) : 0,
-    driverId
-      ? database.penaltyProposal.count({ where: { affectedDriverId: driverId } })
-      : 0,
-    driverId ? database.decision.count({ where: { affectedDriverId: driverId } }) : 0,
-    driverId
-      ? database.driverSeasonAssignment.count({ where: { driverId } })
-      : 0,
+      ? getDriverHistoricalState(database, driverId)
+      : Promise.resolve({
+          dependencies: {
+            standings: 0,
+            results: 0,
+            attendance: 0,
+            attendanceAudits: 0,
+            adjustments: 0,
+            fiaTickets: 0,
+            penaltyProposals: 0,
+            decisions: 0,
+          },
+          seasonAssignments: 0,
+        }),
     database.fiaTicket.count({ where: { reportedByUserId: userId } }),
     database.fiaTicket.count({ where: { archivedById: userId } }),
     database.fiaTicketSteward.count({ where: { userId } }),
@@ -179,16 +305,7 @@ export async function getDriverDeletionSnapshot(
     }),
   ]);
 
-  const driverDependencies: DriverHistoricalDependencyCounts = {
-    standings,
-    results,
-    attendance,
-    attendanceAudits,
-    adjustments,
-    fiaTickets,
-    penaltyProposals,
-    decisions,
-  };
+  const driverDependencies = historicalState.dependencies;
   const userDependencies: UserHistoricalDependencyCounts = {
     reportedTickets,
     archivedTickets,
@@ -224,7 +341,7 @@ export async function getDriverDeletionSnapshot(
     },
     driver: user.driver,
     removable: {
-      seasonAssignments,
+      seasonAssignments: historicalState.seasonAssignments,
       accounts,
       sessions,
       notifications,
