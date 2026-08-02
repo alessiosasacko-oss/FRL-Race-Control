@@ -17,11 +17,20 @@ import {
   logUserRoleAdministrationEvent,
 } from "./diagnostics";
 import {
+  driverAnonymizeSchema,
+  driverProfileDeleteSchema,
+  driverStatusSchema,
+  userAndDriverDeleteSchema,
   userRoleUpdateSchema,
   userSportAssignmentSchema,
   userStatusUpdateSchema,
 } from "./schemas";
 import type { UserAdminActionState } from "./action-state";
+import { getDriverDeletionSnapshot } from "./driver-dependencies";
+import {
+  anonymizedDriverName,
+  destructiveNameMatches,
+} from "./driver-lifecycle";
 
 function roleValues(formData: FormData): string[] {
   return formData.getAll("roles").map(String);
@@ -485,4 +494,318 @@ export async function updateUserStatusAction(
   });
   refreshUserAdministration(userId);
   return { status: "success", message: parsed.data.active ? "Benutzer wurde aktiviert." : "Benutzer wurde gesperrt." };
+}
+
+export async function updateDriverStatusAction(
+  userId: number,
+  _previous: UserAdminActionState,
+  formData: FormData,
+): Promise<UserAdminActionState> {
+  const actor = await requirePermission(Permission.ManageUsers);
+  const parsed = driverStatusSchema.safeParse({
+    active: formData.get("active"),
+    confirmed: formData.get("confirmed"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: "Bitte Statusänderung, Grund und Bestätigung vollständig angeben." };
+  }
+  const prisma = getPrismaClient();
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const target = await transaction.user.findUnique({
+        where: { id: userId },
+        select: { driver: { select: { id: true, active: true } } },
+      });
+      if (!target?.driver) throw new Error("DRIVER_NOT_FOUND");
+      if (target.driver.active === parsed.data.active) return;
+
+      await transaction.driver.update({
+        where: { id: target.driver.id },
+        data: { active: parsed.data.active },
+      });
+      if (!parsed.data.active) {
+        await transaction.driverSeasonAssignment.updateMany({
+          where: { driverId: target.driver.id, active: true },
+          data: { active: false },
+        });
+      }
+      await writeSystemAudit(transaction, {
+        actorId: actor.id,
+        action: parsed.data.active ? "DRIVER_REACTIVATED" : "DRIVER_DEACTIVATED",
+        entityType: "Driver",
+        entityId: target.driver.id,
+        metadata: {
+          userId,
+          previous: target.driver.active,
+          next: parsed.data.active,
+          assignmentsReactivated: false,
+          reason: parsed.data.reason,
+        },
+      });
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    logUserAdministrationFailure("driver-status", error);
+    return { status: "error", message: "Der Fahrerstatus konnte nicht geändert werden. Fehlerreferenz: DRIVER-STATUS-4A12" };
+  }
+  refreshUserAdministration(userId);
+  return {
+    status: "success",
+    message: parsed.data.active
+      ? "Fahrer wurde reaktiviert. Saison- und Teamzuordnungen bleiben bis zur bewussten Neuzuweisung inaktiv."
+      : "Fahrer wurde deaktiviert. Historische Ergebnisse und Zuordnungen bleiben erhalten.",
+  };
+}
+
+export async function deleteDriverProfileAction(
+  userId: number,
+  _previous: UserAdminActionState,
+  formData: FormData,
+): Promise<UserAdminActionState> {
+  const actor = await requirePermission(Permission.ManageUsers);
+  const parsed = driverProfileDeleteSchema.safeParse({
+    confirmationName: formData.get("confirmationName"),
+    irreversible: formData.get("irreversible"),
+    removeDriverRole: formData.get("removeDriverRole"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: "Name, Unwiderruflichkeit und Grund müssen serverseitig bestätigt werden." };
+  }
+  const prisma = getPrismaClient();
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const snapshot = await getDriverDeletionSnapshot(transaction, userId);
+      if (!snapshot?.driver) throw new Error("DRIVER_NOT_FOUND");
+      if (!destructiveNameMatches(snapshot.driver.name, parsed.data.confirmationName)) {
+        throw new Error("DRIVER_NAME_MISMATCH");
+      }
+      if (!snapshot.canDeleteDriverProfile) {
+        throw new Error(`DRIVER_HAS_HISTORY:${snapshot.driverBlockingMessages.join("|")}`);
+      }
+
+      await transaction.driverSeasonAssignment.deleteMany({
+        where: { driverId: snapshot.driver.id },
+      });
+      await transaction.driver.delete({ where: { id: snapshot.driver.id } });
+      const nextRoles = parsed.data.removeDriverRole
+        ? snapshot.user.roles.filter((role) => role !== Role.Driver)
+        : snapshot.user.roles;
+      if (parsed.data.removeDriverRole) {
+        await transaction.user.update({
+          where: { id: userId },
+          data: { roles: nextRoles as Role[] },
+        });
+      }
+      await writeSystemAudit(transaction, {
+        actorId: actor.id,
+        action: "DRIVER_PROFILE_DELETED",
+        entityType: "User",
+        entityId: userId,
+        metadata: {
+          formerDriverId: snapshot.driver.id,
+          removedDriverRole: parsed.data.removeDriverRole,
+          deletedSeasonAssignmentCount: snapshot.removable.seasonAssignments,
+          retainedHistoricalLinkCount: 0,
+          reason: parsed.data.reason,
+        },
+      });
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "DRIVER_NAME_MISMATCH") {
+      return { status: "error", message: "Der eingegebene Fahrername stimmt nicht mit der serverseitigen Bestätigung überein." };
+    }
+    if (error instanceof Error && error.message.startsWith("DRIVER_HAS_HISTORY:")) {
+      return { status: "error", message: `Dieser Fahrer besitzt historische Daten und kann nicht gelöscht werden: ${error.message.slice("DRIVER_HAS_HISTORY:".length).split("|").join(", ")}. Deaktiviere oder anonymisiere ihn stattdessen.` };
+    }
+    logUserAdministrationFailure("driver-profile-delete", error);
+    return { status: "error", message: "Das Fahrerprofil konnte nicht vollständig gelöscht werden. Fehlerreferenz: DRIVER-DELETE-9C21" };
+  }
+  refreshUserAdministration(userId);
+  return { status: "success", message: "Fahrerprofil wurde endgültig gelöscht. Das Benutzerkonto bleibt bestehen." };
+}
+
+export async function deleteUserAndDriverAction(
+  userId: number,
+  _previous: UserAdminActionState,
+  formData: FormData,
+): Promise<UserAdminActionState> {
+  const actor = await requirePermission(Permission.ManageUsers);
+  if (!actor.roles.includes(Role.SuperAdmin)) {
+    return { status: "error", message: "Nur Super-Administratoren dürfen Benutzerkonten endgültig löschen." };
+  }
+  if (actor.id === userId) {
+    return { status: "error", message: "Du kannst dein aktuell angemeldetes Benutzerkonto nicht selbst löschen." };
+  }
+  const parsed = userAndDriverDeleteSchema.safeParse({
+    confirmationName: formData.get("confirmationName"),
+    irreversible: formData.get("irreversible"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: "Name, Unwiderruflichkeit und Grund müssen serverseitig bestätigt werden." };
+  }
+  const prisma = getPrismaClient();
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const snapshot = await getDriverDeletionSnapshot(transaction, userId);
+      if (!snapshot) throw new Error("USER_NOT_FOUND");
+      const confirmationTarget = snapshot.driver?.name ?? snapshot.user.displayName;
+      if (!destructiveNameMatches(confirmationTarget, parsed.data.confirmationName)) {
+        throw new Error("USER_NAME_MISMATCH");
+      }
+      if (snapshot.user.roles.includes(Role.SuperAdmin)) {
+        const superAdminCount = await transaction.user.count({
+          where: { active: true, roles: { has: Role.SuperAdmin } },
+        });
+        if (superAdminCount <= 1) throw new Error("LAST_SUPER_ADMIN");
+      }
+      if (!snapshot.canDeleteUserAndDriver) {
+        throw new Error(`USER_HAS_HISTORY:${[
+          ...snapshot.driverBlockingMessages,
+          ...snapshot.userBlockingMessages,
+        ].join("|")}`);
+      }
+
+      await writeSystemAudit(transaction, {
+        actorId: actor.id,
+        action: "USER_AND_DRIVER_DELETED",
+        entityType: "DeletedUser",
+        entityId: userId,
+        metadata: {
+          formerUserId: userId,
+          formerDriverId: snapshot.driver?.id ?? null,
+          deletedAccountCount: snapshot.removable.accounts,
+          deletedSessionCount: snapshot.removable.sessions,
+          deletedSeasonAssignmentCount: snapshot.removable.seasonAssignments,
+          retainedSystemAuditCount: snapshot.removable.retainedSystemAudits,
+          retainedHistoricalLinkCount: 0,
+          reason: parsed.data.reason,
+        },
+      });
+      if (snapshot.driver) {
+        await transaction.driverSeasonAssignment.deleteMany({
+          where: { driverId: snapshot.driver.id },
+        });
+        await transaction.driver.delete({ where: { id: snapshot.driver.id } });
+      }
+      const abandonedUploads = await transaction.evidenceUpload.findMany({
+        where: {
+          userId,
+          evidenceId: null,
+          status: { not: "COMPLETED" },
+        },
+        select: { storagePath: true },
+      });
+      if (abandonedUploads.length > 0) {
+        await transaction.evidenceStorageCleanup.createMany({
+          data: abandonedUploads.map((upload) => ({ storagePath: upload.storagePath })),
+          skipDuplicates: true,
+        });
+      }
+      await transaction.user.delete({ where: { id: userId } });
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "USER_NAME_MISMATCH") {
+      return { status: "error", message: "Der eingegebene Name stimmt nicht mit der serverseitigen Bestätigung überein." };
+    }
+    if (error instanceof Error && error.message === "LAST_SUPER_ADMIN") {
+      return { status: "error", message: "Der letzte aktive Super-Administrator kann nicht gelöscht werden." };
+    }
+    if (error instanceof Error && error.message.startsWith("USER_HAS_HISTORY:")) {
+      return { status: "error", message: `Dieses Konto besitzt historische Abhängigkeiten und kann nicht gelöscht werden: ${error.message.slice("USER_HAS_HISTORY:".length).split("|").filter(Boolean).join(", ")}.` };
+    }
+    logUserAdministrationFailure("user-driver-delete", error);
+    return { status: "error", message: "Benutzerkonto und Fahrer konnten nicht gelöscht werden. Fehlerreferenz: USER-DELETE-2F84" };
+  }
+  refreshUserAdministration(userId);
+  return { status: "success", message: "Benutzerkonto, Auth.js-Verknüpfungen, Sessions und Fahrerprofil wurden endgültig gelöscht." };
+}
+
+export async function anonymizeDriverAction(
+  userId: number,
+  _previous: UserAdminActionState,
+  formData: FormData,
+): Promise<UserAdminActionState> {
+  const actor = await requirePermission(Permission.ManageUsers);
+  if (!actor.roles.includes(Role.SuperAdmin)) {
+    return { status: "error", message: "Nur Super-Administratoren dürfen Fahrerdaten anonymisieren." };
+  }
+  if (actor.id === userId) {
+    return { status: "error", message: "Du kannst dein aktuell angemeldetes Profil nicht selbst anonymisieren." };
+  }
+  const parsed = driverAnonymizeSchema.safeParse({
+    confirmationName: formData.get("confirmationName"),
+    irreversible: formData.get("irreversible"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: "Name, Unwiderruflichkeit und Grund müssen serverseitig bestätigt werden." };
+  }
+  const prisma = getPrismaClient();
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const snapshot = await getDriverDeletionSnapshot(transaction, userId);
+      if (!snapshot?.driver) throw new Error("DRIVER_NOT_FOUND");
+      if (!destructiveNameMatches(snapshot.driver.name, parsed.data.confirmationName)) {
+        throw new Error("DRIVER_NAME_MISMATCH");
+      }
+      const anonymousName = anonymizedDriverName(snapshot.driver.id);
+      await transaction.driver.update({
+        where: { id: snapshot.driver.id },
+        data: {
+          name: anonymousName,
+          flag: "XX",
+          countryCode: "XX",
+          active: false,
+        },
+      });
+      await transaction.driverSeasonAssignment.updateMany({
+        where: { driverId: snapshot.driver.id, active: true },
+        data: { active: false },
+      });
+      await transaction.account.deleteMany({ where: { userId } });
+      await transaction.session.deleteMany({ where: { userId } });
+      await transaction.emailDelivery.deleteMany({ where: { userId } });
+      await transaction.notification.deleteMany({ where: { userId } });
+      await transaction.user.update({
+        where: { id: userId },
+        data: {
+          displayName: anonymousName,
+          discordId: null,
+          discordUsername: null,
+          discordGlobalName: null,
+          discordGuildNickname: null,
+          discordAvatarUrl: null,
+          discordVerifiedAt: null,
+          discordSyncedAt: null,
+          email: null,
+          emailVerified: null,
+          avatarUrl: null,
+        },
+      });
+      await writeSystemAudit(transaction, {
+        actorId: actor.id,
+        action: "DRIVER_ANONYMIZED",
+        entityType: "Driver",
+        entityId: snapshot.driver.id,
+        metadata: {
+          userId,
+          removedAccountCount: snapshot.removable.accounts,
+          removedSessionCount: snapshot.removable.sessions,
+          retainedHistoricalLinkCount:
+            snapshot.driverBlockingMessages.length + snapshot.userBlockingMessages.length,
+          reason: parsed.data.reason,
+        },
+      });
+    }, { isolationLevel: "Serializable" });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "DRIVER_NAME_MISMATCH") {
+      return { status: "error", message: "Der eingegebene Fahrername stimmt nicht mit der serverseitigen Bestätigung überein." };
+    }
+    logUserAdministrationFailure("driver-anonymize", error);
+    return { status: "error", message: "Die Fahrerdaten konnten nicht anonymisiert werden. Fehlerreferenz: DRIVER-ANON-6D33" };
+  }
+  refreshUserAdministration(userId);
+  return { status: "success", message: "Personenbezogene Fahrerdaten wurden anonymisiert; sportliche Historie und Punkte bleiben erhalten." };
 }

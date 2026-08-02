@@ -6,12 +6,15 @@ import AppLayout from "@/components/layout/AppLayout";
 import CountryFlag from "@/components/ui/CountryFlag";
 import PageHeader from "@/components/ui/PageHeader";
 import UserAccessOverview from "@/components/users/UserAccessOverview";
+import DriverDangerZone from "@/components/users/DriverDangerZone";
 import { AccountStatusEditor, RoleEditor, SportAssignmentEditor } from "@/components/users/UserAdminForms";
 import { DriverLineupStatus, Role, roleLabels } from "@/domain";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getUserAdminDetail, getUserAdminOptions } from "@/lib/users/queries";
 import { logUserAdministrationFailure } from "@/lib/users/diagnostics";
+import { getDriverDeletionSnapshot } from "@/lib/users/driver-dependencies";
+import { getPrismaClient } from "@/lib/db/prisma";
 
 type UserDetailProps = {
   params: Promise<{ id: string }>;
@@ -22,13 +25,19 @@ export default async function UserAdminDetailPage({ params, searchParams }: User
   const actor = await requirePermission(Permission.ManageUsers);
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) notFound();
-  const [user, optionsResult] = await Promise.all([
+  const [user, optionsResult, deletionResult] = await Promise.all([
     getUserAdminDetail(id),
     getUserAdminOptions()
       .then((data) => ({ data, failed: false as const }))
       .catch((error: unknown) => {
         logUserAdministrationFailure("user-detail-options", error);
         return { data: { leagues: [], seasons: [], organizations: [], primaryAssignments: [] }, failed: true as const };
+      }),
+    getDriverDeletionSnapshot(getPrismaClient(), id)
+      .then((data) => ({ data, failed: false as const }))
+      .catch((error: unknown) => {
+        logUserAdministrationFailure("user-detail-deletion-dependencies", error);
+        return { data: null, failed: true as const };
       }),
   ]);
   if (!user) notFound();
@@ -64,6 +73,7 @@ export default async function UserAdminDetailPage({ params, searchParams }: User
             <section className="surface-panel p-5 sm:p-6"><p className="eyebrow">Systemrollen</p><h2 className="mt-2 text-xl font-black text-white">Rollen bearbeiten</h2><div className="mt-5"><RoleEditor userId={user.id} roles={user.roles} actorIsSuperAdmin={actor.roles.includes(Role.SuperAdmin)} /></div></section>
             <section className="surface-panel p-5 sm:p-6"><p className="eyebrow">Sportliche Zuordnung</p><h2 className="mt-2 text-xl font-black text-white">Saison, Liga und Team</h2><div className="mt-5">{optionsWarning ? <p className="text-sm text-slate-400">Die Zuordnungsoptionen sind momentan nicht verfügbar. Bestehende Daten wurden nicht verändert.</p> : <SportAssignmentEditor userId={user.id} displayName={user.displayName} driver={user.driver} assignment={currentAssignment ? { ...currentAssignment, lineupStatus: currentAssignment.lineupStatus as DriverLineupStatus } : null} options={options} />}</div></section>
             <section className="surface-panel p-5 sm:p-6"><p className="eyebrow">Kontostatus</p><h2 className="mt-2 text-xl font-black text-white">Aktivieren oder sperren</h2><div className="mt-5"><AccountStatusEditor userId={user.id} active={user.active} /></div></section>
+            {deletionResult.data ? <DriverDangerZone snapshot={deletionResult.data} actorRoles={actor.roles} /> : <section className="rounded-2xl border border-red-500/30 bg-red-950/10 p-5 text-sm text-amber-100">Die Gefahrenzone ist vorübergehend nicht verfügbar, weil die Abhängigkeiten nicht vollständig geprüft werden konnten. Es wurde keine Löschaktion freigegeben.</section>}
             <UserAccessOverview userName={user.displayName} {...user.access} />
             <section className="surface-panel p-5 sm:p-6"><div className="flex items-center gap-2"><History size={19} className="text-blue-300" /><h2 className="text-xl font-black text-white">Audit-Historie</h2></div><div className="mt-5 space-y-3">{user.audit.map((entry) => <article key={entry.id} className="rounded-xl border border-slate-800 bg-slate-950/35 p-4"><div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><strong className="text-white">{entry.action}</strong><time className="text-xs text-slate-500">{new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(entry.createdAt))}</time></div><p className="mt-2 text-sm text-slate-400">Durch {entry.actorName}</p></article>)}{user.audit.length === 0 ? <p className="text-sm text-slate-500">Noch keine Verwaltungsänderung protokolliert.</p> : null}</div></section>
           </>

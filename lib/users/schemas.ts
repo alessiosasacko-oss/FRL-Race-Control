@@ -37,6 +37,32 @@ export const userStatusUpdateSchema = z.object({
   reason: z.string().trim().max(500).optional().default(""),
 });
 
+const destructiveReason = z.string().trim().min(3).max(500);
+
+export const driverStatusSchema = z.object({
+  active: z.preprocess((value) => value === "true" || value === true, z.boolean()),
+  confirmed: z.literal("on"),
+  reason: destructiveReason,
+});
+
+export const driverProfileDeleteSchema = z.object({
+  confirmationName: z.string().trim().min(1).max(160),
+  irreversible: z.literal("on"),
+  removeDriverRole: z.preprocess(
+    (value) => value === "on" || value === true,
+    z.boolean(),
+  ),
+  reason: destructiveReason,
+});
+
+export const userAndDriverDeleteSchema = z.object({
+  confirmationName: z.string().trim().min(1).max(160),
+  irreversible: z.literal("on"),
+  reason: destructiveReason,
+});
+
+export const driverAnonymizeSchema = userAndDriverDeleteSchema;
+
 export const userListQuerySchema = z.object({
   q: z.string().trim().max(100).catch(""),
   role: z.enum(Role).optional().catch(undefined),
