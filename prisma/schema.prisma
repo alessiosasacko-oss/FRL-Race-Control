@@ -1411,6 +1411,12 @@ model UserSettings {
   @@index([emailEnabled])
 }
 
+model AppDataRevision {
+  scope     String   @id @db.VarChar(40)
+  revision  BigInt   @default(0)
+  updatedAt DateTime @updatedAt
+}
+
 model DesignTheme {
   id                    Int                  @id @default(autoincrement())
   name                  String               @db.VarChar(160)

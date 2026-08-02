@@ -6,6 +6,7 @@ import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { writeSystemAudit } from "@/lib/audit/system";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import {
   defaultDesignTheme,
   designThemeConfigSchema,
@@ -52,9 +53,10 @@ function configData(config: typeof defaultDesignTheme) {
   };
 }
 
-function revalidateDesign(): void {
+async function revalidateDesign(): Promise<void> {
   revalidatePath("/", "layout");
   revalidatePath("/admin/design");
+  await touchAppDataRevisionSafely(getPrismaClient(), ["design"]);
 }
 
 export async function saveDesignDraftAction(
@@ -181,7 +183,7 @@ export async function publishDesignAction(
   } catch {
     return errorState("Das Design konnte nicht veröffentlicht werden.");
   }
-  revalidateDesign();
+  await revalidateDesign();
   return { status: "success", message: "Design global veröffentlicht." };
 }
 
@@ -218,7 +220,7 @@ export async function restoreDefaultDesignAction(): Promise<void> {
       entityId: theme.id,
     });
   });
-  revalidateDesign();
+  await revalidateDesign();
 }
 
 export async function restoreDesignVersionAction(versionId: number): Promise<void> {
@@ -262,7 +264,7 @@ export async function updateLeagueBrandingAction(formData: FormData): Promise<vo
     entityId: id,
     metadata: { color: color.data },
   });
-  revalidateDesign();
+  await revalidateDesign();
 }
 
 export async function updateTeamBrandingAction(formData: FormData): Promise<void> {
@@ -291,5 +293,5 @@ export async function updateTeamBrandingAction(formData: FormData): Promise<void
     entityId: id,
     metadata: { color: color.data, secondaryColor: secondaryColor.data, logoUpdated: Boolean(logoUrl.data) },
   });
-  revalidateDesign();
+  await revalidateDesign();
 }

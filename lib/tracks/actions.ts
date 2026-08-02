@@ -5,6 +5,7 @@ import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { writeSystemAudit } from "@/lib/audit/system";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { trackSchema } from "@/lib/tracks/schemas";
 import type { TrackActionState } from "@/lib/tracks/types";
 
@@ -43,10 +44,11 @@ function splitTrack(input: ReturnType<typeof trackSchema.parse>) {
   };
 }
 
-function revalidateTracks() {
+async function revalidateTracks(): Promise<void> {
   revalidatePath("/admin/tracks");
   revalidatePath("/admin/races");
   revalidatePath("/calendar");
+  await touchAppDataRevisionSafely(getPrismaClient(), ["calendar"]);
 }
 
 export async function createTrackAction(_state: TrackActionState, formData: FormData): Promise<TrackActionState> {
@@ -62,7 +64,7 @@ export async function createTrackAction(_state: TrackActionState, formData: Form
   } catch {
     return errorState("Die Strecke konnte nicht gespeichert werden.");
   }
-  revalidateTracks();
+  await revalidateTracks();
   return { status: "success", message: "Strecke erstellt." };
 }
 
@@ -80,7 +82,7 @@ export async function updateTrackAction(id: number, _state: TrackActionState, fo
   } catch {
     return errorState("Die Strecke konnte nicht aktualisiert werden.");
   }
-  revalidateTracks();
+  await revalidateTracks();
   return { status: "success", message: "Strecke aktualisiert." };
 }
 
@@ -91,5 +93,5 @@ export async function deleteTrackAction(id: number): Promise<void> {
   if (!track || track._count.races > 0) return;
   await getPrismaClient().track.delete({ where: { id } });
   await writeSystemAudit(getPrismaClient(), { actorId: user.id, action: "TRACK_DELETED", entityType: "Track", entityId: id });
-  revalidateTracks();
+  await revalidateTracks();
 }

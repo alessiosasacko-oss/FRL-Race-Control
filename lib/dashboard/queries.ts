@@ -5,25 +5,26 @@ import {
   penaltyTypeLabels,
 } from "@/domain";
 import { getPrismaClient } from "@/lib/db/prisma";
-import { getRecentNotifications } from "@/lib/notifications/queries";
+import { getRecentNotifications, getUnreadNotificationCount } from "@/lib/notifications/queries";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import type { DashboardData } from "./types";
 
 async function optionalDashboardData<T>(
   label: string,
-  userId: number,
+  _userId: number,
   load: () => PromiseLike<T>,
   fallback: T,
 ): Promise<T> {
   try {
     return await load();
   } catch (error: unknown) {
+    const reference = crypto.randomUUID();
     console.error(`[dashboard] Unable to load ${label}.`, {
-      userId,
-      error:
-        error instanceof Error
-          ? { name: error.name, message: error.message }
-          : "Unknown error",
+      reference,
+      name: error instanceof Error ? error.name : "UnknownError",
+      code: typeof error === "object" && error !== null && "code" in error
+        ? String(error.code)
+        : undefined,
     });
     return fallback;
   }
@@ -32,12 +33,19 @@ async function optionalDashboardData<T>(
 export async function getDashboardData(
   userId: number,
 ): Promise<DashboardData> {
+  const startedAt = performance.now();
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: {
+    select: {
+      displayName: true,
+      avatarUrl: true,
       driver: {
-        include: {
+        select: {
+          id: true,
+          name: true,
+          number: true,
+          flag: true,
           league: {
             select: {
               id: true,
@@ -47,7 +55,11 @@ export async function getDashboardData(
             },
           },
           team: {
-            include: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+              seasonId: true,
               season: { select: { id: true, name: true } },
             },
           },
@@ -141,6 +153,7 @@ export async function getDashboardData(
     latestDecisions,
     penalties,
     notifications,
+    unreadNotificationCount,
   ] = await Promise.all([
     nextRace && driverId
       ? optionalDashboardData(
@@ -303,11 +316,17 @@ export async function getDashboardData(
       () => getRecentNotifications(userId, 5),
       [],
     ),
+    optionalDashboardData(
+      "unread notification count",
+      userId,
+      () => getUnreadNotificationCount(userId),
+      0,
+    ),
   ]);
 
-  const driverStanding =
+  const [driverStanding, teamStanding, driverLeader, teamLeader] = await Promise.all([
     driverId && seasonId
-      ? await optionalDashboardData(
+      ? optionalDashboardData(
           "driver standing",
           userId,
           () =>
@@ -322,10 +341,9 @@ export async function getDashboardData(
             }),
           null,
         )
-      : null;
-  const teamStanding =
+      : null,
     teamId && seasonId
-      ? await optionalDashboardData(
+      ? optionalDashboardData(
           "team standing",
           userId,
           () =>
@@ -340,9 +358,9 @@ export async function getDashboardData(
             }),
           null,
         )
-      : null;
-  const driverLeader = seasonId
-    ? await optionalDashboardData(
+      : null,
+    seasonId
+      ? optionalDashboardData(
         "driver championship leader",
         userId,
         () =>
@@ -358,9 +376,9 @@ export async function getDashboardData(
           }),
         null,
       )
-    : null;
-  const teamLeader = seasonId
-    ? await optionalDashboardData(
+      : null,
+    seasonId
+      ? optionalDashboardData(
         "team championship leader",
         userId,
         () =>
@@ -376,7 +394,8 @@ export async function getDashboardData(
           }),
         null,
       )
-    : null;
+      : null,
+  ]);
   const publicTrack = nextRace ? publicRaceTrack(nextRace) : null;
   const deadlinePassed = Boolean(
     (nextSchedule?.attendanceDeadline ??
@@ -385,7 +404,7 @@ export async function getDashboardData(
         nextRace?.attendanceDeadline)! <= new Date(),
   );
 
-  return {
+  const data: DashboardData = {
     identity: {
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
@@ -508,5 +527,11 @@ export async function getDashboardData(
       })),
     },
     notifications,
+    unreadNotificationCount,
   };
+  console.info("[dashboard] query completed", {
+    durationMs: Math.round(performance.now() - startedAt),
+    subqueryCount: 14,
+  });
+  return data;
 }

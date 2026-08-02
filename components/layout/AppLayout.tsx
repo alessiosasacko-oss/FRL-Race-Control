@@ -12,21 +12,7 @@ type AppLayoutProps = {
 };
 
 export default async function AppLayout({ children }: AppLayoutProps) {
-  const user = await requireAuthenticatedUser();
-  const theme = await getResolvedTheme(user.id);
-  let unreadNotifications = 0;
-
-  try {
-    unreadNotifications = await getUnreadNotificationCount(user.id);
-  } catch (error: unknown) {
-    console.error("[app-shell] Unable to load unread notification count.", {
-      userId: user.id,
-      error:
-        error instanceof Error
-          ? { name: error.name, message: error.message }
-          : "Unknown error",
-    });
-  }
+  const { user, theme, unreadNotifications } = await loadAppShellData();
   const canManageAdministration = hasPermission(
     user.roles,
     Permission.ManageAdministration,
@@ -50,4 +36,26 @@ export default async function AppLayout({ children }: AppLayoutProps) {
       </div>
     </ThemeSurface>
   );
+}
+
+async function loadAppShellData() {
+  const startedAt = performance.now();
+  const user = await requireAuthenticatedUser();
+  const [theme, unreadNotifications] = await Promise.all([
+    getResolvedTheme(user.id),
+    getUnreadNotificationCount(user.id).catch((error: unknown) => {
+      console.error("[app-shell] unread notification count unavailable", {
+        name: error instanceof Error ? error.name : "UnknownError",
+        code: typeof error === "object" && error !== null && "code" in error
+          ? String(error.code)
+          : undefined,
+      });
+      return 0;
+    }),
+  ]);
+  console.info("[app-shell] query completed", {
+    durationMs: Math.round(performance.now() - startedAt),
+    subqueryCount: 3,
+  });
+  return { user, theme, unreadNotifications };
 }

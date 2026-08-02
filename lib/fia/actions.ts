@@ -28,6 +28,7 @@ import {
   requirePermission,
 } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import { recalculateChampionship } from "@/lib/championship/recalculation";
 import { synchronizeGlobalTeamPrincipalChampionship } from "@/lib/championship/team-principal-championship";
@@ -83,11 +84,12 @@ function parseEvidence(formData: FormData): unknown {
   }
 }
 
-function revalidateTicket(ticketId: number): void {
+async function revalidateTicket(ticketId: number): Promise<void> {
   revalidatePath("/fia");
   revalidatePath(`/fia/${ticketId}`);
   revalidatePath("/notifications");
   revalidatePath("/dashboard");
+  await touchAppDataRevisionSafely(getPrismaClient(), ["fia", "notifications", "results", "championship"]);
 }
 
 export async function createFiaTicketAction(
@@ -401,7 +403,7 @@ export async function createFiaTicketAction(
     return mutationFailure(false);
   }
 
-  revalidateTicket(ticketId);
+  await revalidateTicket(ticketId);
   redirect(`/fia/${ticketId}`);
 }
 
@@ -444,7 +446,7 @@ export async function startFiaReviewAction(
     });
   });
 
-  revalidateTicket(ticketId);
+  await revalidateTicket(ticketId);
 }
 
 export async function addFiaEvidenceAction(
@@ -530,7 +532,7 @@ export async function addFiaEvidenceAction(
     return mutationFailure();
   }
 
-  revalidateTicket(ticketId);
+  await revalidateTicket(ticketId);
   return { status: "success", message: "Beweis wurde gespeichert." };
 }
 
@@ -667,7 +669,7 @@ export async function addFiaDiscussionMessageAction(
     return mutationFailure();
   }
 
-  revalidateTicket(ticketId);
+  await revalidateTicket(ticketId);
   return { status: "success", message: "Kommentar wurde gespeichert." };
 }
 
@@ -762,7 +764,7 @@ export async function castFiaVoteAction(
     return mutationFailure();
   }
 
-  revalidateTicket(ticketId);
+  await revalidateTicket(ticketId);
   return { status: "success", message: "Bewertung wurde gespeichert." };
 }
 
@@ -988,7 +990,7 @@ export async function publishFiaDecisionAction(
     return mutationFailure();
   }
 
-  revalidateTicket(ticketId);
+  await revalidateTicket(ticketId);
   revalidatePath("/championship");
   return {
     status: "success",

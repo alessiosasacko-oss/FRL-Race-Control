@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import {
   NotificationPriority,
   NotificationType,
@@ -128,10 +129,10 @@ export async function getRecentNotifications(
   return notifications.map(mapNotification);
 }
 
-export async function getUnreadNotificationCount(
+export const getUnreadNotificationCount = cache(async function getUnreadNotificationCount(
   userId: number,
 ): Promise<number> {
   return getPrismaClient().notification.count({
     where: { userId, readAt: null, archivedAt: null },
   });
-}
+});

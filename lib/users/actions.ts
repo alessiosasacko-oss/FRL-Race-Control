@@ -6,6 +6,7 @@ import { DriverLineupStatus, Role, roleLabels } from "@/domain";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { writeSystemAudit } from "@/lib/audit/system";
 import { ensureInternalTeamSlot } from "@/lib/master-data/internal-team-slots";
 import {
@@ -40,7 +41,7 @@ function roleValues(formData: FormData): string[] {
   return formData.getAll("roles").map(String);
 }
 
-function refreshUserAdministration(userId?: number, driverId?: number): void {
+async function refreshUserAdministration(userId?: number, driverId?: number): Promise<void> {
   revalidatePath("/admin/users");
   if (userId) revalidatePath(`/admin/users/${userId}`);
   revalidatePath("/admin/drivers");
@@ -55,6 +56,7 @@ function refreshUserAdministration(userId?: number, driverId?: number): void {
   revalidatePath("/championship/team-principals");
   revalidatePath("/admin/results");
   revalidatePath("/dashboard");
+  await touchAppDataRevisionSafely(getPrismaClient(), ["users", "drivers", "teams", "attendance", "championship"]);
 }
 
 export async function updateUserRolesAction(
@@ -188,7 +190,7 @@ export async function updateUserRolesAction(
 
   let revalidationFailed = false;
   try {
-    refreshUserAdministration(target.id);
+    await refreshUserAdministration(target.id);
     logUserRoleAdministrationEvent({
       phase: "revalidation-result",
       actorId: actor.id,
@@ -468,7 +470,7 @@ export async function updateUserSportAssignmentAction(
     return { status: "error", message: "Die sportliche Zuordnung konnte nicht gespeichert werden." };
   }
 
-  refreshUserAdministration(target.id);
+  await refreshUserAdministration(target.id);
   return {
     status: "success",
     message: `${target.displayName} wurde ${league.code}${organization ? ` · ${organization.name}` : " · ohne Team"} zugeordnet.`,
@@ -504,7 +506,7 @@ export async function updateUserStatusAction(
       metadata: { previous: target.active, next: parsed.data.active, reason: parsed.data.reason },
     });
   });
-  refreshUserAdministration(userId);
+  await refreshUserAdministration(userId);
   return { status: "success", message: parsed.data.active ? "Benutzer wurde aktiviert." : "Benutzer wurde gesperrt." };
 }
 
@@ -572,7 +574,7 @@ async function updateDriverStatus(
       active: parsed.data.active,
       reason: parsed.data.reason,
     });
-    refreshUserAdministration(result.userId ?? undefined, driverId);
+    await refreshUserAdministration(result.userId ?? undefined, driverId);
   } catch (error: unknown) {
     logUserAdministrationFailure("driver-status", error);
     return { status: "error", message: "Der Fahrerstatus konnte nicht geändert werden. Fehlerreferenz: DRIVER-STATUS-4A12" };
@@ -696,7 +698,7 @@ export async function deleteDriverByIdAction(
   } catch (error: unknown) {
     return driverProfileDeletionError(error);
   }
-  refreshUserAdministration(linkedUserId ?? undefined, driverId);
+  await refreshUserAdministration(linkedUserId ?? undefined, driverId);
   redirect("/admin/drivers?notice=deleted");
 }
 
@@ -730,7 +732,7 @@ export async function deleteDriverProfileAction(
   } catch (error: unknown) {
     return driverProfileDeletionError(error);
   }
-  refreshUserAdministration(userId, target.driver.id);
+  await refreshUserAdministration(userId, target.driver.id);
   return { status: "success", message: "Fahrerprofil wurde endgültig gelöscht. Das Benutzerkonto bleibt bestehen." };
 }
 
@@ -827,7 +829,7 @@ export async function deleteUserAndDriverAction(
     logUserAdministrationFailure("user-driver-delete", error);
     return { status: "error", message: "Benutzerkonto und Fahrer konnten nicht gelöscht werden. Fehlerreferenz: USER-DELETE-2F84" };
   }
-  refreshUserAdministration(userId);
+  await refreshUserAdministration(userId);
   return { status: "success", message: "Benutzerkonto, Auth.js-Verknüpfungen, Sessions und Fahrerprofil wurden endgültig gelöscht." };
 }
 
@@ -935,7 +937,7 @@ export async function anonymizeDriverByIdAction(
       confirmationName: parsed.data.confirmationName,
       reason: parsed.data.reason,
     });
-    refreshUserAdministration(result.userId ?? undefined, driverId);
+    await refreshUserAdministration(result.userId ?? undefined, driverId);
   } catch (error: unknown) {
     return driverAnonymizationError(error);
   }
@@ -978,6 +980,6 @@ export async function anonymizeDriverAction(
   } catch (error: unknown) {
     return driverAnonymizationError(error);
   }
-  refreshUserAdministration(userId, target.driver.id);
+  await refreshUserAdministration(userId, target.driver.id);
   return { status: "success", message: "Personenbezogene Fahrerdaten wurden anonymisiert; sportliche Historie und Punkte bleiben erhalten." };
 }

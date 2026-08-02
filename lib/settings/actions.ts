@@ -5,6 +5,7 @@ import { NotificationType as PrismaNotificationType } from "@/generated/prisma/c
 import { WebhookEventType } from "@/domain";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import {
   notificationSettingsSchema,
@@ -43,11 +44,12 @@ function validTimezone(timezone: string): boolean {
   }
 }
 
-function revalidateUserExperience(): void {
+async function revalidateUserExperience(): Promise<void> {
   revalidatePath("/settings");
   revalidatePath("/profile");
   revalidatePath("/dashboard");
   revalidatePath("/notifications");
+  await touchAppDataRevisionSafely(getPrismaClient(), ["users", "design", "notifications"]);
 }
 
 export async function updateProfileSettingsAction(
@@ -109,7 +111,7 @@ export async function updateProfileSettingsAction(
     );
   }
 
-  revalidateUserExperience();
+  await revalidateUserExperience();
   return { status: "success", message: "Profil gespeichert." };
 }
 
@@ -184,7 +186,7 @@ export async function updateNotificationSettingsAction(
     );
   }
 
-  revalidateUserExperience();
+  await revalidateUserExperience();
   return {
     status: "success",
     message: "Benachrichtigungseinstellungen gespeichert.",

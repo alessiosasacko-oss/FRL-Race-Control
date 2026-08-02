@@ -7,11 +7,28 @@ import {
   APP_DATA_CHANNEL,
   APP_DATA_EVENT,
   APP_DATA_STORAGE_KEY,
+  APP_FORM_CLEAN_EVENT,
+  APP_FORM_DIRTY_EVENT,
+  broadcastAppDataChanged,
   isAppDataChangedEvent,
   type AppDataChangedEvent,
 } from "@/lib/live/data-events";
+import {
+  canClaimPollingLeadership,
+  createPollingLeaderLease,
+  parsePollingLeaderLease,
+} from "@/lib/live/leader-lease";
+import {
+  changedRevisionScopes,
+  nextRevisionBackoff,
+  parseRevisionSnapshot,
+  type RevisionSnapshot,
+} from "@/lib/live/revision-client";
 
-const REFRESH_INTERVAL_MS = 15_000;
+const REVISION_POLL_MS = 45_000;
+const LEADER_LEASE_MS = 70_000;
+const LEADER_HEARTBEAT_MS = 20_000;
+const LEADER_STORAGE_KEY = "frl-live-poll-leader";
 const MIN_REFRESH_GAP_MS = 5_000;
 const EVENT_DEBOUNCE_MS = 500;
 
@@ -23,6 +40,7 @@ export default function AppAutoRefresh() {
   const [status, setStatus] = useState<LiveStatus>("live");
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const dirtyForms = useRef(new Set<HTMLFormElement>());
+  const explicitDirtyCount = useRef(0);
   const submittedForms = useRef(new Set<HTMLFormElement>());
   const pendingBackgroundRefresh = useRef(false);
   const lastRefreshAt = useRef(0);
@@ -31,19 +49,30 @@ export default function AppAutoRefresh() {
   const gapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshRunner = useRef<(force?: boolean) => void>(() => undefined);
+  const metrics = useRef({ skipped: 0, executed: 0 });
+
+  const hasDirtyState = useCallback(
+    () => dirtyForms.current.size > 0 || explicitDirtyCount.current > 0,
+    [],
+  );
 
   const runRefresh = useCallback((force = false) => {
     if (typeof document === "undefined") return;
     if (!navigator.onLine) {
       setStatus("offline");
+      metrics.current.skipped += 1;
       return;
     }
-    if (!force && dirtyForms.current.size > 0) {
+    if (!force && hasDirtyState()) {
       pendingBackgroundRefresh.current = true;
       setStatus("pending");
+      metrics.current.skipped += 1;
       return;
     }
-    if (refreshInFlight.current || isPending) return;
+    if (refreshInFlight.current || isPending) {
+      metrics.current.skipped += 1;
+      return;
+    }
 
     const wait = MIN_REFRESH_GAP_MS - (Date.now() - lastRefreshAt.current);
     if (wait > 0) {
@@ -59,6 +88,7 @@ export default function AppAutoRefresh() {
       startTransition(() => router.refresh());
       const now = Date.now();
       lastRefreshAt.current = now;
+      metrics.current.executed += 1;
       setUpdatedAt(now);
       setStatus("updated");
       inFlightTimer.current = setTimeout(() => {
@@ -68,7 +98,7 @@ export default function AppAutoRefresh() {
       refreshInFlight.current = false;
       setStatus("failed");
     }
-  }, [isPending, router]);
+  }, [hasDirtyState, isPending, router]);
 
   useEffect(() => {
     refreshRunner.current = runRefresh;
@@ -80,10 +110,8 @@ export default function AppAutoRefresh() {
   }, [runRefresh]);
 
   const flushDeferredRefresh = useCallback(() => {
-    if (dirtyForms.current.size === 0 && pendingBackgroundRefresh.current) {
-      queueEventRefresh(false);
-    }
-  }, [queueEventRefresh]);
+    if (!hasDirtyState() && pendingBackgroundRefresh.current) queueEventRefresh(false);
+  }, [hasDirtyState, queueEventRefresh]);
 
   useEffect(() => {
     const markDirty = (event: Event) => {
@@ -122,6 +150,13 @@ export default function AppAutoRefresh() {
       submittedForms.current.clear();
       queueEventRefresh(true);
     };
+    const explicitlyDirty = () => {
+      explicitDirtyCount.current += 1;
+    };
+    const explicitlyClean = () => {
+      explicitDirtyCount.current = Math.max(0, explicitDirtyCount.current - 1);
+      flushDeferredRefresh();
+    };
 
     document.addEventListener("input", markDirty, true);
     document.addEventListener("change", markDirty, true);
@@ -130,6 +165,8 @@ export default function AppAutoRefresh() {
     document.addEventListener("cancel", markClean, true);
     document.addEventListener("click", discardClick, true);
     window.addEventListener(APP_DATA_EVENT, ownDataChanged);
+    window.addEventListener(APP_FORM_DIRTY_EVENT, explicitlyDirty);
+    window.addEventListener(APP_FORM_CLEAN_EVENT, explicitlyClean);
     return () => {
       document.removeEventListener("input", markDirty, true);
       document.removeEventListener("change", markDirty, true);
@@ -138,37 +175,119 @@ export default function AppAutoRefresh() {
       document.removeEventListener("cancel", markClean, true);
       document.removeEventListener("click", discardClick, true);
       window.removeEventListener(APP_DATA_EVENT, ownDataChanged);
+      window.removeEventListener(APP_FORM_DIRTY_EVENT, explicitlyDirty);
+      window.removeEventListener(APP_FORM_CLEAN_EVENT, explicitlyClean);
     };
   }, [flushDeferredRefresh, queueEventRefresh]);
 
   useEffect(() => {
-    const backgroundRefresh = () => runRefresh(false);
-    const visibilityRefresh = () => {
-      if (document.visibilityState === "visible") backgroundRefresh();
-    };
-    const onlineRefresh = () => {
-      setStatus("live");
-      backgroundRefresh();
-    };
-    const offline = () => setStatus("offline");
+    const refreshMetrics = metrics;
+    const tabId = crypto.randomUUID();
+    let revisionSnapshot: RevisionSnapshot | null = null;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+    let pollInFlight = false;
+    let backoffMs = REVISION_POLL_MS;
+    let stopped = false;
 
-    window.addEventListener("focus", backgroundRefresh);
-    window.addEventListener("online", onlineRefresh);
-    window.addEventListener("offline", offline);
-    document.addEventListener("visibilitychange", visibilityRefresh);
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible" && navigator.onLine) {
-        backgroundRefresh();
+    const visibleAndOnline = () => document.visibilityState === "visible" && navigator.onLine;
+    const claimLeadership = () => {
+      if (!visibleAndOnline()) return false;
+      const now = Date.now();
+      const current = parsePollingLeaderLease(localStorage.getItem(LEADER_STORAGE_KEY));
+      if (!canClaimPollingLeadership(current, tabId, now)) return false;
+      const next = createPollingLeaderLease(tabId, now, LEADER_LEASE_MS);
+      try {
+        localStorage.setItem(LEADER_STORAGE_KEY, JSON.stringify(next));
+        return parsePollingLeaderLease(localStorage.getItem(LEADER_STORAGE_KEY))?.owner === tabId;
+      } catch {
+        return true;
       }
-    }, REFRESH_INTERVAL_MS);
-    return () => {
-      window.removeEventListener("focus", backgroundRefresh);
-      window.removeEventListener("online", onlineRefresh);
-      window.removeEventListener("offline", offline);
-      document.removeEventListener("visibilitychange", visibilityRefresh);
-      window.clearInterval(interval);
     };
-  }, [runRefresh]);
+    const releaseLeadership = () => {
+      try {
+        const current = parsePollingLeaderLease(localStorage.getItem(LEADER_STORAGE_KEY));
+        if (current?.owner === tabId) localStorage.removeItem(LEADER_STORAGE_KEY);
+      } catch {
+        // Another visible tab can reclaim the lease after its short expiry.
+      }
+    };
+    const schedule = (delay: number) => {
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = setTimeout(() => void checkRevisions(), delay);
+    };
+    const checkRevisions = async () => {
+      if (stopped || !visibleAndOnline() || pollInFlight || !claimLeadership()) return;
+      pollInFlight = true;
+      try {
+        const response = await fetch("/api/live/revisions", {
+          method: "GET",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        if (!response.ok) throw new Error(`revision-endpoint-${response.status}`);
+        const next = parseRevisionSnapshot(await response.json());
+        if (!next) throw new Error("invalid-revision-response");
+        const changed = changedRevisionScopes(revisionSnapshot, next);
+        revisionSnapshot = next;
+        backoffMs = REVISION_POLL_MS;
+        if (changed.length > 0) {
+          broadcastAppDataChanged(changed);
+          queueEventRefresh(false);
+        }
+        setStatus("live");
+        schedule(REVISION_POLL_MS);
+      } catch {
+        setStatus("failed");
+        backoffMs = nextRevisionBackoff(backoffMs, REVISION_POLL_MS);
+        schedule(backoffMs);
+      } finally {
+        pollInFlight = false;
+      }
+    };
+    const checkNow = () => {
+      if (visibleAndOnline()) {
+        setStatus("live");
+        schedule(0);
+      }
+    };
+    const visibilityChanged = () => {
+      if (document.visibilityState === "visible") checkNow();
+      else releaseLeadership();
+    };
+    const offline = () => {
+      setStatus("offline");
+      releaseLeadership();
+    };
+    const storageChanged = (event: StorageEvent) => {
+      if (event.key === LEADER_STORAGE_KEY && visibleAndOnline()) schedule(250);
+    };
+
+    window.addEventListener("focus", checkNow);
+    window.addEventListener("online", checkNow);
+    window.addEventListener("offline", offline);
+    window.addEventListener("storage", storageChanged);
+    document.addEventListener("visibilitychange", visibilityChanged);
+    heartbeatTimer = setInterval(() => {
+      claimLeadership();
+    }, LEADER_HEARTBEAT_MS);
+    checkNow();
+
+    return () => {
+      stopped = true;
+      if (pollTimer) clearTimeout(pollTimer);
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      releaseLeadership();
+      window.removeEventListener("focus", checkNow);
+      window.removeEventListener("online", checkNow);
+      window.removeEventListener("offline", offline);
+      window.removeEventListener("storage", storageChanged);
+      document.removeEventListener("visibilitychange", visibilityChanged);
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[live-refresh] session metrics", refreshMetrics.current);
+      }
+    };
+  }, [queueEventRefresh]);
 
   useEffect(() => {
     const receive = (value: unknown) => {
@@ -182,9 +301,7 @@ export default function AppAutoRefresh() {
         // Invalid cross-tab payloads are ignored.
       }
     };
-    const channel = "BroadcastChannel" in window
-      ? new BroadcastChannel(APP_DATA_CHANNEL)
-      : null;
+    const channel = "BroadcastChannel" in window ? new BroadcastChannel(APP_DATA_CHANNEL) : null;
     if (channel) channel.onmessage = (event) => receive(event.data);
     window.addEventListener("storage", storage);
     return () => {
@@ -192,20 +309,6 @@ export default function AppAutoRefresh() {
       window.removeEventListener("storage", storage);
     };
   }, [queueEventRefresh]);
-
-  useEffect(() => {
-    const refreshFailure = () => {
-      if (!refreshInFlight.current) return;
-      refreshInFlight.current = false;
-      setStatus("failed");
-    };
-    window.addEventListener("error", refreshFailure);
-    window.addEventListener("unhandledrejection", refreshFailure);
-    return () => {
-      window.removeEventListener("error", refreshFailure);
-      window.removeEventListener("unhandledrejection", refreshFailure);
-    };
-  }, []);
 
   useEffect(() => () => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);

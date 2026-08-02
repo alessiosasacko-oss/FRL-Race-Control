@@ -27,6 +27,7 @@ import {
   requirePermission,
 } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import {
@@ -77,7 +78,7 @@ function databaseError(): SportsActionState {
   );
 }
 
-function revalidateSports(raceId?: number): void {
+async function revalidateSports(raceId?: number): Promise<void> {
   revalidatePath("/attendance");
   revalidatePath("/championship");
   revalidatePath("/calendar");
@@ -89,6 +90,7 @@ function revalidateSports(raceId?: number): void {
   revalidatePath("/dashboard");
   revalidatePath("/notifications");
   if (raceId) revalidatePath(`/results/${raceId}`);
+  await touchAppDataRevisionSafely(getPrismaClient(), ["attendance", "results", "championship", "calendar", "notifications"]);
 }
 
 function serializable(value: unknown): Prisma.InputJsonValue {
@@ -420,7 +422,7 @@ export async function updateAttendanceAction(
     return databaseError();
   }
 
-  revalidateSports(race.id);
+  await revalidateSports(race.id);
   return successState("Rennanmeldung wurde gespeichert.");
 }
 
@@ -665,7 +667,7 @@ export async function saveLegacyResultsAction(
     return databaseError();
   }
 
-  revalidateSports(race.id);
+  await revalidateSports(race.id);
   return successState("Ergebnis wurde vollständig gespeichert.");
 }
 
@@ -738,7 +740,7 @@ export async function deleteResultsAction(
     return databaseError();
   }
 
-  revalidateSports(session.raceId);
+  await revalidateSports(session.raceId);
   return successState("Ergebnis wurde gelöscht.");
 }
 
@@ -886,7 +888,7 @@ export async function saveScoringConfigurationAction(
     return databaseError();
   }
 
-  revalidateSports();
+  await revalidateSports();
   return successState(
     "Punktesystem gespeichert und Meisterschaft neu berechnet.",
   );
@@ -1039,7 +1041,7 @@ export async function createChampionshipAdjustmentAction(
     return databaseError();
   }
 
-  revalidateSports(parsed.data.raceId ?? undefined);
+  await revalidateSports(parsed.data.raceId ?? undefined);
   return successState(
     "Punkteanpassung erstellt und Meisterschaft neu berechnet.",
   );
@@ -1070,6 +1072,6 @@ export async function recalculateChampionshipAction(
     return databaseError();
   }
 
-  revalidateSports();
+  await revalidateSports();
   return successState("Meisterschaft wurde neu berechnet.");
 }

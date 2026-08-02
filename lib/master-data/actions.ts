@@ -18,6 +18,7 @@ import { enqueueDiscordDelivery } from "@/lib/discord/outbox";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { recalculateChampionship } from "@/lib/championship/recalculation";
 import { synchronizeGlobalTeamPrincipalChampionship } from "@/lib/championship/team-principal-championship";
 import {
@@ -76,7 +77,7 @@ function databaseError(): MasterDataActionState {
   );
 }
 
-function revalidateMasterData(): void {
+async function revalidateMasterData(): Promise<void> {
   revalidatePath("/admin");
   revalidatePath("/admin/leagues");
   revalidatePath("/admin/seasons");
@@ -98,6 +99,9 @@ function revalidateMasterData(): void {
   revalidatePath("/fia/new");
   revalidatePath("/dashboard");
   revalidatePath("/notifications");
+  await touchAppDataRevisionSafely(getPrismaClient(), [
+    "drivers", "teams", "seasons", "leagues", "calendar", "attendance", "results", "championship", "fia", "notifications",
+  ]);
 }
 
 async function authorize() {
@@ -275,7 +279,7 @@ export async function updateLeagueAction(
     return databaseError();
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState(
     parsed.data.updateFutureSchedules
       ? "Liga und zukünftige Renntermine wurden aktualisiert."
@@ -355,7 +359,7 @@ export async function createSeasonAction(
     return databaseError();
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Saison wurde erstellt.");
 }
 
@@ -419,7 +423,7 @@ export async function updateSeasonAction(
     return databaseError();
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Saison wurde aktualisiert.");
 }
 
@@ -469,7 +473,7 @@ export async function archiveSeasonAction(
     return databaseError();
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Saison wurde archiviert.");
 }
 
@@ -687,7 +691,7 @@ export async function createRaceAction(
     return databaseError();
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Rennen wurde erstellt.");
 }
 
@@ -929,7 +933,7 @@ export async function updateRaceAction(
     return databaseError();
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Rennen wurde aktualisiert.");
 }
 
@@ -970,7 +974,7 @@ export async function deleteRaceAction(
     return databaseError();
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Rennen wurde gelöscht.");
 }
 
@@ -1291,7 +1295,7 @@ export async function createDriverAction(
     return driverAssignmentError(error, parsed.data);
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Fahrer wurde erstellt.");
 }
 
@@ -1327,7 +1331,7 @@ export async function updateDriverAction(
     return driverAssignmentError(error, parsed.data);
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Fahrer wurde aktualisiert.");
 }
 
@@ -1470,7 +1474,7 @@ export async function createTeamAction(
     return databaseError();
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Team wurde erstellt.");
 }
 
@@ -1578,7 +1582,7 @@ export async function updateTeamAction(
     return databaseError();
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Team wurde aktualisiert.");
 }
 
@@ -1656,7 +1660,7 @@ export async function archiveTeamAction(
     return errorState("Das Team konnte nicht archiviert werden.");
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   redirect("/admin/teams?view=archived&notice=archived");
 }
 
@@ -1712,7 +1716,7 @@ export async function restoreTeamAction(
     return errorState("Das Team konnte nicht wiederhergestellt werden.");
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   redirect("/admin/teams?view=active&notice=restored");
 }
 
@@ -1772,7 +1776,7 @@ export async function permanentlyDeleteTeamAction(
     return errorState("Das Team konnte nicht endgültig gelöscht werden.");
   }
 
-  revalidateMasterData();
+  await revalidateMasterData();
   redirect("/admin/teams?view=all&notice=deleted");
 }
 
@@ -1888,7 +1892,7 @@ export async function createTeamOrganizationAction(
     }
     return databaseError();
   }
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Team wurde erstellt.");
 }
 
@@ -2026,6 +2030,6 @@ export async function updateTeamOrganizationAction(
     }
     return databaseError();
   }
-  revalidateMasterData();
+  await revalidateMasterData();
   return successState("Team wurde aktualisiert.");
 }

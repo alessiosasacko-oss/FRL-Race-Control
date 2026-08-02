@@ -5,12 +5,14 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 
 const notificationIdSchema = z.number().int().positive();
 
-function revalidateNotifications(): void {
+async function revalidateNotifications(): Promise<void> {
   revalidatePath("/notifications");
   revalidatePath("/dashboard");
+  await touchAppDataRevisionSafely(getPrismaClient(), ["notifications"]);
 }
 
 export async function markNotificationReadAction(
@@ -24,7 +26,7 @@ export async function markNotificationReadAction(
     where: { id: notificationId.data, userId: user.id },
     data: { readAt: new Date() },
   });
-  revalidateNotifications();
+  await revalidateNotifications();
 }
 
 export async function openNotificationAction(
@@ -44,7 +46,7 @@ export async function openNotificationAction(
     where: { id: notificationId.data },
     data: { readAt: new Date() },
   });
-  revalidateNotifications();
+  await revalidateNotifications();
   redirect(notification.href ?? "/notifications");
 }
 
@@ -54,7 +56,7 @@ export async function markAllNotificationsReadAction(): Promise<void> {
     where: { userId: user.id, readAt: null, archivedAt: null },
     data: { readAt: new Date() },
   });
-  revalidateNotifications();
+  await revalidateNotifications();
 }
 
 export async function archiveNotificationAction(
@@ -68,7 +70,7 @@ export async function archiveNotificationAction(
     where: { id: notificationId.data, userId: user.id },
     data: { archivedAt: new Date(), readAt: new Date() },
   });
-  revalidateNotifications();
+  await revalidateNotifications();
 }
 
 export async function deleteNotificationAction(
@@ -81,5 +83,5 @@ export async function deleteNotificationAction(
   await getPrismaClient().notification.deleteMany({
     where: { id: notificationId.data, userId: user.id },
   });
-  revalidateNotifications();
+  await revalidateNotifications();
 }

@@ -217,7 +217,7 @@ test("failed role mutations provide a short error reference", () => {
 });
 
 test("development Prisma singleton is never disconnected during hot reload", () => {
-  assert.match(prismaClient, /if \(globalForPrisma\.prisma\)/);
+  assert.match(prismaClient, /frlDatabaseRuntime \?\?= createDatabaseRuntime\(\)/);
   assert.doesNotMatch(prismaClient, /\$disconnect/);
   assert.doesNotMatch(prismaClient, /prismaConstructor/);
 });

@@ -27,6 +27,7 @@ import {
 } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { createNotifications } from "@/lib/notifications/service";
 import { createOfficialFiaDecision } from "./decision-service";
 import {
@@ -56,11 +57,12 @@ function success(message: string): FiaActionState {
   return { status: "success", message };
 }
 
-function revalidateProposal(ticketId: number): void {
+async function revalidateProposal(ticketId: number): Promise<void> {
   revalidatePath(`/fia/${ticketId}`);
   revalidatePath("/fia");
   revalidatePath("/dashboard");
   revalidatePath("/notifications");
+  await touchAppDataRevisionSafely(getPrismaClient(), ["fia", "notifications", "results", "championship"]);
 }
 
 function penaltySummary(
@@ -395,7 +397,7 @@ export async function createPenaltyProposalAction(
     );
   }
 
-  revalidateProposal(ticketId);
+  await revalidateProposal(ticketId);
   return success("Strafenvorschlag wurde erstellt.");
 }
 
@@ -602,7 +604,7 @@ export async function castPenaltyProposalVoteAction(
     return failure("Die Stimme konnte nicht gespeichert werden.");
   }
 
-  revalidateProposal(ticketId);
+  await revalidateProposal(ticketId);
   return deadlineClosed
     ? success(
         "Die Frist war abgelaufen; die Abstimmung wurde geschlossen.",
@@ -674,7 +676,7 @@ export async function closePenaltyProposalAction(
     );
   }
 
-  revalidateProposal(ticketId);
+  await revalidateProposal(ticketId);
   return success("Abstimmung wurde geschlossen.");
 }
 
@@ -877,7 +879,7 @@ export async function finalizeFiaTicketAction(
     return failure("Die FIA-Entscheidung konnte nicht gespeichert werden.");
   }
 
-  revalidateProposal(ticketId.data);
+  await revalidateProposal(ticketId.data);
   revalidatePath("/championship");
   return success(
     alreadyFinalized

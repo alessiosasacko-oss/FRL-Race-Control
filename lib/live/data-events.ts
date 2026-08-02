@@ -1,6 +1,8 @@
 export const APP_DATA_CHANNEL = "frl-data-updates";
 export const APP_DATA_STORAGE_KEY = "frl-data-update";
 export const APP_DATA_EVENT = "frl:data-changed";
+export const APP_FORM_DIRTY_EVENT = "frl:form-dirty";
+export const APP_FORM_CLEAN_EVENT = "frl:form-clean";
 
 export const appDataScopes = [
   "users",
@@ -67,10 +69,9 @@ export function scopesForPathname(pathname: string): AppDataScope[] {
   return ["users"];
 }
 
-export function dispatchAppDataChanged(scopes: readonly AppDataScope[]): AppDataChangedEvent | null {
+export function broadcastAppDataChanged(scopes: readonly AppDataScope[]): AppDataChangedEvent | null {
   if (typeof window === "undefined" || scopes.length === 0) return null;
   const event = createAppDataChangedEvent(scopes);
-  window.dispatchEvent(new CustomEvent<AppDataChangedEvent>(APP_DATA_EVENT, { detail: event }));
   const browserWindow = window as Window & {
     BroadcastChannel?: typeof BroadcastChannel;
   };
@@ -86,6 +87,14 @@ export function dispatchAppDataChanged(scopes: readonly AppDataScope[]): AppData
     } catch {
       // Local refresh still works if private browsing blocks cross-tab storage.
     }
+  }
+  return event;
+}
+
+export function dispatchAppDataChanged(scopes: readonly AppDataScope[]): AppDataChangedEvent | null {
+  const event = broadcastAppDataChanged(scopes);
+  if (event) {
+    window.dispatchEvent(new CustomEvent<AppDataChangedEvent>(APP_DATA_EVENT, { detail: event }));
   }
   return event;
 }

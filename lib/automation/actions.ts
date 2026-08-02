@@ -9,6 +9,7 @@ import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { writeSystemAudit } from "@/lib/audit/system";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { zonedLocalToUtc } from "@/lib/master-data/timezone";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
 import {
@@ -37,11 +38,12 @@ function validationErrors(error: {
   return error.flatten().fieldErrors as Record<string, string[]>;
 }
 
-function revalidateAutomation(): void {
+async function revalidateAutomation(): Promise<void> {
   revalidatePath("/admin/automation");
   revalidatePath("/admin/announcements");
   revalidatePath("/notifications");
   revalidatePath("/dashboard");
+  await touchAppDataRevisionSafely(getPrismaClient(), ["notifications"]);
 }
 
 export async function createAnnouncementAction(
@@ -116,7 +118,7 @@ export async function createAnnouncementAction(
     return errorState("Die Mitteilung konnte nicht geplant werden.");
   }
 
-  revalidateAutomation();
+  await revalidateAutomation();
   return successState(
     scheduledFor <= new Date()
       ? "Die Mitteilung ist zur sofortigen Veröffentlichung eingeplant."
@@ -158,7 +160,7 @@ export async function saveDiscordGuildAction(
       metadata: { enabled: guild.enabled, guildId: guild.guildId },
     });
   });
-  revalidateAutomation();
+  await revalidateAutomation();
   return successState("Discord-Server wurde gespeichert.");
 }
 
@@ -213,7 +215,7 @@ export async function saveDiscordChannelAction(
       },
     });
   });
-  revalidateAutomation();
+  await revalidateAutomation();
   return successState("Discord-Kanal wurde zugeordnet.");
 }
 
@@ -261,7 +263,7 @@ export async function saveDiscordRoleAction(
       },
     });
   });
-  revalidateAutomation();
+  await revalidateAutomation();
   return successState("Discord-Rolle wurde zugeordnet.");
 }
 
@@ -306,7 +308,7 @@ export async function retryAutomationJobAction(
       },
     }),
   ]);
-  revalidateAutomation();
+  await revalidateAutomation();
 }
 
 export async function retryAnnouncementAction(
@@ -333,5 +335,5 @@ export async function retryAnnouncementAction(
       },
     }),
   ]);
-  revalidateAutomation();
+  await revalidateAutomation();
 }

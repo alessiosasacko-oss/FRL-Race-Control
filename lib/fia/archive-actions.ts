@@ -9,6 +9,7 @@ import {
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import {
   fiaArchiveBlockReason,
   type FiaArchiveBlockReason,
@@ -34,10 +35,11 @@ function failure(message: string): FiaActionState {
   return { status: "error", message };
 }
 
-function revalidateArchive(ticketId: number): void {
+async function revalidateArchive(ticketId: number): Promise<void> {
   revalidatePath("/fia");
   revalidatePath("/fia/archive");
   revalidatePath(`/fia/${ticketId}`);
+  await touchAppDataRevisionSafely(getPrismaClient(), ["fia"]);
 }
 
 export async function archiveFiaTicketAction(
@@ -109,7 +111,7 @@ export async function archiveFiaTicketAction(
     );
   }
 
-  revalidateArchive(parsedId.data);
+  await revalidateArchive(parsedId.data);
   redirect("/fia/archive?changed=archived");
 }
 
@@ -168,6 +170,6 @@ export async function restoreFiaTicketAction(
     );
   }
 
-  revalidateArchive(parsedId.data);
+  await revalidateArchive(parsedId.data);
   redirect(`/fia/${parsedId.data}?changed=restored`);
 }

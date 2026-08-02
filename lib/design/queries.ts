@@ -71,6 +71,22 @@ export const getResolvedTheme = cache(
         prisma.designTheme.findFirst({
           where: { isActive: true, isDraft: false },
           orderBy: { publishedAt: "desc" },
+          select: {
+            id: true,
+            name: true,
+            preset: true,
+            defaultMode: true,
+            allowDarkMode: true,
+            allowLightMode: true,
+            allowSystemMode: true,
+            allowUserModeOverride: true,
+            darkTokens: true,
+            lightTokens: true,
+            pageAccents: true,
+            componentSettings: true,
+            navigationSettings: true,
+            backgroundSettings: true,
+          },
         }),
         userId
           ? prisma.userSettings.findUnique({

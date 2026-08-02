@@ -76,4 +76,5 @@ export type DashboardData = {
     }>;
   };
   notifications: NotificationView[];
+  unreadNotificationCount: number;
 };

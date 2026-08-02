@@ -25,6 +25,7 @@ import {
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import {
   createNotifications,
@@ -112,7 +113,7 @@ function serializable(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
-function revalidateResults(raceId: number): void {
+async function revalidateResults(raceId: number): Promise<void> {
   for (const path of [
     "/admin/results",
     "/championship",
@@ -123,6 +124,7 @@ function revalidateResults(raceId: number): void {
   ]) {
     revalidatePath(path);
   }
+  await touchAppDataRevisionSafely(getPrismaClient(), ["results", "championship", "calendar", "notifications"]);
 }
 
 export async function saveResultsAction(
@@ -307,7 +309,7 @@ export async function saveResultsAction(
       );
     }
 
-    revalidateResults(race.id);
+    await revalidateResults(race.id);
     return successState("Ergebnisentwurf wurde gespeichert.", true);
   }
 
@@ -931,7 +933,7 @@ export async function saveResultsAction(
     );
   }
 
-  revalidateResults(race.id);
+  await revalidateResults(race.id);
   return successState(
     publish
       ? "Ergebnis wurde veröffentlicht und die Meisterschaft neu berechnet."

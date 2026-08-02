@@ -48,8 +48,8 @@ test("localStorage is the cross-tab fallback", () => {
   assert.match(provider, /addEventListener\("storage"/);
 });
 
-test("window focus queues a refresh", () => {
-  assert.match(provider, /addEventListener\("focus", backgroundRefresh\)/);
+test("window focus checks lightweight revisions", () => {
+  assert.match(provider, /addEventListener\("focus", checkNow\)/);
 });
 
 test("returning to a visible tab queues a refresh", () => {
@@ -57,17 +57,19 @@ test("returning to a visible tab queues a refresh", () => {
   assert.match(provider, /addEventListener\("visibilitychange"/);
 });
 
-test("returning online queues a refresh", () => {
-  assert.match(provider, /addEventListener\("online", onlineRefresh\)/);
+test("returning online checks lightweight revisions", () => {
+  assert.match(provider, /addEventListener\("online", checkNow\)/);
 });
 
-test("the interval pauses while the tab is hidden", () => {
+test("polling pauses while the tab is hidden or offline", () => {
   assert.match(provider, /document\.visibilityState === "visible" && navigator\.onLine/);
 });
 
-test("the visible online interval runs every 15 seconds", () => {
-  assert.match(provider, /REFRESH_INTERVAL_MS = 15_000/);
-  assert.match(provider, /window\.setInterval/);
+test("there is no periodic full 15-second refresh", () => {
+  assert.doesNotMatch(provider, /REFRESH_INTERVAL_MS = 15_000/);
+  assert.match(provider, /REVISION_POLL_MS = 45_000/);
+  assert.match(provider, /fetch\("\/api\/live\/revisions"/);
+  assert.doesNotMatch(provider, /setInterval\([^]*router\.refresh/);
 });
 
 test("rapid data events are debounced", () => {
@@ -113,4 +115,10 @@ test("events contain no personal data", () => {
   assert.deepEqual(Object.keys(event).sort(), ["eventId", "scopes", "timestamp", "type"]);
   assert.equal(appDataScopes.length, 12);
   assert.equal(isAppDataChangedEvent({ ...event, scopes: ["email"] }), false);
+});
+
+test("only a browser tab leader polls revisions", () => {
+  assert.match(provider, /LEADER_STORAGE_KEY/);
+  assert.match(provider, /claimLeadership\(\)/);
+  assert.match(provider, /broadcastAppDataChanged\(changed\)/);
 });
