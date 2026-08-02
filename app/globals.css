@@ -447,6 +447,16 @@ summary {
     background: color-mix(in srgb, var(--color-background-elevated) 92%, transparent);
   }
 
+  .character-select {
+    color-scheme: dark;
+  }
+
+  .character-select option,
+  .character-select optgroup {
+    color: #f1f5f9;
+    background-color: #020617;
+  }
+
   .wizard-primary-button {
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40;
     background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 68%, var(--color-secondary)));

@@ -13,6 +13,9 @@ import {
 function source(path: string) { return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"); }
 const renderer = source("components/characters/DriverCharacter.tsx");
 const editor = source("components/characters/DriverCharacterEditor.tsx");
+const characterSelect = source("components/characters/CharacterSelect.tsx");
+const globals = source("app/globals.css");
+const dashboard = source("components/dashboard/PersonalDashboard.tsx");
 const actions = source("lib/characters/actions.ts");
 const migration = source("prisma/migrations/20260802213000_driver_character_system/migration.sql");
 
@@ -46,3 +49,11 @@ test("27. snapshots preserve character and suit", () => assert.equal(driverChara
 test("28. suit templates require an organization", () => assert.equal(teamSuitTemplateInputSchema.safeParse({ name: "A", configuration: neutralFrlSuit, active: true, displayOrder: 0 }).success, false));
 test("29. renderer is a local layered SVG with all required variants", () => { assert.match(renderer, /<svg/); assert.match(renderer, /data-layer="body"/); assert.match(renderer, /"fullBody" \| "portrait" \| "tableThumbnail" \| "winner" \| "dashboardHero"/); assert.doesNotMatch(renderer, /href=["']https?:\/\//); });
 test("30. editor and actions are mobile-safe and ownership-protected", () => { assert.match(editor, /grid min-w-0/); assert.match(editor, /min-h-11/); assert.match(editor, /lg:grid-cols/); assert.match(actions, /requireAuthenticatedUser/); assert.match(actions, /organizationId/); assert.match(migration, /"characterSnapshot" JSONB/); });
+test("31. editor controls use the defined character select instead of the missing form-input class", () => { assert.match(editor, /CharacterSelect/); assert.doesNotMatch(editor, /className="form-input/); });
+test("32. character selects preserve native keyboard and mobile behavior", () => { assert.match(characterSelect, /<select/); assert.doesNotMatch(characterSelect, /role="listbox"/); assert.match(characterSelect, /htmlFor=\{id\}/); });
+test("33. character selects have explicit dark option colors", () => { assert.match(characterSelect, /character-select/); assert.match(globals, /\.character-select option/); assert.match(globals, /color-scheme: dark/); });
+test("34. character select touch targets remain at least 44 pixels", () => assert.match(characterSelect, /min-h-11/));
+test("35. renderer adds adult material depth without changing stored configuration", () => { assert.match(renderer, /radialGradient/); assert.match(renderer, /linearGradient/); assert.match(renderer, /feDropShadow/); assert.match(renderer, /configuration\.bodyShape/); });
+test("36. realistic renderer retains every configurable detail", () => ["faceShape", "eyeShape", "noseStyle", "mouthStyle", "hairStyle", "beardStyle", "eyewearStyle", "gloves", "shoes", "helmet"].forEach((field) => assert.match(renderer, new RegExp(`configuration\\.${field}`))));
+test("37. dashboard hero and Next Race remain outside the personal widget grid", () => assert.match(dashboard, /<DriverHero data=\{data\} \/>[^]*<NextRaceWidget[^]*<DndContext/));
+test("38. existing version-one character data remains valid without a migration", () => assert.equal(parseCharacterConfiguration(defaultDriverCharacter).version, 1));

@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { RotateCcw, Save } from "lucide-react";
 import DriverCharacter from "./DriverCharacter";
+import CharacterSelect from "./CharacterSelect";
 import {
   backgrounds, beardStyles, bodyShapes, eyeColors, eyeShapes, eyebrowStyles,
   eyewearStyles, faceDetails, faceShapes, hairColors, hairStyles, helmetModes,
@@ -116,7 +117,8 @@ export default function DriverCharacterEditor({ data }: { data: EditorData }) {
 function EditorSection({ title, children }: { title: string; children: React.ReactNode }) { return <fieldset className="master-card min-w-0 space-y-4"><legend className="px-1 text-lg font-black text-white">{title}</legend>{children}</fieldset>; }
 
 function Choice<T extends string>({ label, value, values, onChange, valueLabel }: { label: string; value: T; values: readonly T[]; onChange: (value: T) => void; valueLabel?: (value: T) => string }) {
-  return <label className="block min-w-0"><span className="mb-2 block text-sm font-semibold text-slate-300">{label}</span><select value={value} onChange={(event) => onChange(event.target.value as T)} className="form-input min-h-11 w-full"><>{values.map((item) => <option key={item} value={item}>{valueLabel?.(item) ?? labels[item] ?? item.replaceAll("_", " ")}</option>)}</></select></label>;
+  const id = `character-${label.toLocaleLowerCase("de-DE").replaceAll(/[^a-z0-9]+/g, "-")}`;
+  return <CharacterSelect id={id} label={label} value={value} options={values.map((item) => ({ value: item, label: valueLabel?.(item) ?? labels[item] ?? item.replaceAll("_", " ") }))} onChange={(next) => onChange(next as T)} />;
 }
 
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-400">{label}</span><span className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-slate-950 px-3"><input type="color" value={value} onChange={(event) => onChange(event.target.value.toUpperCase())} className="size-8 cursor-pointer border-0 bg-transparent" /><span className="font-mono text-xs text-slate-300">{value}</span></span></label>; }
