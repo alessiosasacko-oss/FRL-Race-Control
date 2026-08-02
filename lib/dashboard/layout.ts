@@ -3,7 +3,6 @@ import { Role } from "@/domain";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 
 export const dashboardWidgetIds = [
-  "welcome",
   "attendance",
   "quick-actions",
   "championship-position",
@@ -34,7 +33,6 @@ export type DashboardWidgetDefinition = {
 };
 
 export const dashboardWidgetRegistry: Record<DashboardWidgetId, DashboardWidgetDefinition> = {
-  welcome: { id: "welcome", title: "Begrüßung", description: "Deine persönliche Rennzentrale.", allowedSizes: ["medium", "large", "full"], defaultSize: "full" },
   attendance: { id: "attendance", title: "Rennanmeldung", description: "Dein Status für das nächste Rennen.", allowedSizes: ["medium", "large"], defaultSize: "medium", requiresDriver: true },
   "quick-actions": { id: "quick-actions", title: "Schnellaktionen", description: "Direkte Wege zu wichtigen Bereichen.", allowedSizes: ["small", "medium"], defaultSize: "medium" },
   "championship-position": { id: "championship-position", title: "WM-Position", description: "Dein aktueller Meisterschaftsrang.", allowedSizes: ["small", "medium"], defaultSize: "small", requiresDriver: true },
@@ -70,7 +68,7 @@ const viewportLayoutSchema = z.array(widgetItemSchema).max(dashboardWidgetIds.le
 });
 
 export const dashboardLayoutSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   desktop: viewportLayoutSchema,
   tablet: viewportLayoutSchema,
   mobile: viewportLayoutSchema,
@@ -89,7 +87,7 @@ const defaultItems: DashboardWidgetItem[] = dashboardWidgetIds.map((id, order) =
 
 export function createDefaultDashboardLayout(now = new Date()): DashboardLayout {
   return {
-    version: 1,
+    version: 2,
     desktop: defaultItems.map((item) => ({ ...item })),
     tablet: defaultItems.map((item) => ({ ...item })),
     mobile: defaultItems.map((item) => ({ ...item })),
@@ -134,12 +132,39 @@ export function resolveDashboardLayout(
   available: readonly DashboardWidgetId[],
 ): DashboardLayout {
   const parsed = dashboardLayoutSchema.safeParse(stored);
-  const source = parsed.success ? parsed.data : createDefaultDashboardLayout();
+  const legacy = legacyDashboardLayoutSchema.safeParse(stored);
+  const fallback = createDefaultDashboardLayout();
+  const source = parsed.success
+    ? parsed.data
+    : legacy.success
+      ? {
+          ...fallback,
+          desktop: legacy.data.desktop.filter((item) => item.id !== "welcome") as DashboardWidgetItem[],
+          tablet: legacy.data.tablet.filter((item) => item.id !== "welcome") as DashboardWidgetItem[],
+          mobile: legacy.data.mobile.filter((item) => item.id !== "welcome") as DashboardWidgetItem[],
+          updatedAt: legacy.data.updatedAt,
+        }
+      : fallback;
   return {
-    version: 1,
+    version: 2,
     desktop: normalizeViewport(source.desktop, available),
     tablet: normalizeViewport(source.tablet, available),
     mobile: normalizeViewport(source.mobile, available),
     updatedAt: source.updatedAt,
   };
 }
+
+const legacyWidgetIds = ["welcome", ...dashboardWidgetIds] as const;
+const legacyWidgetItemSchema = z.object({
+  id: z.enum(legacyWidgetIds),
+  order: z.number().int().min(0),
+  size: z.enum(dashboardWidgetSizes),
+  visible: z.boolean(),
+});
+const legacyDashboardLayoutSchema = z.object({
+  version: z.literal(1),
+  desktop: z.array(legacyWidgetItemSchema),
+  tablet: z.array(legacyWidgetItemSchema),
+  mobile: z.array(legacyWidgetItemSchema),
+  updatedAt: z.iso.datetime(),
+});

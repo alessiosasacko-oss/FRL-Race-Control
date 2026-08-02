@@ -44,7 +44,7 @@ import NotificationsWidget from "@/components/dashboard/NotificationsWidget";
 import QuickActionsWidget from "@/components/dashboard/QuickActionsWidget";
 import RankingsWidget from "@/components/dashboard/RankingsWidget";
 import SeasonProgressWidget from "@/components/dashboard/SeasonProgressWidget";
-import WelcomeWidget from "@/components/dashboard/WelcomeWidget";
+import DriverHero from "@/components/dashboard/DriverHero";
 import MetricBlock from "@/components/ui/MetricBlock";
 import type { DashboardData } from "@/lib/dashboard/types";
 import {
@@ -236,11 +236,7 @@ export default function PersonalDashboard({
 
   return (
     <div className="page-stack page-accent-dashboard min-w-0">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="eyebrow">Race briefing</p>
-          <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">Dein Dashboard</h1>
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
         {!editing ? (
           <button type="button" onClick={startEditing} className="wizard-secondary-button min-h-11 w-full sm:w-auto">
             <Pencil size={17} /> Dashboard anpassen
@@ -257,8 +253,10 @@ export default function PersonalDashboard({
         )}
       </div>
 
+      <DriverHero data={data} />
+
       <div className="space-y-2">
-        {editing ? <p className="text-xs font-semibold text-cyan-300">Next Race ist fest angeheftet.</p> : null}
+        {editing ? <p className="text-xs font-semibold text-cyan-300">Fahrer-Hero und Next Race sind fest angeheftet.</p> : null}
         <NextRaceWidget race={data.nextRace} attendance={data.attendance} league={data.identity.driver?.league.code ?? null} />
       </div>
 
@@ -384,7 +382,6 @@ function SortableWidget({
 
 function DashboardWidget({ item, data }: { item: DashboardWidgetItem; data: DashboardData }) {
   switch (item.id) {
-    case "welcome": return <WelcomeWidget identity={data.identity} />;
     case "attendance": return <AttendanceWidget race={data.nextRace} driverId={data.identity.driver?.id ?? null} attendance={data.attendance} />;
     case "quick-actions": return <QuickActionsWidget />;
     case "championship-position": return <MetricBlock label="WM-Position" value={data.championship.driver ? `P${data.championship.driver.position}` : "–"} detail={data.championship.driver?.gapToLeader === 0 ? "Meisterschaftsführung" : data.championship.driver ? `${data.championship.driver.gapToLeader} Pkt. Rückstand` : "Noch keine Wertung"} icon={Trophy} tone="yellow" className="h-full" />;
