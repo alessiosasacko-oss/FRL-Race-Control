@@ -1,15 +1,19 @@
 import type { AttendanceStatus } from "@/domain";
 import type { NotificationItem as NotificationView } from "@/lib/notifications/types";
+import type { DriverCharacterView, TeamSuitView } from "@/lib/characters/types";
 
 export type DashboardData = {
   identity: {
     displayName: string;
     avatarUrl: string | null;
+    character: DriverCharacterView;
+    teamSuit: TeamSuitView;
     driver: {
       id: number;
       name: string;
       number: number;
       flag: string;
+      lineupStatus: string;
       team: { id: number; name: string; color: string } | null;
       league: { id: number; code: string; name: string };
     } | null;
@@ -37,6 +41,8 @@ export type DashboardData = {
       points: number;
       gapToLeader: number;
       lastRacePoints: number;
+      wins: number;
+      podiums: number;
     } | null;
     team: {
       position: number;

@@ -49,6 +49,7 @@ import {
   resultSubmissionSchema,
 } from "./schemas";
 import type { SportsActionState } from "./types";
+import { characterView, suitView } from "@/lib/characters/resolve";
 
 type ApplicableDecision = {
   id: number;
@@ -652,10 +653,45 @@ export async function saveResultsAction(
         data: { position: null },
       });
 
+      const characterSources = publish
+        ? await transaction.driver.findMany({
+            where: { id: { in: parsed.data.results.map((result) => result.driverId) } },
+            select: {
+              id: true,
+              number: true,
+              flag: true,
+              user: { select: { driverCharacter: { select: { id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true } } } },
+            },
+          })
+        : [];
+      const suitSources = publish
+        ? await transaction.team.findMany({
+            where: { id: { in: parsed.data.results.map((result) => result.representedTeamId) } },
+            select: {
+              id: true,
+              organization: {
+                select: {
+                  id: true, color: true, secondaryColor: true, contrastColor: true,
+                  suitTemplates: { where: { active: true, archivedAt: null }, orderBy: [{ displayOrder: "asc" }, { name: "asc" }], select: { id: true, organizationId: true, name: true, configuration: true } },
+                },
+              },
+            },
+          })
+        : [];
+      const characterSourceByDriver = new Map(characterSources.map((source) => [source.id, source]));
+      const suitSourceByTeam = new Map(suitSources.map((source) => [source.id, source]));
+
       const retainedResultIds: number[] = [];
       for (const [index, result] of parsed.data.results.entries()) {
         const calculated = finalByDriver.get(result.driverId);
         if (!calculated) throw new Error("CALCULATION_MISSING");
+        const character = characterView(characterSourceByDriver.get(result.driverId)?.user?.driverCharacter);
+        const organization = suitSourceByTeam.get(result.representedTeamId)?.organization ?? null;
+        const suitTemplate = organization?.suitTemplates.find((template) => template.id === character.suitVariantId) ?? null;
+        const suit = suitView(suitTemplate, organization);
+        const characterSnapshot = publish
+          ? ({ version: 1, characterVersion: character.version, configuration: character.configuration, normalPose: character.normalPose, winnerPose: character.winnerPose, driverNumber: characterSourceByDriver.get(result.driverId)?.number ?? 0, flag: characterSourceByDriver.get(result.driverId)?.flag ?? "🏁", teamSuit: suit.configuration, suitTemplateId: suit.id } as Prisma.InputJsonValue)
+          : undefined;
         const row = await transaction.raceResult.upsert({
           where: {
             resultSessionId_driverId: {
@@ -689,6 +725,7 @@ export async function saveResultsAction(
             finalPosition: calculated.finalPosition,
             notes: result.notes,
             substitute: result.substitute,
+            characterSnapshot,
           },
           create: {
             resultSessionId: resultSession.id,
@@ -718,6 +755,7 @@ export async function saveResultsAction(
             finalPosition: calculated.finalPosition,
             notes: result.notes,
             substitute: result.substitute,
+            characterSnapshot,
           },
         });
         retainedResultIds.push(row.id);

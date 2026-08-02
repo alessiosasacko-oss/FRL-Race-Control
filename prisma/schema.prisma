@@ -364,6 +364,7 @@ model User {
   resultPenaltyChanges     ResultPenaltyApplication[] @relation("ResultPenaltyActor")
   notifications            Notification[]
   settings                 UserSettings?
+  driverCharacter          DriverCharacter?
   emailDeliveries          EmailDelivery[]
   createdAnnouncements     Announcement[]
   retriedAutomationRuns    AutomationJobRun[]         @relation("AutomationRunRetryActor")
@@ -517,6 +518,7 @@ model TeamOrganization {
   standings         GlobalTeamStanding[]
   contributions     GlobalTeamContribution[]
   driverAssignments DriverSeasonAssignment[]
+  suitTemplates     TeamSuitTemplate[]
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
 
@@ -857,6 +859,7 @@ model RaceResult {
   racePoints           Float                      @default(0)
   bonusPoints          Float                      @default(0)
   teamPoints           Float                      @default(0)
+  characterSnapshot    Json?
   resultSession        RaceResultSession          @relation(fields: [resultSessionId], references: [id], onDelete: Restrict)
   driver               Driver                     @relation("ResultDriver", fields: [driverId], references: [id], onDelete: Restrict)
   representedTeam      Team                       @relation(fields: [representedTeamId], references: [id], onDelete: Restrict)
@@ -871,6 +874,40 @@ model RaceResult {
   @@index([representedTeamId, resultSessionId])
   @@index([status, position])
   @@index([resultSessionId, finalPosition])
+}
+
+model DriverCharacter {
+  id            Int               @id @default(autoincrement())
+  userId        Int               @unique
+  configuration Json
+  normalPose    String            @default("NEUTRAL") @db.VarChar(32)
+  winnerPose    String            @default("FIST_UP") @db.VarChar(32)
+  suitVariantId Int?
+  version       Int               @default(1)
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suitVariant   TeamSuitTemplate? @relation(fields: [suitVariantId], references: [id], onDelete: SetNull)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([suitVariantId])
+}
+
+model TeamSuitTemplate {
+  id             Int               @id @default(autoincrement())
+  organizationId Int
+  name           String            @db.VarChar(120)
+  configuration  Json
+  active         Boolean           @default(true)
+  archivedAt     DateTime?
+  displayOrder   Int               @default(0)
+  organization   TeamOrganization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  characters     DriverCharacter[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId, active, displayOrder])
+  @@index([archivedAt])
 }
 
 model ResultPenaltyApplication {

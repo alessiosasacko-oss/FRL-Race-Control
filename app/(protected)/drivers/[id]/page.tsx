@@ -3,6 +3,7 @@ import { ArrowLeft, BadgeInfo, MessageCircle, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import CountryFlag from "@/components/ui/CountryFlag";
+import DriverCharacter from "@/components/characters/DriverCharacter";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getDriverById } from "@/lib/master-data/queries";
@@ -52,8 +53,11 @@ export default async function DriverDetailPage({
             className="h-2 bg-blue-500"
             style={{ backgroundColor: driver.team?.color }}
           />
-          <div className="grid gap-8 p-6 lg:grid-cols-[1fr_280px] lg:p-8">
+          <div className="grid gap-8 p-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:p-8">
             <div>
+              <div className="mb-6 flex min-h-64 items-end justify-center overflow-hidden rounded-2xl bg-[radial-gradient(circle_at_50%_30%,rgba(37,99,235,.28),transparent_48%),#070e1b] lg:min-h-80">
+                <DriverCharacter configuration={driver.character.configuration} teamSuit={driver.teamSuit.configuration} pose={driver.character.normalPose} variant="fullBody" driverNumber={driver.number} driverInitials={driver.name} alt={`Fahrercharakter von ${driver.name}`} className="h-64 max-w-full lg:h-80" showBackground />
+              </div>
               <div className="flex flex-wrap items-start gap-5">
                 <CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="lg" />
                 <div>
@@ -70,6 +74,8 @@ export default async function DriverDetailPage({
               </div>
 
               <dl className="mt-8 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl bg-slate-950/60 p-4"><dt className="text-xs uppercase tracking-wider text-slate-500">WM-Position</dt><dd className="mt-2 text-2xl font-black text-white">{driver.standing ? `P${driver.standing.position}` : "–"}</dd></div>
+                <div className="rounded-xl bg-slate-950/60 p-4"><dt className="text-xs uppercase tracking-wider text-slate-500">Punkte</dt><dd className="mt-2 text-2xl font-black text-blue-200">{driver.standing?.points ?? "–"}</dd></div>
                 <div className="rounded-xl bg-slate-950/60 p-4">
                   <dt className="text-xs uppercase tracking-wider text-slate-500">
                     Status
@@ -114,6 +120,12 @@ export default async function DriverDetailPage({
                   </dd>
                 </div>
               </dl>
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <DriverStat label="Siege" value={driver.standing?.wins ?? 0} />
+                <DriverStat label="Podien" value={driver.standing?.podiums ?? 0} />
+                <DriverStat label="Poles" value={driver.standing?.polePositions ?? 0} />
+                <DriverStat label="Schnellste Runden" value={driver.standing?.fastestLaps ?? 0} />
+              </div>
             </div>
 
             <aside className="space-y-4">
@@ -154,4 +166,8 @@ export default async function DriverDetailPage({
       </div>
     </AppLayout>
   );
+}
+
+function DriverStat({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3 text-center"><p className="text-xl font-black text-white">{value}</p><p className="mt-1 text-xs text-slate-500">{label}</p></div>;
 }

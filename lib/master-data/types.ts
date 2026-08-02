@@ -206,6 +206,8 @@ export type DriverItem = {
   flag: string;
   countryCode: string;
   active: boolean;
+  character: import("@/lib/characters/types").DriverCharacterView;
+  teamSuit: import("@/lib/characters/types").TeamSuitView;
   userId: number | null;
   league: LeagueOption;
   team: {
@@ -234,4 +236,12 @@ export type DriverItem = {
 export type DriverDetail = DriverItem & {
   ticketCount: number;
   standingCount: number;
+  standing: {
+    position: number;
+    points: number;
+    wins: number;
+    podiums: number;
+    polePositions: number;
+    fastestLaps: number;
+  } | null;
 };

@@ -6,6 +6,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
 import CountryFlag from "@/components/ui/CountryFlag";
+import DriverCharacter from "@/components/characters/DriverCharacter";
 import { resultSessionLabels, resultStatusLabels } from "@/domain";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -184,13 +185,16 @@ function PodiumResult({
         {index + 1}
       </span>
       {index === 0 ? (
-        <Trophy className="text-amber-300" size={22} />
+        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-amber-300"><Trophy size={22} /> Race Winner</div>
       ) : (
         <Medal
           className={index === 1 ? "text-slate-300" : "text-orange-300"}
           size={22}
         />
       )}
+      <div className="mt-1 flex h-32 items-end justify-center overflow-hidden">
+        <DriverCharacter configuration={result.driver.character.configuration} teamSuit={result.representedTeam.teamSuit.configuration} pose={index === 0 ? result.driver.character.winnerPose : result.driver.character.normalPose} variant={index === 0 ? "winner" : "portrait"} driverNumber={result.driver.number} driverInitials={result.driver.name} alt={`Fahrercharakter von ${result.driver.name}`} className="h-36 w-auto" showShadow={false} />
+      </div>
       <p className="mt-4 flex items-center gap-2 text-lg font-bold text-white"><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />{result.driver.name}</p>
       <p className="mt-1 text-sm text-slate-400">
         {result.representedTeam.name}
@@ -213,7 +217,7 @@ function ResultRow({ result }: { result: SessionResult }) {
           href={`/drivers/${result.driver.id}`}
           className="font-semibold text-white hover:text-blue-300"
         >
-          <span className="inline-flex items-center gap-2"><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />#{result.driver.number} {result.driver.name}</span>
+          <span className="inline-flex items-center gap-2"><DriverCharacter configuration={result.driver.character.configuration} teamSuit={result.representedTeam.teamSuit.configuration} pose={result.driver.character.normalPose} variant="tableThumbnail" alt={`Fahrercharakter von ${result.driver.name}`} className="size-9" showShadow={false} /><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />#{result.driver.number} {result.driver.name}</span>
         </Link>
         {result.substitute ? (
           <p className="mt-1 text-xs text-amber-300">
@@ -247,10 +251,11 @@ function ResultRow({ result }: { result: SessionResult }) {
 function MobileResult({ result }: { result: SessionResult }) {
   return (
     <article className="surface-panel rounded-2xl p-4">
-      <div className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3">
+      <div className="grid grid-cols-[2.5rem_2.75rem_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
         <span className="font-mono text-2xl font-black text-white">
           {result.finalPosition ?? result.position ?? "–"}
         </span>
+        <DriverCharacter configuration={result.driver.character.configuration} teamSuit={result.representedTeam.teamSuit.configuration} pose={result.driver.character.normalPose} variant="tableThumbnail" alt={`Fahrercharakter von ${result.driver.name}`} className="size-11" showShadow={false} />
         <div className="min-w-0">
           <Link
             href={`/drivers/${result.driver.id}`}

@@ -3,6 +3,7 @@ import { ArrowRight, Users } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import CountryFlag from "@/components/ui/CountryFlag";
 import ListFilters from "@/components/master-data/ListFilters";
+import DriverCharacter from "@/components/characters/DriverCharacter";
 import {
   hasPermission,
   Permission,
@@ -61,6 +62,9 @@ export default async function DriversPage({
               href={`/drivers/${driver.id}`}
               className="master-card group transition hover:-translate-y-1 hover:border-blue-500"
             >
+              <div className="mb-3 flex h-32 items-end justify-center overflow-hidden rounded-xl bg-slate-950/70">
+                <DriverCharacter configuration={driver.character.configuration} teamSuit={driver.teamSuit.configuration} pose={driver.character.normalPose} variant="portrait" driverNumber={driver.number} driverInitials={driver.name} alt={`Fahrercharakter von ${driver.name}`} className="h-36 w-auto" showShadow={false} />
+              </div>
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="lg" />

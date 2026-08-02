@@ -7,6 +7,7 @@ import {
 import { getPrismaClient } from "@/lib/db/prisma";
 import { getRecentNotifications, getUnreadNotificationCount } from "@/lib/notifications/queries";
 import { publicRaceTrack } from "@/lib/races/visibility";
+import { characterView, suitView } from "@/lib/characters/resolve";
 import type { DashboardData } from "./types";
 
 async function optionalDashboardData<T>(
@@ -40,12 +41,36 @@ export async function getDashboardData(
     select: {
       displayName: true,
       avatarUrl: true,
+      driverCharacter: {
+        select: { id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true },
+      },
       driver: {
         select: {
           id: true,
           name: true,
           number: true,
           flag: true,
+          seasonAssignments: {
+            where: { active: true, season: { active: true, archivedAt: null } },
+            orderBy: { seasonId: "desc" },
+            take: 1,
+            select: {
+              lineupStatus: true,
+              organization: {
+                select: {
+                  id: true,
+                  color: true,
+                  secondaryColor: true,
+                  contrastColor: true,
+                  suitTemplates: {
+                    where: { active: true, archivedAt: null },
+                    orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+                    select: { id: true, organizationId: true, name: true, configuration: true },
+                  },
+                },
+              },
+            },
+          },
           league: {
             select: {
               id: true,
@@ -68,6 +93,9 @@ export async function getDashboardData(
     },
   });
   if (!user) throw new Error("USER_NOT_FOUND");
+  const character = characterView(user.driverCharacter);
+  const characterOrganization = user.driver?.seasonAssignments[0]?.organization ?? null;
+  const selectedSuit = characterOrganization?.suitTemplates.find((template) => template.id === character.suitVariantId) ?? null;
   let leagueId = user.driver?.league.id ?? null;
 
   let seasonId =
@@ -408,12 +436,15 @@ export async function getDashboardData(
     identity: {
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
+      character,
+      teamSuit: suitView(selectedSuit, characterOrganization),
       driver: user.driver
         ? {
             id: user.driver.id,
             name: user.driver.name,
             number: user.driver.number,
             flag: user.driver.flag,
+            lineupStatus: user.driver.seasonAssignments[0]?.lineupStatus ?? "PRIMARY",
             team: user.driver.team
               ? {
                   id: user.driver.team.id,
@@ -473,6 +504,8 @@ export async function getDashboardData(
             lastRacePoints:
               (lastResult?.racePoints ?? 0) +
               (lastResult?.bonusPoints ?? 0),
+            wins: driverStanding.wins,
+            podiums: driverStanding.podiums,
           }
         : null,
       team: teamStanding

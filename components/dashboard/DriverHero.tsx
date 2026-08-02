@@ -1,6 +1,7 @@
-import Image from "next/image";
-import { Gauge, Medal, UserRound } from "lucide-react";
+import Link from "next/link";
+import { Gauge, Medal, Pencil } from "lucide-react";
 import CountryFlag from "@/components/ui/CountryFlag";
+import DriverCharacter from "@/components/characters/DriverCharacter";
 import type { DashboardData } from "@/lib/dashboard/types";
 
 export default function DriverHero({ data }: { data: DashboardData }) {
@@ -27,7 +28,7 @@ export default function DriverHero({ data }: { data: DashboardData }) {
               <span aria-hidden="true">·</span>
               <span>{driver.team?.name ?? "Ohne Team"}</span>
             </div>
-            <p className="mt-3 text-sm text-slate-400">Aktiver FRL-Fahrer {data.identity.season ? `· ${data.identity.season.name}` : ""}</p>
+            <p className="mt-3 text-sm text-slate-400">{driver.lineupStatus === "SUBSTITUTE" ? "Ersatzfahrer" : driver.lineupStatus === "RESERVE" ? "Reservefahrer" : "Stammfahrer"} {data.identity.season ? `· ${data.identity.season.name}` : ""}</p>
           </>
         ) : (
           <p className="mt-4 max-w-md text-sm leading-6 text-slate-300">Noch kein Fahrerprofil zugeordnet. Dein Dashboard bleibt trotzdem vollständig nutzbar.</p>
@@ -37,17 +38,15 @@ export default function DriverHero({ data }: { data: DashboardData }) {
           <HeroMetric label="Punkte" value={standing ? standing.points : "–"} />
           <HeroMetric label="Rückstand" value={standing ? (standing.gapToLeader === 0 ? "WM-FÜHRENDER" : `${standing.gapToLeader} Pkt.`) : "Keine Wertung"} />
         </div>
+        {standing ? <p className="mt-3 text-xs font-semibold text-slate-400">{standing.wins} Siege · {standing.podiums} Podien</p> : null}
+        <Link href="/profile/character" className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+          <Pencil size={16} /> {data.identity.character.customized ? "Charakter bearbeiten" : "Charakter erstellen"}
+        </Link>
       </div>
 
       <div className="absolute bottom-0 right-0 flex h-52 w-full items-end justify-end pr-4 sm:h-60 sm:pr-8 lg:right-8 lg:h-[88%] lg:w-[38%] lg:justify-center lg:pr-0">
         <div className="absolute bottom-4 size-40 rounded-full blur-3xl sm:size-56" style={{ backgroundColor: `${teamColor}44` }} />
-        {data.identity.avatarUrl ? (
-          <Image src={data.identity.avatarUrl} alt={`Profilbild von ${driver?.name ?? data.identity.displayName}`} width={320} height={320} className="relative mb-8 size-36 rounded-[2rem] border border-white/15 object-cover shadow-2xl sm:size-48 lg:size-64" />
-        ) : (
-          <div className="relative mb-8 flex size-36 items-center justify-center rounded-[2rem] border border-white/15 bg-slate-900/80 text-blue-200 shadow-2xl sm:size-48 lg:size-64">
-            <UserRound className="size-20 sm:size-28 lg:size-36" strokeWidth={1.25} />
-          </div>
-        )}
+        <DriverCharacter configuration={data.identity.character.configuration} teamSuit={data.identity.teamSuit.configuration} pose={data.identity.character.normalPose} variant="dashboardHero" driverNumber={driver?.number} driverInitials={driver?.name} alt={`Fahrercharakter von ${driver?.name ?? data.identity.displayName}`} className="relative mb-1 h-52 w-auto drop-shadow-2xl sm:h-60 lg:h-full lg:max-h-[25rem]" showBackground />
       </div>
       <div className="absolute bottom-5 right-4 z-20 flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/75 px-3 py-2 text-xs font-semibold text-slate-300 backdrop-blur sm:right-8">
         {standing?.position === 1 ? <Medal size={15} className="text-amber-300" /> : <Gauge size={15} className="text-cyan-300" />}

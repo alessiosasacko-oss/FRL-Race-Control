@@ -14,6 +14,7 @@ import { listQuerySchema } from "./schemas";
 import { formatLocalDateTimeInput } from "./timezone";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import { getTeamDependencySnapshot } from "./team-dependencies";
+import { characterView, suitView } from "@/lib/characters/resolve";
 import type {
   DriverDetail,
   DriverFormOptions,
@@ -542,6 +543,11 @@ export async function getDriverById(
     where: { id: driverId },
     include: {
       ...driverItemInclude,
+      standings: {
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+        select: { position: true, points: true, wins: true, podiums: true, polePositions: true, fastestLaps: true },
+      },
       _count: { select: { ticketLinks: true, standings: true } },
     },
   });
@@ -552,6 +558,7 @@ export async function getDriverById(
     ...mapDriverItem(driver),
     ticketCount: driver._count.ticketLinks,
     standingCount: driver._count.standings,
+    standing: driver.standings[0] ?? null,
   };
 }
 
@@ -569,7 +576,14 @@ const driverItemInclude = {
           name: true,
           shortName: true,
           color: true,
+          secondaryColor: true,
+          contrastColor: true,
           active: true,
+          suitTemplates: {
+            where: { active: true, archivedAt: null },
+            orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+            select: { id: true, organizationId: true, name: true, configuration: true },
+          },
         },
       },
       season: {
@@ -607,13 +621,25 @@ const driverItemInclude = {
           name: true,
           shortName: true,
           color: true,
+          secondaryColor: true,
+          contrastColor: true,
           active: true,
+          suitTemplates: {
+            where: { active: true, archivedAt: null },
+            orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+            select: { id: true, organizationId: true, name: true, configuration: true },
+          },
         },
       },
     },
   },
   user: {
-    select: { id: true, displayName: true, discordId: true },
+    select: {
+      id: true,
+      displayName: true,
+      discordId: true,
+      driverCharacter: { select: { id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true } },
+    },
   },
 } satisfies Prisma.DriverInclude;
 
@@ -701,6 +727,8 @@ function mapDriverItem(driver: DriverItemRecord): DriverItem {
   }
 
   const visibleOrganization = assignment?.organization ?? null;
+  const character = characterView(driver.user?.driverCharacter);
+  const selectedSuit = visibleOrganization?.suitTemplates.find((template) => template.id === character.suitVariantId) ?? null;
   return {
     id: driver.id,
     name: driver.name,
@@ -708,6 +736,8 @@ function mapDriverItem(driver: DriverItemRecord): DriverItem {
     flag: driver.flag,
     countryCode: driver.countryCode,
     active: driver.active,
+    character,
+    teamSuit: suitView(selectedSuit, visibleOrganization),
     userId: driver.userId,
     league: assignment?.league ?? driver.league,
     team: visibleOrganization
@@ -720,7 +750,9 @@ function mapDriverItem(driver: DriverItemRecord): DriverItem {
       : null,
     assignment,
     diagnostics,
-    user: driver.user,
+    user: driver.user
+      ? { id: driver.user.id, displayName: driver.user.displayName, discordId: driver.user.discordId }
+      : null,
     updatedAt: driver.updatedAt.toISOString(),
   };
 }

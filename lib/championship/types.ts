@@ -131,6 +131,8 @@ export type DriverStandingView = {
     number: number;
     flag: string;
     team: { id: number; name: string; color: string } | null;
+    character: import("@/lib/characters/types").DriverCharacterView;
+    teamSuit: import("@/lib/characters/types").TeamSuitView;
   };
 };
 
@@ -204,12 +206,14 @@ export type ResultRowView = {
     name: string;
     number: number;
     flag: string;
+    character: import("@/lib/characters/types").DriverCharacterView;
   };
   representedTeam: {
     id: number;
     name: string;
     shortName: string;
     color: string;
+    teamSuit: import("@/lib/characters/types").TeamSuitView;
   };
   expectedDriver: { id: number; name: string } | null;
   penaltyApplications: Array<{

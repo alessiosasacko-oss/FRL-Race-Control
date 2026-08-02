@@ -1,4 +1,6 @@
 import "server-only";
+import { characterView, suitView } from "@/lib/characters/resolve";
+import { driverCharacterSnapshotSchema } from "@/lib/characters/schema";
 import { createHash } from "node:crypto";
 import {
   AttendanceChangeSource,
@@ -630,13 +632,19 @@ export async function getChampionshipPageData(
             include: {
               driver: {
                 include: {
+                  user: {
+                    select: { driverCharacter: { select: { id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true } } },
+                  },
                   team: {
                     select: {
                       id: true,
                       name: true,
                       color: true,
                       organization: {
-                        select: { id: true, name: true, color: true },
+                        select: {
+                          id: true, name: true, color: true, secondaryColor: true, contrastColor: true,
+                          suitTemplates: { where: { active: true, archivedAt: null }, orderBy: [{ displayOrder: "asc" }, { name: "asc" }], select: { id: true, organizationId: true, name: true, configuration: true } },
+                        },
                       },
                     },
                   },
@@ -746,6 +754,13 @@ export async function getChampionshipPageData(
         team: standing.driver.team
           ? (standing.driver.team.organization ?? standing.driver.team)
           : null,
+        character: characterView(standing.driver.user?.driverCharacter),
+        teamSuit: (() => {
+          const organization = standing.driver.team?.organization ?? null;
+          const character = characterView(standing.driver.user?.driverCharacter);
+          const template = organization?.suitTemplates.find((item) => item.id === character.suitVariantId) ?? null;
+          return suitView(template, organization);
+        })(),
       },
     })),
     teams: teamRows.map((standing) => ({
@@ -794,7 +809,14 @@ function resultRow(result: {
   racePoints: number;
   bonusPoints: number;
   teamPoints: number;
-  driver: { id: number; name: string; number: number; flag: string };
+  characterSnapshot: unknown;
+  driver: {
+    id: number;
+    name: string;
+    number: number;
+    flag: string;
+    user: { driverCharacter: { id: number; configuration: unknown; normalPose: string; winnerPose: string; version: number; suitVariantId: number | null } | null } | null;
+  };
   representedTeam: {
     id: number;
     name: string;
@@ -805,6 +827,9 @@ function resultRow(result: {
       name: string;
       shortName: string;
       color: string;
+      secondaryColor: string | null;
+      contrastColor: string | null;
+      suitTemplates: Array<{ id: number; organizationId: number; name: string; configuration: unknown }>;
     } | null;
   };
   expectedDriver: { id: number; name: string } | null;
@@ -820,9 +845,18 @@ function resultRow(result: {
     decision: { ticketId: number } | null;
   }>;
 }): ResultRowView {
+  const organization = result.representedTeam.organization;
+  const snapshot = driverCharacterSnapshotSchema.safeParse(result.characterSnapshot).data;
+  const liveCharacter = characterView(result.driver.user?.driverCharacter);
+  const character = snapshot ? { ...liveCharacter, configuration: snapshot.configuration, normalPose: snapshot.normalPose, winnerPose: snapshot.winnerPose, version: snapshot.characterVersion } : liveCharacter;
+  const selectedSuit = organization?.suitTemplates.find((item) => item.id === character.suitVariantId) ?? null;
   return {
     ...result,
-    representedTeam: result.representedTeam.organization ?? result.representedTeam,
+    driver: { id: result.driver.id, name: result.driver.name, number: snapshot?.driverNumber ?? result.driver.number, flag: snapshot?.flag ?? result.driver.flag, character },
+    representedTeam: {
+      ...(organization ?? result.representedTeam),
+      teamSuit: snapshot ? { id: snapshot.suitTemplateId, organizationId: organization?.id ?? null, name: "Historischer Rennanzug", configuration: snapshot.teamSuit } : suitView(selectedSuit, organization),
+    },
     baseStatus: result.baseStatus as ResultStatus,
     status: result.status as ResultStatus,
     penaltyApplications: result.penaltyApplications.map(
@@ -887,7 +921,10 @@ export async function getRaceResults(
                 ],
             include: {
               driver: {
-                select: { id: true, name: true, number: true, flag: true },
+                select: {
+                  id: true, name: true, number: true, flag: true,
+                  user: { select: { driverCharacter: { select: { id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true } } } },
+                },
               },
               representedTeam: {
                 select: {
@@ -901,6 +938,13 @@ export async function getRaceResults(
                       name: true,
                       shortName: true,
                       color: true,
+                      secondaryColor: true,
+                      contrastColor: true,
+                      suitTemplates: {
+                        where: { active: true, archivedAt: null },
+                        orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+                        select: { id: true, organizationId: true, name: true, configuration: true },
+                      },
                     },
                   },
                 },

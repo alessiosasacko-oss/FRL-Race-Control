@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Tabs from "@/components/ui/Tabs";
 import CountryFlag from "@/components/ui/CountryFlag";
+import DriverCharacter from "@/components/characters/DriverCharacter";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import {
@@ -195,6 +196,9 @@ export default async function ChampionshipPage({
                   <p className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
                     Position {standing.position}
                   </p>
+                  <div className="mt-2 flex h-28 items-end justify-center overflow-hidden">
+                    <DriverCharacter configuration={standing.driver.character.configuration} teamSuit={standing.driver.teamSuit.configuration} pose={standing.driver.character.normalPose} variant="portrait" driverNumber={standing.driver.number} driverInitials={standing.driver.name} alt={`Fahrercharakter von ${standing.driver.name}`} className="h-32 w-auto" showShadow={false} />
+                  </div>
                   <p className="mt-3 flex items-center gap-2 text-lg font-bold text-white"><CountryFlag countryCode={null} fallbackFlag={standing.driver.flag} size="sm" />{standing.driver.name}</p>
                   <p className="mt-1 text-sm text-slate-400">
                     {standing.driver.team?.name ?? "Ohne Team"}
@@ -270,6 +274,7 @@ function DriverStandings({
               href={`/drivers/${standing.driver.id}`}
               className="min-w-0 font-semibold text-white hover:text-blue-300"
             >
+              <DriverCharacter configuration={standing.driver.character.configuration} teamSuit={standing.driver.teamSuit.configuration} pose={standing.driver.character.normalPose} variant="tableThumbnail" driverNumber={standing.driver.number} alt={`Fahrercharakter von ${standing.driver.name}`} className="mr-2 inline-block size-10 align-middle" showShadow={false} />
               <CountryFlag countryCode={null} fallbackFlag={standing.driver.flag} size="sm" className="mr-2" />
               <span className="truncate">
                 #{standing.driver.number} {standing.driver.name}

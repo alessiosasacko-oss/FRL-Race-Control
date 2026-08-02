@@ -53,6 +53,7 @@ export const administrationNavigationItems = [
   { name: "Kommunikation", href: "/admin/announcements", icon: Megaphone, permission: Permission.ManageAdministration },
   { name: "Automationen", href: "/admin/automation", icon: Bot, permission: Permission.ManageAutomation },
   { name: "Design & Branding", href: "/admin/design", icon: Palette, permission: Permission.ManageBranding },
+  { name: "Fahrer-Rennanzüge", href: "/admin/design/driver-suits", icon: Palette, permission: Permission.ManageBranding },
   { name: "Strecken", href: "/admin/tracks", icon: Map, permission: Permission.ManageMasterData },
   { name: "Einstellungen", href: "/settings", icon: Cog, permission: Permission.ViewRaceControl },
 ] as const;
