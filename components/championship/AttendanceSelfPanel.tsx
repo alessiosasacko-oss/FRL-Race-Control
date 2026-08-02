@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import {
   AttendanceChangeSource,

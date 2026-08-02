@@ -1,7 +1,9 @@
 "use client";
 
+import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
+
 import Link from "next/link";
-import { useActionState, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import { RaceSession } from "@/domain";
 import { createFiaTicketAction } from "@/lib/fia/actions";

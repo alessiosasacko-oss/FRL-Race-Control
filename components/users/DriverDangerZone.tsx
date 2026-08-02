@@ -1,7 +1,9 @@
 "use client";
 
+import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
+
 import Link from "next/link";
-import { useActionState, useRef } from "react";
+import { useRef } from "react";
 import { AlertTriangle, ShieldX, Trash2, UserRoundX } from "lucide-react";
 import { Role } from "@/domain";
 import { initialUserAdminActionState } from "@/lib/users/action-state";

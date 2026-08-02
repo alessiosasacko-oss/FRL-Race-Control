@@ -46,7 +46,14 @@ function refreshUserAdministration(userId?: number, driverId?: number): void {
   revalidatePath("/admin/drivers");
   if (driverId) revalidatePath(`/admin/drivers/${driverId}`);
   revalidatePath("/drivers");
+  revalidatePath("/drivers/[id]", "page");
   revalidatePath("/teams");
+  revalidatePath("/teams/[id]", "page");
+  revalidatePath("/attendance");
+  revalidatePath("/admin/attendance");
+  revalidatePath("/championship");
+  revalidatePath("/championship/team-principals");
+  revalidatePath("/admin/results");
   revalidatePath("/dashboard");
 }
 

@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useRef } from "react";
+import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
+
+import { useMemo, useRef } from "react";
 import { Archive, MoreHorizontal, RotateCcw, Trash2 } from "lucide-react";
 import {
   archiveTeamAction,

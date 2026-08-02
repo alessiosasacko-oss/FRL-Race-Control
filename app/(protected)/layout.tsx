@@ -1,4 +1,5 @@
 import { requireAuthenticatedUser } from "@/lib/auth/session";
+import AppAutoRefresh from "@/components/live/AppAutoRefresh";
 
 type ProtectedLayoutProps = {
   children: React.ReactNode;
@@ -9,5 +10,10 @@ export default async function ProtectedLayout({
 }: ProtectedLayoutProps) {
   await requireAuthenticatedUser();
 
-  return children;
+  return (
+    <>
+      {children}
+      <AppAutoRefresh />
+    </>
+  );
 }

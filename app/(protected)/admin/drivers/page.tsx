@@ -1,4 +1,7 @@
+import Link from "next/link";
+import { Pencil, Power, Trash2 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
+import LiveMutationSignal from "@/components/live/LiveMutationSignal";
 import DriverForm from "@/components/master-data/DriverForm";
 import CountryFlag from "@/components/ui/CountryFlag";
 import { Permission } from "@/lib/auth/permissions";
@@ -34,9 +37,12 @@ export default async function DriverAdminPage({ searchParams }: DriverAdminPageP
           </p>
         </div>
         {notice === "deleted" ? (
-          <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-semibold text-emerald-200">
-            Der Fahrer wurde endgültig gelöscht. Ein verknüpftes Benutzerkonto ist erhalten geblieben.
-          </p>
+          <>
+            <LiveMutationSignal scopes={["drivers", "teams", "attendance", "championship"]} clearQueryParameter="notice" />
+            <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-semibold text-emerald-200">
+              Der Fahrer wurde endgültig gelöscht. Ein verknüpftes Benutzerkonto ist erhalten geblieben.
+            </p>
+          </>
         ) : null}
         <section className="master-card">
           <h2 className="mb-5 text-xl font-semibold text-white">
@@ -96,5 +102,3 @@ export default async function DriverAdminPage({ searchParams }: DriverAdminPageP
     </AppLayout>
   );
 }
-import Link from "next/link";
-import { Pencil, Power, Trash2 } from "lucide-react";

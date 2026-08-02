@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
 import { Vote as VoteIcon } from "lucide-react";
 import {
   PenaltyType,

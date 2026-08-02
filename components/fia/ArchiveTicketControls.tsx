@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
+
+import { useState } from "react";
 import { Archive, ArchiveRestore, X } from "lucide-react";
 import {
   archiveFiaTicketAction,

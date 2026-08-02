@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
 import { recalculateChampionshipAction } from "@/lib/championship/actions";
 import { initialSportsActionState } from "@/lib/championship/types";
 import ActionMessage from "./ActionMessage";
