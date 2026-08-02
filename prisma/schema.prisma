@@ -1404,6 +1404,7 @@ model UserSettings {
   displayDensity        DisplayDensity     @default(STANDARD)
   reducedMotion         Boolean            @default(false)
   language              String             @default("de") @db.VarChar(16)
+  dashboardLayout       Json?
   user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt

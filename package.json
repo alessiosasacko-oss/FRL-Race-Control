@@ -9,7 +9,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test lib/auth/logging.test.ts lib/db/pool-config.test.ts lib/db/prisma-source.test.ts lib/design/theme.test.ts lib/design/background.test.ts lib/live/data-events.test.ts lib/live/revision-client.test.ts lib/mobile/responsive.test.ts lib/users/management.test.ts lib/users/country-flags.test.ts lib/users/role-loading.test.ts lib/users/driver-lifecycle.test.ts lib/tracks/track-simplification.test.ts lib/master-data/team-lifecycle.test.ts lib/master-data/driver-assignment.test.ts lib/championship/result-engine.test.ts lib/championship/result-workspace.test.ts lib/championship/attendance-policy.test.ts lib/championship/team-principal-policy.test.ts lib/fia/proposal-policy.test.ts lib/fia/archive-policy.test.ts lib/fia/chat-policy.test.ts lib/storage/evidence-constants.test.ts lib/storage/evidence-upload-client.test.ts",
+    "test": "tsx --test lib/auth/logging.test.ts lib/db/pool-config.test.ts lib/db/prisma-source.test.ts lib/design/theme.test.ts lib/design/background.test.ts lib/dashboard/layout.test.ts lib/live/data-events.test.ts lib/live/revision-client.test.ts lib/mobile/responsive.test.ts lib/users/management.test.ts lib/users/country-flags.test.ts lib/users/role-loading.test.ts lib/users/driver-lifecycle.test.ts lib/tracks/track-simplification.test.ts lib/master-data/team-lifecycle.test.ts lib/master-data/driver-assignment.test.ts lib/championship/result-engine.test.ts lib/championship/result-workspace.test.ts lib/championship/attendance-policy.test.ts lib/championship/team-principal-policy.test.ts lib/fia/proposal-policy.test.ts lib/fia/archive-policy.test.ts lib/fia/chat-policy.test.ts lib/storage/evidence-constants.test.ts lib/storage/evidence-upload-client.test.ts",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
@@ -22,6 +22,9 @@
     "championship:rebuild-global": "node --conditions=react-server --import tsx scripts/rebuild-team-principal-championship.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
     "@supabase/supabase-js": "^2.110.8",

@@ -11,6 +11,7 @@ const publicNavbar = source("components/layout/Navbar.tsx");
 const sidebar = source("components/layout/Sidebar.tsx");
 const mobileNavigation = source("components/layout/MobileNavigation.tsx");
 const dashboard = source("app/(protected)/dashboard/page.tsx");
+const personalDashboard = source("components/dashboard/PersonalDashboard.tsx");
 const raceWeekend = source("app/(protected)/calendar/[id]/page.tsx");
 const attendance = source("components/championship/AttendanceRoster.tsx");
 const resultEditor = source("components/championship/ResultsEditor.tsx");
@@ -49,11 +50,11 @@ test("the app shell reserves the bottom navigation safe area", () => {
   assert.match(globalStyles, /env\(safe-area-inset-bottom\)/);
 });
 
-test("the mobile dashboard shows race operations before its compact status area", () => {
-  const operations = dashboard.indexOf('aria-label="Race Operations"');
-  const status = dashboard.indexOf('aria-labelledby="status-heading"');
-  assert.ok(operations > -1 && operations < status);
-  assert.match(dashboard, /grid grid-cols-2 gap-3/);
+test("the mobile dashboard keeps Next Race first and personal widgets in one contained column", () => {
+  assert.match(dashboard, /PersonalDashboard/);
+  assert.ok(personalDashboard.indexOf("<NextRaceWidget") < personalDashboard.indexOf("<DndContext"));
+  assert.match(personalDashboard, /grid min-w-0 grid-cols-1/);
+  assert.match(personalDashboard, /md:grid-cols-2 lg:grid-cols-12/);
 });
 
 test("race weekend exposes the viewer league time and collapses secondary schedules", () => {
