@@ -102,6 +102,20 @@ export enum QualifyingFormat {
   Short = "SHORT",
 }
 
+export enum ResultGraphicType {
+  QualifyingClassification = "QUALIFYING_CLASSIFICATION",
+  RaceClassification = "RACE_CLASSIFICATION",
+  DriverChampionship = "DRIVER_CHAMPIONSHIP",
+  ConstructorChampionship = "CONSTRUCTOR_CHAMPIONSHIP",
+}
+
+export enum GraphicRenderStatus {
+  Pending = "PENDING",
+  Rendering = "RENDERING",
+  Completed = "COMPLETED",
+  Failed = "FAILED",
+}
+
 export enum ResultPenaltySource {
   Fia = "FIA",
   Manual = "MANUAL",
@@ -309,6 +323,8 @@ export const resultPublicationStatusSchema = z.enum(
   ResultPublicationStatus,
 );
 export const qualifyingFormatSchema = z.enum(QualifyingFormat);
+export const resultGraphicTypeSchema = z.enum(ResultGraphicType);
+export const graphicRenderStatusSchema = z.enum(GraphicRenderStatus);
 export const resultPenaltySourceSchema = z.enum(ResultPenaltySource);
 export const championshipAdjustmentTargetSchema = z.enum(
   ChampionshipAdjustmentTarget,

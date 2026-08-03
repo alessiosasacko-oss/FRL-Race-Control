@@ -77,6 +77,7 @@ import {
   type ResultAdminData,
 } from "@/lib/championship/types";
 import ActionMessage from "./ActionMessage";
+import ResultGraphicPreview from "./ResultGraphicPreview";
 
 type ResultsEditorProps = {
   data: ResultAdminData;
@@ -1068,6 +1069,13 @@ export default function ResultsEditor({
           {normalizedGaps.error}
         </div>
       ) : null}
+
+      <ResultGraphicPreview
+        raceId={data.selected.race.id}
+        leagueId={data.selected.race.season.league.id}
+        resultSessionId={existingSession?.id ?? null}
+        session={session}
+      />
 
       <form
         id="result-editor-form"

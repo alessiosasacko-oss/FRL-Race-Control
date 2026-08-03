@@ -2,6 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import {
   ChampionshipAuditAction,
   PenaltyType as PrismaPenaltyType,
@@ -50,6 +51,7 @@ import {
 } from "./schemas";
 import type { SportsActionState } from "./types";
 import { characterView, suitView } from "@/lib/characters/resolve";
+import { enqueuePublishedResultGraphics, processResultGraphics } from "@/lib/graphics/result-graphic-service";
 
 type ApplicableDecision = {
   id: number;
@@ -614,6 +616,7 @@ export async function saveResultsAction(
   const previousState = existingSession
     ? serializable(existingSession)
     : undefined;
+  let renderJobIds: number[] = [];
 
   try {
     await prisma.$transaction(async (transaction) => {
@@ -950,6 +953,13 @@ export async function saveResultsAction(
         race.seasonId,
         user.id,
       );
+      renderJobIds = await enqueuePublishedResultGraphics(transaction, {
+        raceId: race.id,
+        leagueId: parsed.data.leagueId,
+        resultSessionId: resultSession.id,
+        session: parsed.data.session,
+        version: resultSession.revision,
+      });
       if (parsed.data.session === ResultSession.Race) {
         await recordWebhookEvent(transaction, {
           type: WebhookEventType.RaceFinished,
@@ -1001,6 +1011,14 @@ export async function saveResultsAction(
     return errorState(
       "Das Ergebnis konnte nicht gespeichert werden. Bitte prüfe die Eingaben und versuche es erneut.",
     );
+  }
+
+  if (publish && renderJobIds.length > 0) {
+    after(async () => {
+      const outcomes = await processResultGraphics(renderJobIds);
+      const failed = outcomes.filter((outcome) => outcome.status === "rejected").length;
+      if (failed > 0) console.error("[result-graphics] Rendering jobs failed.", { raceId: race.id, leagueId: parsed.data.leagueId, failed });
+    });
   }
 
   await revalidateResults(race.id);

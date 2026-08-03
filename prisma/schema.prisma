@@ -117,6 +117,20 @@ enum QualifyingFormat {
   SHORT
 }
 
+enum ResultGraphicType {
+  QUALIFYING_CLASSIFICATION
+  RACE_CLASSIFICATION
+  DRIVER_CHAMPIONSHIP
+  CONSTRUCTOR_CHAMPIONSHIP
+}
+
+enum GraphicRenderStatus {
+  PENDING
+  RENDERING
+  COMPLETED
+  FAILED
+}
+
 enum ResultPenaltySource {
   FIA
   MANUAL
@@ -579,6 +593,7 @@ model League {
   driverAssignments                DriverSeasonAssignment[]
   discordChannels                  DiscordChannelMapping[]
   discordDeliveries                DiscordDelivery[]
+  resultGraphics                   ResultGraphic[]
   createdAt                        DateTime                 @default(now())
   updatedAt                        DateTime                 @updatedAt
 
@@ -645,6 +660,7 @@ model Race {
   championshipAudits      ChampionshipAudit[]
   globalWeekend           GlobalRaceWeekend?
   globalTeamContributions GlobalTeamContribution[]
+  resultGraphics          ResultGraphic[]
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 
@@ -828,6 +844,7 @@ model RaceResultSession {
   league             League                  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   publishedBy        User?                   @relation("ResultPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
   results            RaceResult[]
+  graphics           ResultGraphic[]
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
 
@@ -836,6 +853,34 @@ model RaceResultSession {
   @@index([leagueId, raceId])
   @@index([publicationStatus, updatedAt])
   @@index([publishedByUserId])
+}
+
+model ResultGraphic {
+  id               Int                 @id @default(autoincrement())
+  type             ResultGraphicType
+  leagueId         Int
+  raceId           Int
+  resultSessionId  Int?
+  version          Int                 @default(1)
+  renderingVersion Int                 @default(1)
+  renderStatus     GraphicRenderStatus @default(PENDING)
+  storagePath      String?             @db.Text
+  publicUrl        String?             @db.Text
+  checksum         String?             @db.VarChar(64)
+  width            Int                 @default(1920)
+  height           Int                 @default(1080)
+  generatedAt      DateTime?
+  errorMessage     String?             @db.VarChar(1000)
+  league           League              @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  race             Race                @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  resultSession    RaceResultSession?  @relation(fields: [resultSessionId], references: [id], onDelete: SetNull)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([type, leagueId, raceId, version])
+  @@index([renderStatus, createdAt])
+  @@index([resultSessionId, type])
+  @@index([leagueId, raceId, type])
 }
 
 model RaceResult {

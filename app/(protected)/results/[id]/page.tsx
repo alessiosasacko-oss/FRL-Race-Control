@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { EyeOff, Flag, Medal, Timer, Trophy } from "lucide-react";
+import Image from "next/image";
+import { Download, EyeOff, Flag, Medal, Timer, Trophy } from "lucide-react";
 import { notFound } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import EmptyState from "@/components/ui/EmptyState";
@@ -8,10 +9,11 @@ import SectionHeader from "@/components/ui/SectionHeader";
 import CountryFlag from "@/components/ui/CountryFlag";
 import DriverCharacter from "@/components/characters/DriverCharacter";
 import TeamLogo from "@/components/teams/TeamLogo";
-import { resultSessionLabels, resultStatusLabels } from "@/domain";
+import { ResultGraphicType, resultGraphicTypeLabels, resultSessionLabels, resultStatusLabels } from "@/domain";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getRaceResults } from "@/lib/championship/queries";
+import { getPrismaClient } from "@/lib/db/prisma";
 import { entityIdSchema } from "@/lib/master-data/schemas";
 
 type ResultPageProps = {
@@ -47,6 +49,17 @@ export default async function ResultPage({
     parsedLeagueId.success ? parsedLeagueId.data : undefined,
   );
   if (!data) notFound();
+  const graphicRows = await getPrismaClient().resultGraphic.findMany({
+    where: {
+      raceId: data.race.id,
+      leagueId: data.race.season.league.id,
+      renderStatus: "COMPLETED",
+      publicUrl: { not: null },
+    },
+    orderBy: [{ version: "desc" }, { generatedAt: "desc" }],
+    select: { id: true, type: true, publicUrl: true, version: true },
+  });
+  const graphics = [...new Map(graphicRows.map((graphic) => [graphic.type, graphic])).values()];
 
   return (
     <AppLayout>
@@ -77,6 +90,23 @@ export default async function ResultPage({
             </p>
           ) : null}
         </section>
+
+        {graphics.length > 0 ? (
+          <section>
+            <SectionHeader title="Offizielle FRL-Grafiken" eyebrow="Downloads" icon={Trophy} description="Aktuellste veröffentlichte Versionen dieses Rennwochenendes" />
+            <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+              {graphics.map((graphic) => (
+                <article key={graphic.id} className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/45">
+                  <Image src={graphic.publicUrl!} alt={`${resultGraphicTypeLabels[graphic.type as ResultGraphicType]} für ${data.race.name}`} width={1920} height={1080} className="h-auto w-full object-contain" />
+                  <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0"><p className="truncate font-bold text-white">{resultGraphicTypeLabels[graphic.type as ResultGraphicType]}</p><p className="text-xs text-slate-500">Version {graphic.version}</p></div>
+                    <a href={graphic.publicUrl!} download className="wizard-secondary-button min-h-11 justify-center"><Download size={17} />PNG herunterladen</a>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {data.sessions.map((session) => (
           <section key={session.id}>

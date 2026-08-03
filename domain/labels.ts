@@ -10,6 +10,7 @@ import {
   NotificationType,
   PenaltyType,
   QualifyingFormat,
+  ResultGraphicType,
   RaceSession,
   RaceStatus,
   ResultSession,
@@ -49,6 +50,13 @@ export const resultSessionLabels: Record<ResultSession, string> = {
 export const qualifyingFormatLabels: Record<QualifyingFormat, string> = {
   [QualifyingFormat.Full]: "Volles Qualifying – Q1, Q2 und Q3",
   [QualifyingFormat.Short]: "Kurzes Qualifying – eine Session",
+};
+
+export const resultGraphicTypeLabels: Record<ResultGraphicType, string> = {
+  [ResultGraphicType.QualifyingClassification]: "Qualifying Classification",
+  [ResultGraphicType.RaceClassification]: "Race Classification",
+  [ResultGraphicType.DriverChampionship]: "Drivers’ Championship",
+  [ResultGraphicType.ConstructorChampionship]: "Constructors’ Championship",
 };
 
 export const resultGapModeLabels: Record<ResultGapMode, string> = {
