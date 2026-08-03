@@ -58,3 +58,19 @@ export const discordRoleMappingInputSchema = z.object({
 });
 
 export const automationJobIdSchema = z.coerce.number().int().positive();
+
+export const leagueDiscordChannelMatrixSchema = z.object({
+  guildSettingsId: z.coerce.number().int().positive(),
+  rows: z.array(z.object({
+    leagueId: z.coerce.number().int().positive(),
+    resultChannelId: snowflakeSchema.nullable(),
+    standingsChannelId: snowflakeSchema.nullable(),
+  })).min(1).max(20),
+});
+
+export const discordChannelTestSchema = z.object({
+  guildSettingsId: z.coerce.number().int().positive(),
+  leagueId: z.coerce.number().int().positive(),
+  channelId: snowflakeSchema,
+  kind: z.enum(["RESULT", "STANDINGS"]),
+});

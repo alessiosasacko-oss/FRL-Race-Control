@@ -8,6 +8,8 @@ import type {
   Role,
 } from "@/domain";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { buildLeagueChannelMatrixRows } from "@/lib/discord/channel-matrix";
+import { getDiscordChannelCatalogState } from "@/lib/discord/channels";
 import type {
   AnnouncementListItem,
   AutomationDashboardData,
@@ -37,7 +39,7 @@ export async function getAutomationDashboardData(): Promise<AutomationDashboardD
       },
     }),
     prisma.league.findMany({
-      where: { active: true },
+      where: { code: { in: ["F1", "F2", "F3", "F4", "F5", "F6"] } },
       orderBy: { code: "asc" },
       select: { id: true, name: true, code: true },
     }),
@@ -66,6 +68,16 @@ export async function getAutomationDashboardData(): Promise<AutomationDashboardD
       },
     }),
   ]);
+  const matrixGuild = guilds[0] ?? null;
+  const channelState = matrixGuild
+    ? await getDiscordChannelCatalogState(matrixGuild.guildId)
+    : { status: "error" as const, message: "Zuerst einen Discord-Server speichern.", catalog: null };
+  const matrixMappings = matrixGuild?.channelMappings.map((mapping) => ({
+    leagueId: mapping.leagueId,
+    purpose: mapping.purpose as DiscordChannelPurpose,
+    channelId: mapping.channelId,
+    enabled: mapping.enabled,
+  })) ?? [];
 
   return {
     guilds: guilds.map((guild) => ({
@@ -147,6 +159,16 @@ export async function getAutomationDashboardData(): Promise<AutomationDashboardD
           }]
         : [],
     ),
+    discordChannelMatrix: {
+      guildSettingsId: matrixGuild?.id ?? null,
+      guildName: matrixGuild?.guildName ?? null,
+      rows: buildLeagueChannelMatrixRows(
+        leagues,
+        matrixMappings,
+        channelState.catalog?.channels ?? [],
+      ),
+      channelState,
+    },
   };
 }
 

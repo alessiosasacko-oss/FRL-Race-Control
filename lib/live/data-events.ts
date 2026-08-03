@@ -16,6 +16,7 @@ export const appDataScopes = [
   "championship",
   "fia",
   "notifications",
+  "automation",
   "design",
 ] as const;
 
@@ -65,6 +66,7 @@ export function scopesForPathname(pathname: string): AppDataScope[] {
   if (pathname.includes("/championship")) return ["championship", "results"];
   if (pathname.includes("/fia")) return ["fia", "notifications", "results"];
   if (pathname.includes("/notifications") || pathname.includes("/admin/announcements")) return ["notifications"];
+  if (pathname.includes("/admin/automation")) return ["automation", "notifications"];
   if (pathname.includes("/admin/design")) return ["design"];
   return ["users"];
 }

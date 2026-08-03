@@ -144,7 +144,7 @@ Datenbanktransaktion ausgeführt. Kanal- und Rollenzuordnungen werden unter
    aktivieren.
 2. Den Bot mit den Rechten zum Anzeigen von Kanälen, Senden von Nachrichten,
    Einbetten von Links und Verwalten von Rollen zum FRL-Server einladen.
-3. `DISCORD_BOT_TOKEN` und `INTERNAL_API_SECRET` in `.env` setzen.
+3. `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID` und `INTERNAL_API_SECRET` in `.env` setzen. Die Kanalmatrix lädt sichtbare Text- und Announcement-Kanäle ausschließlich serverseitig; der Bot benötigt pro Zielkanal `View Channel`, `Send Messages` und `Attach Files`.
 4. Bot und Worker als langlebigen Prozess starten:
 
 ```bash

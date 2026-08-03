@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import DiscordConfigForms from "@/components/automation/DiscordConfigForms";
+import DiscordChannelMatrix from "@/components/automation/DiscordChannelMatrix";
 import { rerenderResultGraphicAction, retryAutomationJobAction, retryDiscordDeliveryAction } from "@/lib/automation/actions";
 import { getAutomationDashboardData } from "@/lib/automation/queries";
 import { Permission } from "@/lib/auth/permissions";
@@ -103,6 +104,8 @@ export default async function AutomationAdminPage() {
             );
           })}
         </div>
+
+        <DiscordChannelMatrix data={data.discordChannelMatrix} />
 
         <DiscordConfigForms guilds={data.guilds} leagues={data.leagues} />
 

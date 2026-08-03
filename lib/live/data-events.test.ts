@@ -113,7 +113,7 @@ test("events contain no personal data", () => {
   const event = createAppDataChangedEvent(["drivers", "teams"], 123);
   assert.equal(isAppDataChangedEvent(event), true);
   assert.deepEqual(Object.keys(event).sort(), ["eventId", "scopes", "timestamp", "type"]);
-  assert.equal(appDataScopes.length, 12);
+  assert.equal(appDataScopes.length, 13);
   assert.equal(isAppDataChangedEvent({ ...event, scopes: ["email"] }), false);
 });
 

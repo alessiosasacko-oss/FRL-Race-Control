@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { DiscordChannelPurpose } from "@/domain";
 import {
   AnnouncementStatus,
   AutomationJobStatus,
@@ -20,8 +21,13 @@ import {
   discordChannelMappingInputSchema,
   discordGuildSettingsInputSchema,
   discordRoleMappingInputSchema,
+  discordChannelTestSchema,
+  leagueDiscordChannelMatrixSchema,
 } from "./schemas";
-import type { AutomationActionState } from "./types";
+import type { AutomationActionState, DiscordChannelReloadState } from "./types";
+import { resultChannelPurposes, standingsChannelPurposes } from "@/lib/discord/channel-matrix";
+import { DiscordChannelCatalogError, discordChannelErrorMessage, getDiscordChannelCatalogState } from "@/lib/discord/channels";
+import { sendDiscordChannelTest } from "@/lib/discord/channel-test";
 
 function errorState(
   message: string,
@@ -32,6 +38,12 @@ function errorState(
 
 function successState(message: string): AutomationActionState {
   return { status: "success", message };
+}
+
+function safeDiscordError(error: unknown, fallback: string): string {
+  if (error instanceof DiscordChannelCatalogError) return discordChannelErrorMessage(error.code);
+  if (error instanceof Error && /^(Der Bot|Der gewählte Kanal|Dieser Channeltyp|Die Discord-Testnachricht)/.test(error.message)) return error.message;
+  return fallback;
 }
 
 function validationErrors(error: {
@@ -45,7 +57,7 @@ async function revalidateAutomation(): Promise<void> {
   revalidatePath("/admin/announcements");
   revalidatePath("/notifications");
   revalidatePath("/dashboard");
-  await touchAppDataRevisionSafely(getPrismaClient(), ["notifications"]);
+  await touchAppDataRevisionSafely(getPrismaClient(), ["automation", "notifications"]);
 }
 
 export async function createAnnouncementAction(
@@ -374,4 +386,168 @@ export async function rerenderResultGraphicAction(graphicIdInput: number): Promi
     data: { actorId: actor.id, action: "RESULT_GRAPHIC_RERENDER_QUEUED", entityType: "ResultGraphic", entityId: graphicId },
   });
   await revalidateAutomation();
+}
+
+export async function reloadDiscordChannelsAction(
+  guildSettingsIdInput: number,
+): Promise<DiscordChannelReloadState> {
+  await requirePermission(Permission.ManageAutomation);
+  const guildSettingsId = automationJobIdSchema.parse(guildSettingsIdInput);
+  const guild = await getPrismaClient().discordGuildSettings.findUnique({
+    where: { id: guildSettingsId },
+    select: { guildId: true },
+  });
+  if (!guild) return { status: "error", message: "Discord-Server wurde nicht gefunden.", catalog: null };
+  return getDiscordChannelCatalogState(guild.guildId, { force: true });
+}
+
+export async function saveLeagueDiscordChannelMatrixAction(
+  _previousState: AutomationActionState,
+  formData: FormData,
+): Promise<AutomationActionState> {
+  const actor = await requirePermission(Permission.ManageAutomation);
+  let rows: unknown;
+  try {
+    rows = JSON.parse(String(formData.get("rows") ?? "[]"));
+  } catch {
+    return errorState("Die Channel-Zuordnungen sind ungültig.");
+  }
+  const parsed = leagueDiscordChannelMatrixSchema.safeParse({
+    guildSettingsId: formData.get("guildSettingsId"),
+    rows,
+  });
+  if (!parsed.success) return errorState("Bitte prüfe die Channel-Zuordnungen.", validationErrors(parsed.error));
+
+  const prisma = getPrismaClient();
+  const [guild, leagues, existingMappings] = await prisma.$transaction([
+    prisma.discordGuildSettings.findUnique({
+      where: { id: parsed.data.guildSettingsId },
+      select: { id: true, guildId: true, enabled: true },
+    }),
+    prisma.league.findMany({ where: { code: { in: ["F1", "F2", "F3", "F4", "F5", "F6"] } }, select: { id: true, code: true } }),
+    prisma.discordChannelMapping.findMany({
+      where: {
+        guildSettingsId: parsed.data.guildSettingsId,
+        purpose: { in: [...resultChannelPurposes, ...standingsChannelPurposes] },
+      },
+      select: { leagueId: true, purpose: true, channelId: true, enabled: true },
+    }),
+  ]);
+  if (!guild?.enabled) return errorState("Der Discord-Server ist nicht aktiv verbunden.");
+  const activeLeagueIds = new Set(leagues.map(({ id }) => id));
+  const submittedLeagueIds = new Set(parsed.data.rows.map(({ leagueId }) => leagueId));
+  if (
+    submittedLeagueIds.size !== parsed.data.rows.length ||
+    submittedLeagueIds.size !== activeLeagueIds.size ||
+    [...submittedLeagueIds].some((id) => !activeLeagueIds.has(id))
+  ) {
+    return errorState("Die Matrix muss jede aktive Liga genau einmal enthalten.");
+  }
+
+  const channelState = await getDiscordChannelCatalogState(guild.guildId, { force: true });
+  if (!channelState.catalog) return errorState(channelState.message);
+  const catalog = channelState.catalog;
+  const selectableChannels = new Map(
+    catalog.channels.filter((channel) => channel.selectable).map((channel) => [channel.id, channel]),
+  );
+  const resultPurposeSet = new Set<DiscordChannelPurpose>(resultChannelPurposes);
+  const standingsPurposeSet = new Set<DiscordChannelPurpose>(standingsChannelPurposes);
+  for (const row of parsed.data.rows) {
+    for (const channelId of [row.resultChannelId, row.standingsChannelId]) {
+      if (channelId && !selectableChannels.has(channelId)) {
+        const channel = catalog.channels.find((candidate) => candidate.id === channelId);
+        return errorState(channel?.unavailableReason ?? "Der gewählte Kanal existiert nicht mehr.");
+      }
+    }
+    const leagueMappings = existingMappings.filter((mapping) => mapping.leagueId === row.leagueId && mapping.enabled);
+    const resultIds = new Set(leagueMappings.filter((mapping) => resultPurposeSet.has(mapping.purpose as DiscordChannelPurpose)).map((mapping) => mapping.channelId));
+    const standingsIds = new Set(leagueMappings.filter((mapping) => standingsPurposeSet.has(mapping.purpose as DiscordChannelPurpose)).map((mapping) => mapping.channelId));
+    if (!row.resultChannelId && resultIds.size > 1) return errorState("Eine uneinheitliche Ergebnis-Zuordnung muss bewusst vereinheitlicht werden.");
+    if (!row.standingsChannelId && standingsIds.size > 1) return errorState("Eine uneinheitliche Tabellen-Zuordnung muss bewusst vereinheitlicht werden.");
+  }
+
+  await prisma.$transaction(async (transaction) => {
+    for (const row of parsed.data.rows) {
+      const groups = [
+        { channelId: row.resultChannelId, purposes: resultChannelPurposes },
+        { channelId: row.standingsChannelId, purposes: standingsChannelPurposes },
+      ] as const;
+      for (const group of groups) {
+        if (!group.channelId) {
+          await transaction.discordChannelMapping.updateMany({
+            where: {
+              guildSettingsId: guild.id,
+              leagueId: row.leagueId,
+              purpose: { in: [...group.purposes] },
+            },
+            data: { enabled: false },
+          });
+          continue;
+        }
+        const channel = selectableChannels.get(group.channelId)!;
+        for (const purpose of group.purposes) {
+          await transaction.discordChannelMapping.upsert({
+            where: {
+              guildSettingsId_scopeKey_purpose: {
+                guildSettingsId: guild.id,
+                scopeKey: `LEAGUE:${row.leagueId}`,
+                purpose,
+              },
+            },
+            update: { leagueId: row.leagueId, channelId: channel.id, channelName: channel.name, enabled: true },
+            create: {
+              guildSettingsId: guild.id,
+              leagueId: row.leagueId,
+              scopeKey: `LEAGUE:${row.leagueId}`,
+              purpose,
+              channelId: channel.id,
+              channelName: channel.name,
+              enabled: true,
+            },
+          });
+        }
+      }
+    }
+    await writeSystemAudit(transaction, {
+      actorId: actor.id,
+      action: "DISCORD_CHANNEL_MATRIX_SAVED",
+      entityType: "DiscordGuildSettings",
+      entityId: guild.id,
+      metadata: { leagueIds: parsed.data.rows.map(({ leagueId }) => leagueId) },
+    });
+  });
+  await revalidateAutomation();
+  return successState("Die Zuordnungen wurden gespeichert.");
+}
+
+export async function testLeagueDiscordChannelAction(input: unknown): Promise<AutomationActionState> {
+  const actor = await requirePermission(Permission.ManageAutomation);
+  const parsed = discordChannelTestSchema.safeParse(input);
+  if (!parsed.success) return errorState("Der Discord-Test ist ungültig.");
+  const rateLimit = consumeRateLimit(`discord-channel-test:${actor.id}`, { limit: 12, windowMs: 10 * 60 * 1000 });
+  if (!rateLimit.allowed) return errorState(`Zu viele Tests. Bitte in ${rateLimit.retryAfterSeconds} Sekunden erneut versuchen.`);
+  const prisma = getPrismaClient();
+  const [guild, league] = await prisma.$transaction([
+    prisma.discordGuildSettings.findUnique({ where: { id: parsed.data.guildSettingsId }, select: { id: true, guildId: true, enabled: true } }),
+    prisma.league.findUnique({ where: { id: parsed.data.leagueId }, select: { id: true, code: true } }),
+  ]);
+  if (!guild?.enabled || !league) return errorState("Discord-Server oder Liga wurde nicht gefunden.");
+  try {
+    const result = await sendDiscordChannelTest({
+      guildId: guild.guildId,
+      channelId: parsed.data.channelId,
+      leagueCode: league.code,
+      kind: parsed.data.kind,
+    });
+    await writeSystemAudit(prisma, {
+      actorId: actor.id,
+      action: "DISCORD_CHANNEL_TEST_SENT",
+      entityType: "DiscordGuildSettings",
+      entityId: guild.id,
+      metadata: { leagueId: league.id, kind: parsed.data.kind, channelId: parsed.data.channelId },
+    });
+    return successState(`Nachricht erfolgreich an #${result.channelName} gesendet.`);
+  } catch (error: unknown) {
+    return errorState(safeDiscordError(error, "Die Discord-Testnachricht konnte nicht gesendet werden."));
+  }
 }

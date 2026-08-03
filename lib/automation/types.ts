@@ -7,6 +7,7 @@ import type {
   NotificationPriority,
   Role,
 } from "@/domain";
+import type { DiscordChannelCatalogState, DiscordChannelMatrixData } from "@/lib/discord/channel-matrix";
 
 export type AutomationActionState = {
   status: "idle" | "success" | "error";
@@ -18,6 +19,8 @@ export const initialAutomationActionState: AutomationActionState = {
   status: "idle",
   message: "",
 };
+
+export type DiscordChannelReloadState = DiscordChannelCatalogState;
 
 export type AutomationDashboardData = {
   guilds: Array<{
@@ -92,6 +95,7 @@ export type AutomationDashboardData = {
     lastError: string | null;
     updatedAt: string;
   }>;
+  discordChannelMatrix: DiscordChannelMatrixData;
 };
 
 export type AnnouncementListItem = {
