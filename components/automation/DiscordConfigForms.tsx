@@ -24,6 +24,7 @@ const purposeLabels: Record<DiscordChannelPurpose, string> = {
   [DiscordChannelPurpose.AttendanceClosed]: "Rennanmeldung geschlossen",
   [DiscordChannelPurpose.RaceWeekend]: "Rennwochenende",
   [DiscordChannelPurpose.SprintResults]: "Sprint-Ergebnisse",
+  [DiscordChannelPurpose.QualifyingResults]: "Qualifying-Ergebnisse",
   [DiscordChannelPurpose.RaceResults]: "Renn-Ergebnisse",
   [DiscordChannelPurpose.DriverStandings]: "Fahrerwertung",
   [DiscordChannelPurpose.TeamStandings]: "Teamwertung",

@@ -6,6 +6,7 @@ import {
 } from "@/generated/prisma/client";
 import type { DiscordChannelPurpose } from "@/domain";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { isControlledResultGraphicUrl } from "@/lib/graphics/result-graphic-storage";
 import { logger } from "@/lib/observability/logger";
 import { getConnectedDiscordClient } from "./client";
 import { buildDiscordEmbed } from "./embeds";
@@ -13,6 +14,7 @@ import {
   discordMessagePayloadSchema,
   type DiscordMessagePayload,
 } from "./types";
+import { RESULT_GRAPHIC_DISCORD_MAX_ATTEMPTS, resultGraphicScopeKeys } from "./result-graphic-policy";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 const MAX_ATTEMPTS = 5;
@@ -23,27 +25,31 @@ export async function enqueueDiscordDelivery(
     purpose: DiscordChannelPurpose;
     leagueId?: number | null;
     announcementId?: number | null;
+    resultGraphicId?: number | null;
+    renderingVersion?: number | null;
     payload: DiscordMessagePayload;
     dedupeKey: string;
     scheduledFor?: Date;
   },
 ): Promise<number> {
   const settings = await database.discordGuildSettings.findMany({
-    where: {
-      enabled: true,
-      channelMappings: {
-        some: {
+    where: input.resultGraphicId
+      ? { enabled: true }
+      : {
           enabled: true,
-          purpose: input.purpose,
-          OR: [
-            { scopeKey: "GLOBAL" },
-            ...(input.leagueId
-              ? [{ scopeKey: `LEAGUE:${input.leagueId}` }]
-              : []),
-          ],
+          channelMappings: {
+            some: {
+              enabled: true,
+              purpose: input.purpose,
+              OR: [
+                { scopeKey: "GLOBAL" },
+                ...(input.leagueId
+                  ? [{ scopeKey: `LEAGUE:${input.leagueId}` }]
+                  : []),
+              ],
+            },
+          },
         },
-      },
-    },
     select: { id: true },
   });
 
@@ -55,6 +61,8 @@ export async function enqueueDiscordDelivery(
         guildSettingsId: guild.id,
         leagueId: input.leagueId ?? null,
         announcementId: input.announcementId ?? null,
+        resultGraphicId: input.resultGraphicId ?? null,
+        renderingVersion: input.renderingVersion ?? null,
         purpose: input.purpose,
         payload: input.payload,
         dedupeKey: `${input.dedupeKey}:guild:${guild.id}`,
@@ -91,7 +99,13 @@ export async function processDiscordOutbox(
           DiscordDeliveryStatus.FAILED,
         ],
       },
-      attempts: { lt: MAX_ATTEMPTS },
+      OR: [
+        { resultGraphicId: null, attempts: { lt: MAX_ATTEMPTS } },
+        {
+          resultGraphicId: { not: null },
+          attempts: { lt: RESULT_GRAPHIC_DISCORD_MAX_ATTEMPTS },
+        },
+      ],
       scheduledFor: { lte: now },
     },
     include: {
@@ -153,7 +167,9 @@ export async function processDiscordOutbox(
       }
 
       const scopeKeys = delivery.leagueId
-        ? [`LEAGUE:${delivery.leagueId}`, "GLOBAL"]
+        ? delivery.resultGraphicId
+          ? resultGraphicScopeKeys(delivery.leagueId)
+          : [`LEAGUE:${delivery.leagueId}`, "GLOBAL"]
         : ["GLOBAL"];
       const mapping = scopeKeys
         .map((scopeKey) =>
@@ -186,28 +202,57 @@ export async function processDiscordOutbox(
       }
 
       const payload = discordMessagePayloadSchema.parse(delivery.payload);
-      const message = await channel.send({
+      if (
+        payload.attachmentUrl &&
+        (!delivery.resultGraphicId ||
+          !isControlledResultGraphicUrl(payload.attachmentUrl))
+      ) {
+        throw new Error("Discord attachment does not match the stored result graphic.");
+      }
+      const messagePayload = {
         embeds: [buildDiscordEmbed(payload)],
-      });
-      await prisma.discordDelivery.update({
-        where: { id: delivery.id },
-        data: {
-          status: DiscordDeliveryStatus.SENT,
-          channelId: mapping.channelId,
-          discordMessageId: message.id,
-          sentAt: new Date(),
-        },
-      });
+        files: payload.attachmentUrl
+          ? [
+              {
+                attachment: payload.attachmentUrl,
+                name: payload.attachmentName ?? "frl-result.png",
+              },
+            ]
+          : undefined,
+      };
+      const existingMessage = delivery.discordMessageId && "messages" in channel
+        ? await channel.messages.fetch(delivery.discordMessageId).catch(() => null)
+        : null;
+      const message = existingMessage
+        ? await existingMessage.edit({ ...messagePayload, attachments: [] })
+        : await channel.send(messagePayload);
+      await prisma.$transaction([
+        prisma.discordDelivery.update({
+          where: { id: delivery.id },
+          data: {
+            status: DiscordDeliveryStatus.SENT,
+            channelId: mapping.channelId,
+            discordMessageId: message.id,
+            sentAt: new Date(),
+          },
+        }),
+        prisma.systemAuditLog.create({
+          data: { action: "DISCORD_DELIVERY_SENT", entityType: "DiscordDelivery", entityId: delivery.id, metadata: { purpose: delivery.purpose, leagueId: delivery.leagueId, resultGraphicId: delivery.resultGraphicId } },
+        }),
+      ]);
       sent += 1;
     } catch (error: unknown) {
       const attempts = delivery.attempts + 1;
+      const maxAttempts = delivery.resultGraphicId
+        ? RESULT_GRAPHIC_DISCORD_MAX_ATTEMPTS
+        : MAX_ATTEMPTS;
       const lastError =
         error instanceof Error ? error.message.slice(0, 2000) : String(error);
       await prisma.discordDelivery.update({
         where: { id: delivery.id },
         data: {
           status:
-            attempts >= MAX_ATTEMPTS
+            attempts >= maxAttempts
               ? DiscordDeliveryStatus.SKIPPED
               : DiscordDeliveryStatus.FAILED,
           lastError,
@@ -216,6 +261,9 @@ export async function processDiscordOutbox(
           ),
         },
       });
+      await prisma.systemAuditLog.create({
+        data: { action: "DISCORD_DELIVERY_FAILED", entityType: "DiscordDelivery", entityId: delivery.id, metadata: { purpose: delivery.purpose, leagueId: delivery.leagueId, resultGraphicId: delivery.resultGraphicId, attempts } },
+      }).catch(() => undefined);
       logger.error("Discord delivery failed", error, {
         deliveryId: delivery.id,
         attempts,

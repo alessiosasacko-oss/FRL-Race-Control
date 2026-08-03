@@ -3,6 +3,8 @@ import {
   Bot,
   CheckCircle2,
   Clock3,
+  Download,
+  ImageIcon,
   Mail,
   RefreshCw,
   ServerCog,
@@ -10,7 +12,7 @@ import {
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import DiscordConfigForms from "@/components/automation/DiscordConfigForms";
-import { retryAutomationJobAction } from "@/lib/automation/actions";
+import { rerenderResultGraphicAction, retryAutomationJobAction, retryDiscordDeliveryAction } from "@/lib/automation/actions";
 import { getAutomationDashboardData } from "@/lib/automation/queries";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -103,6 +105,31 @@ export default async function AutomationAdminPage() {
         </div>
 
         <DiscordConfigForms guilds={data.guilds} leagues={data.leagues} />
+
+        <section className="master-card min-w-0">
+          <div className="flex items-center gap-3"><ImageIcon className="text-cyan-400" size={22} /><div><h2 className="text-xl font-semibold text-white">Ergebnisgrafik-Auslieferung</h2><p className="mt-1 text-sm text-slate-400">Liga, Ziel, Render-Version und Discord-Status der letzten Grafiken.</p></div></div>
+          <div className="mt-5 grid min-w-0 gap-3 lg:grid-cols-2">
+            {data.resultGraphicDeliveries.map((delivery) => (
+              <article key={delivery.id} className="min-w-0 rounded-xl border border-slate-800 bg-slate-950/35 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0"><p className="truncate font-bold text-white">{delivery.league} · {delivery.race}</p><p className="mt-1 break-words text-xs text-slate-500">{delivery.type} · Ergebnis v{delivery.version} · Rendering v{delivery.renderingVersion}</p></div>
+                  <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs font-bold text-slate-300">{delivery.status}</span>
+                </div>
+                <dl className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
+                  <div><dt className="text-slate-600">Ziel-Channel</dt><dd className="mt-1 break-all">{delivery.channelId ?? "Noch nicht aufgelöst"}</dd></div>
+                  <div><dt className="text-slate-600">Versuche</dt><dd className="mt-1">{delivery.attempts} / 3</dd></div>
+                </dl>
+                {delivery.lastError ? <p className="mt-3 break-words rounded-lg bg-red-500/10 p-3 text-xs text-red-200">{delivery.lastError}</p> : null}
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  <form action={retryDiscordDeliveryAction.bind(null, delivery.id)}><button className="wizard-secondary-button min-h-11 w-full justify-center"><RefreshCw size={16} />Discord erneut senden</button></form>
+                  <form action={rerenderResultGraphicAction.bind(null, delivery.graphicId)}><button className="wizard-secondary-button min-h-11 w-full justify-center"><RefreshCw size={16} />Neu rendern</button></form>
+                  {delivery.publicUrl ? <a href={delivery.publicUrl} download className="wizard-secondary-button min-h-11 justify-center"><Download size={16} />Herunterladen</a> : <span className="grid min-h-11 place-items-center text-xs text-slate-600">Noch keine Datei</span>}
+                </div>
+              </article>
+            ))}
+          </div>
+          {data.resultGraphicDeliveries.length === 0 ? <p className="mt-5 rounded-xl border border-dashed border-slate-800 p-5 text-sm text-slate-500">Noch keine Ergebnisgrafiken an Discord ausgeliefert.</p> : null}
+        </section>
 
         {guild ? (
           <section className="master-card">

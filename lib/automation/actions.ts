@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import {
   AnnouncementStatus,
   AutomationJobStatus,
+  DiscordDeliveryStatus,
+  GraphicRenderStatus,
 } from "@/generated/prisma/client";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -335,5 +337,41 @@ export async function retryAnnouncementAction(
       },
     }),
   ]);
+  await revalidateAutomation();
+}
+
+export async function retryDiscordDeliveryAction(deliveryIdInput: number): Promise<void> {
+  const actor = await requirePermission(Permission.ManageAutomation);
+  const deliveryId = automationJobIdSchema.parse(deliveryIdInput);
+  const prisma = getPrismaClient();
+  const delivery = await prisma.discordDelivery.findUnique({
+    where: { id: deliveryId },
+    select: { id: true, resultGraphicId: true },
+  });
+  if (!delivery?.resultGraphicId) return;
+  await prisma.$transaction([
+    prisma.discordDelivery.update({
+      where: { id: delivery.id },
+      data: { status: DiscordDeliveryStatus.PENDING, attempts: 0, scheduledFor: new Date(), lastError: null },
+    }),
+    prisma.systemAuditLog.create({
+      data: { actorId: actor.id, action: "RESULT_GRAPHIC_DISCORD_RETRIED", entityType: "DiscordDelivery", entityId: delivery.id, metadata: { resultGraphicId: delivery.resultGraphicId } },
+    }),
+  ]);
+  await revalidateAutomation();
+}
+
+export async function rerenderResultGraphicAction(graphicIdInput: number): Promise<void> {
+  const actor = await requirePermission(Permission.ManageAutomation);
+  const graphicId = automationJobIdSchema.parse(graphicIdInput);
+  const prisma = getPrismaClient();
+  const changed = await prisma.resultGraphic.updateMany({
+    where: { id: graphicId },
+    data: { renderStatus: GraphicRenderStatus.PENDING, renderingVersion: { increment: 1 }, errorMessage: null },
+  });
+  if (changed.count === 0) return;
+  await prisma.systemAuditLog.create({
+    data: { actorId: actor.id, action: "RESULT_GRAPHIC_RERENDER_QUEUED", entityType: "ResultGraphic", entityId: graphicId },
+  });
   await revalidateAutomation();
 }

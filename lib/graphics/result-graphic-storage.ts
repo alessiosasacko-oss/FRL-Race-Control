@@ -31,6 +31,18 @@ export async function uploadResultGraphic(path: string, png: Buffer) {
   return bucket.getPublicUrl(path).data.publicUrl;
 }
 
+export function isControlledResultGraphicUrl(url: string): boolean {
+  const storageUrl = process.env.SUPABASE_URL?.trim();
+  const bucket = process.env.SUPABASE_RESULT_GRAPHICS_BUCKET?.trim() || "result-graphics";
+  if (!storageUrl) return false;
+  try {
+    const candidate = new URL(url);
+    return candidate.origin === new URL(storageUrl).origin && candidate.pathname.startsWith(`/storage/v1/object/public/${encodeURIComponent(bucket)}/`);
+  } catch {
+    return false;
+  }
+}
+
 export async function safeGraphicAssetDataUrl(url: string | null): Promise<string | null> {
   if (!url) return null;
   const value = config();

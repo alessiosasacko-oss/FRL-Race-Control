@@ -952,6 +952,7 @@ export async function saveResultsAction(
         parsed.data.leagueId,
         race.seasonId,
         user.id,
+        { discordDelivery: false },
       );
       renderJobIds = await enqueuePublishedResultGraphics(transaction, {
         raceId: race.id,
@@ -993,6 +994,7 @@ export async function saveResultsAction(
           dedupeKey: `race-result:${race.id}:${parsed.data.leagueId}:${parsed.data.session}:${resultSession.revision}`,
         },
         {
+          allowDiscord: false,
           discordPurpose:
             parsed.data.session === ResultSession.Sprint
               ? DiscordChannelPurpose.SprintResults

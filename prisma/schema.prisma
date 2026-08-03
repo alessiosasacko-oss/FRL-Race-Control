@@ -201,6 +201,7 @@ enum DiscordChannelPurpose {
   ATTENDANCE_CLOSED
   RACE_WEEKEND
   SPRINT_RESULTS
+  QUALIFYING_RESULTS
   RACE_RESULTS
   DRIVER_STANDINGS
   TEAM_STANDINGS
@@ -856,26 +857,27 @@ model RaceResultSession {
 }
 
 model ResultGraphic {
-  id               Int                 @id @default(autoincrement())
-  type             ResultGraphicType
-  leagueId         Int
-  raceId           Int
-  resultSessionId  Int?
-  version          Int                 @default(1)
-  renderingVersion Int                 @default(1)
-  renderStatus     GraphicRenderStatus @default(PENDING)
-  storagePath      String?             @db.Text
-  publicUrl        String?             @db.Text
-  checksum         String?             @db.VarChar(64)
-  width            Int                 @default(1920)
-  height           Int                 @default(1080)
-  generatedAt      DateTime?
-  errorMessage     String?             @db.VarChar(1000)
-  league           League              @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  race             Race                @relation(fields: [raceId], references: [id], onDelete: Restrict)
-  resultSession    RaceResultSession?  @relation(fields: [resultSessionId], references: [id], onDelete: SetNull)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  id                Int                 @id @default(autoincrement())
+  type              ResultGraphicType
+  leagueId          Int
+  raceId            Int
+  resultSessionId   Int?
+  version           Int                 @default(1)
+  renderingVersion  Int                 @default(1)
+  renderStatus      GraphicRenderStatus @default(PENDING)
+  storagePath       String?             @db.Text
+  publicUrl         String?             @db.Text
+  checksum          String?             @db.VarChar(64)
+  width             Int                 @default(1920)
+  height            Int                 @default(1080)
+  generatedAt       DateTime?
+  errorMessage      String?             @db.VarChar(1000)
+  league            League              @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  race              Race                @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  resultSession     RaceResultSession?  @relation(fields: [resultSessionId], references: [id], onDelete: SetNull)
+  discordDeliveries DiscordDelivery[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   @@unique([type, leagueId, raceId, version])
   @@index([renderStatus, createdAt])
@@ -1697,6 +1699,8 @@ model DiscordDelivery {
   guildSettingsId  Int
   leagueId         Int?
   announcementId   Int?
+  resultGraphicId  Int?
+  renderingVersion Int?
   purpose          DiscordChannelPurpose
   status           DiscordDeliveryStatus @default(PENDING)
   payload          Json
@@ -1710,6 +1714,7 @@ model DiscordDelivery {
   guildSettings    DiscordGuildSettings  @relation(fields: [guildSettingsId], references: [id], onDelete: Cascade)
   league           League?               @relation(fields: [leagueId], references: [id], onDelete: SetNull)
   announcement     Announcement?         @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  resultGraphic    ResultGraphic?        @relation(fields: [resultGraphicId], references: [id], onDelete: SetNull)
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
@@ -1717,6 +1722,7 @@ model DiscordDelivery {
   @@index([guildSettingsId, purpose, createdAt])
   @@index([leagueId, createdAt])
   @@index([announcementId])
+  @@index([resultGraphicId, renderingVersion])
 }
 
 model Announcement {

@@ -21,6 +21,7 @@ import {
 import { generateAttendanceNotifications } from "@/lib/notifications/scheduler";
 import { logger } from "@/lib/observability/logger";
 import { processEvidenceStorageCleanupQueue } from "@/lib/storage/evidence-cleanup";
+import { processPendingResultGraphics } from "@/lib/graphics/result-graphic-service";
 import { publicRaceTrack } from "@/lib/races/visibility";
 
 type JobDefinition = {
@@ -245,7 +246,10 @@ async function executeJob(
     case AutomationJobType.EmailQueue:
       return processEmailOutbox();
     case AutomationJobType.DiscordQueue:
-      return processDiscordOutbox();
+      return {
+        graphics: await processPendingResultGraphics(),
+        discord: await processDiscordOutbox(),
+      };
     case AutomationJobType.MysteryRacePublication:
       return publishMysteryRaces();
     case AutomationJobType.StatisticsRefresh:

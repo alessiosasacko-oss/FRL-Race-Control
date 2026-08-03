@@ -27,6 +27,7 @@ export async function getAutomationDashboardData(): Promise<AutomationDashboardD
     scheduledAnnouncements,
     failedAnnouncements,
     pendingWebhooks,
+    resultGraphicDeliveries,
   ] = await prisma.$transaction([
     prisma.discordGuildSettings.findMany({
       orderBy: { guildName: "asc" },
@@ -53,6 +54,17 @@ export async function getAutomationDashboardData(): Promise<AutomationDashboardD
     prisma.announcement.count({ where: { status: "SCHEDULED" } }),
     prisma.announcement.count({ where: { status: "FAILED" } }),
     prisma.webhookEvent.count({ where: { status: { in: ["PENDING", "FAILED"] } } }),
+    prisma.discordDelivery.findMany({
+      where: { resultGraphicId: { not: null } },
+      orderBy: { updatedAt: "desc" },
+      take: 30,
+      include: {
+        league: { select: { code: true } },
+        resultGraphic: {
+          include: { race: { select: { name: true } } },
+        },
+      },
+    }),
   ]);
 
   return {
@@ -115,6 +127,26 @@ export async function getAutomationDashboardData(): Promise<AutomationDashboardD
       failedAnnouncements,
       pendingWebhooks,
     },
+    resultGraphicDeliveries: resultGraphicDeliveries.flatMap((delivery) =>
+      delivery.resultGraphic
+        ? [{
+            id: delivery.id,
+            graphicId: delivery.resultGraphic.id,
+            type: delivery.resultGraphic.type,
+            league: delivery.league?.code ?? `Liga ${delivery.leagueId ?? "–"}`,
+            race: delivery.resultGraphic.race.name,
+            version: delivery.resultGraphic.version,
+            renderingVersion: delivery.renderingVersion ?? delivery.resultGraphic.renderingVersion,
+            status: delivery.status,
+            attempts: delivery.attempts,
+            channelId: delivery.channelId,
+            discordMessageId: delivery.discordMessageId,
+            publicUrl: delivery.resultGraphic.publicUrl,
+            lastError: delivery.lastError,
+            updatedAt: delivery.updatedAt.toISOString(),
+          }]
+        : [],
+    ),
   };
 }
 

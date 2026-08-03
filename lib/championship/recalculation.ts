@@ -161,6 +161,7 @@ export async function recalculateChampionship(
   leagueId: number,
   seasonId: number,
   actorId: number | null,
+  options: { discordDelivery?: boolean } = {},
 ): Promise<void> {
   const scoring = await ensureScoringConfiguration(
     database,
@@ -528,7 +529,7 @@ export async function recalculateChampionship(
     href: `/championship?leagueId=${leagueId}&seasonId=${season.id}`,
     relatedEntity: { type: "Season", id: season.id },
     dedupeKey: `championship-updated:${leagueId}:${season.id}:${championship.updatedAt?.getTime?.() ?? Date.now()}`,
-  });
+  }, { allowDiscord: options.discordDelivery !== false });
 
   const [driverTop, teamTop] = await Promise.all([
     database.driverStanding.findMany({
@@ -552,7 +553,7 @@ export async function recalculateChampionship(
     }),
   ]);
   const href = `/championship?leagueId=${leagueId}&seasonId=${season.id}`;
-  await enqueueDiscordDelivery(database, {
+  if (options.discordDelivery !== false) await enqueueDiscordDelivery(database, {
     purpose: DiscordChannelPurpose.DriverStandings,
     leagueId,
     payload: {
@@ -569,7 +570,7 @@ export async function recalculateChampionship(
     },
     dedupeKey: `driver-standings:${leagueId}:${season.id}:${championship.updatedAt.getTime()}`,
   });
-  await enqueueDiscordDelivery(database, {
+  if (options.discordDelivery !== false) await enqueueDiscordDelivery(database, {
     purpose: DiscordChannelPurpose.TeamStandings,
     leagueId,
     payload: {

@@ -186,6 +186,7 @@ export enum DiscordChannelPurpose {
   AttendanceClosed = "ATTENDANCE_CLOSED",
   RaceWeekend = "RACE_WEEKEND",
   SprintResults = "SPRINT_RESULTS",
+  QualifyingResults = "QUALIFYING_RESULTS",
   RaceResults = "RACE_RESULTS",
   DriverStandings = "DRIVER_STANDINGS",
   TeamStandings = "TEAM_STANDINGS",

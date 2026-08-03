@@ -6,6 +6,8 @@ export const discordMessagePayloadSchema = z.object({
   href: z.string().max(500).nullable().optional(),
   color: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
   iconUrl: z.url().nullable().optional(),
+  attachmentUrl: z.url().max(1000).nullable().optional(),
+  attachmentName: z.string().trim().regex(/^[a-z0-9][a-z0-9._-]{0,99}$/i).optional(),
   league: z.string().max(160).nullable().optional(),
   season: z.string().max(160).nullable().optional(),
   race: z.string().max(160).nullable().optional(),

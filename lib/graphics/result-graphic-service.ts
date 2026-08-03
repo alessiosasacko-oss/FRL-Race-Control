@@ -18,10 +18,11 @@ import {
 import { getChampionshipPageData, getRaceResults } from "@/lib/championship/queries";
 import { formatTiming } from "@/lib/championship/result-engine";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { enqueueResultGraphicDiscord } from "@/lib/discord/result-graphics";
+import { logger } from "@/lib/observability/logger";
 import {
   renderResultGraphicPng,
   RESULT_GRAPHIC_HEIGHT,
-  RESULT_GRAPHIC_RENDERING_VERSION,
   RESULT_GRAPHIC_WIDTH,
   type GraphicDriver,
   type ResultGraphicRenderData,
@@ -154,15 +155,39 @@ export async function processResultGraphic(graphicId: number) {
     const png = await renderResultGraphicPng(data);
     const slug = type === ResultGraphicType.QualifyingClassification ? "qualifying" : type === ResultGraphicType.RaceClassification ? "race" : type === ResultGraphicType.DriverChampionship ? "drivers" : "teams";
     const race = await prisma.race.findUniqueOrThrow({ where: { id: graphic.raceId }, select: { seasonId: true } });
-    const storagePath = `season-${race.seasonId}/race-${graphic.raceId}/league-${graphic.leagueId}/${slug}-v${graphic.version}.png`;
+    const storagePath = `season-${race.seasonId}/race-${graphic.raceId}/league-${graphic.leagueId}/${slug}-v${graphic.version}-r${graphic.renderingVersion}.png`;
     const publicUrl = await uploadResultGraphic(storagePath, png);
-    return await prisma.resultGraphic.update({ where: { id: graphic.id }, data: { renderStatus: GraphicRenderStatus.COMPLETED, storagePath, publicUrl, checksum: createHash("sha256").update(png).digest("hex"), width: RESULT_GRAPHIC_WIDTH, height: RESULT_GRAPHIC_HEIGHT, renderingVersion: RESULT_GRAPHIC_RENDERING_VERSION, generatedAt: new Date(), errorMessage: null } });
+    const completed = await prisma.resultGraphic.update({ where: { id: graphic.id }, data: { renderStatus: GraphicRenderStatus.COMPLETED, storagePath, publicUrl, checksum: createHash("sha256").update(png).digest("hex"), width: RESULT_GRAPHIC_WIDTH, height: RESULT_GRAPHIC_HEIGHT, generatedAt: new Date(), errorMessage: null } });
+    await prisma.systemAuditLog.create({
+      data: { action: "RESULT_GRAPHIC_RENDERED", entityType: "ResultGraphic", entityId: completed.id, metadata: { type: completed.type, leagueId: completed.leagueId, raceId: completed.raceId, version: completed.version, renderingVersion: completed.renderingVersion } },
+    });
+    await enqueueResultGraphicDiscord(prisma, completed).catch((error: unknown) => {
+      logger.error("Result graphic Discord delivery could not be queued", error, { graphicId: completed.id });
+    });
+    return completed;
   } catch (error: unknown) {
     await prisma.resultGraphic.update({ where: { id: graphic.id }, data: { renderStatus: GraphicRenderStatus.FAILED, errorMessage: error instanceof Error ? error.name.slice(0, 1000) : "UnknownError" } });
+    await prisma.systemAuditLog.create({
+      data: { action: "RESULT_GRAPHIC_RENDER_FAILED", entityType: "ResultGraphic", entityId: graphic.id, metadata: { type: graphic.type, leagueId: graphic.leagueId, raceId: graphic.raceId, version: graphic.version } },
+    }).catch(() => undefined);
     throw error;
   }
 }
 
 export async function processResultGraphics(graphicIds: readonly number[]) {
   return Promise.allSettled(graphicIds.map((id) => processResultGraphic(id)));
+}
+
+export async function processPendingResultGraphics(limit = 4) {
+  const graphics = await getPrismaClient().resultGraphic.findMany({
+    where: { renderStatus: GraphicRenderStatus.PENDING },
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+    take: Math.min(Math.max(limit, 1), 10),
+    select: { id: true },
+  });
+  const outcomes = await processResultGraphics(graphics.map(({ id }) => id));
+  return {
+    rendered: outcomes.filter(({ status }) => status === "fulfilled").length,
+    failed: outcomes.filter(({ status }) => status === "rejected").length,
+  };
 }

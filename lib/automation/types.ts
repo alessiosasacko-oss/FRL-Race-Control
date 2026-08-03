@@ -76,6 +76,22 @@ export type AutomationDashboardData = {
     failedAnnouncements: number;
     pendingWebhooks: number;
   };
+  resultGraphicDeliveries: Array<{
+    id: number;
+    graphicId: number;
+    type: string;
+    league: string;
+    race: string;
+    version: number;
+    renderingVersion: number;
+    status: string;
+    attempts: number;
+    channelId: string | null;
+    discordMessageId: string | null;
+    publicUrl: string | null;
+    lastError: string | null;
+    updatedAt: string;
+  }>;
 };
 
 export type AnnouncementListItem = {
