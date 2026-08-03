@@ -189,6 +189,15 @@ export type ResultRowView = {
   lapsBehind: number;
   totalTimeMs: number | null;
   fastestLapMs: number | null;
+  qualifyingTimeMs: number | null;
+  qualifyingLaps: number | null;
+  q1TimeMs: number | null;
+  q1Laps: number | null;
+  q2TimeMs: number | null;
+  q2Laps: number | null;
+  q3TimeMs: number | null;
+  q3Laps: number | null;
+  tireCompound: string | null;
   fastestLap: boolean;
   polePosition: boolean;
   lapsCompleted: number;
@@ -236,6 +245,7 @@ export type ResultSessionView = {
   session: ResultSession;
   gapMode: ResultGapMode;
   publicationStatus: ResultPublicationStatus;
+  qualifyingFormat: import("@/domain").QualifyingFormat | null;
   fiaPenaltyVersion: string | null;
   currentFiaPenaltyVersion: string;
   fiaPenaltiesChanged: boolean;
@@ -245,6 +255,7 @@ export type ResultSessionView = {
   updatedAt: string;
   draftPayload: {
     gapMode: ResultGapMode;
+    qualifyingFormat: import("@/domain").QualifyingFormat | null;
     results: Array<{
       driverId: number | null;
       representedTeamId: number | null;
@@ -254,6 +265,15 @@ export type ResultSessionView = {
       status: ResultStatus;
       gapInput: string;
       fastestLapInput: string;
+      qualifyingTimeInput: string;
+      qualifyingLaps: number;
+      q1TimeInput: string;
+      q1Laps: number;
+      q2TimeInput: string;
+      q2Laps: number;
+      q3TimeInput: string;
+      q3Laps: number;
+      tireCompound: string;
       legacyFastestLap: boolean;
       polePosition: boolean;
       lapsCompleted: number;

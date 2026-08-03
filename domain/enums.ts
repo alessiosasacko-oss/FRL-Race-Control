@@ -97,6 +97,11 @@ export enum ResultPublicationStatus {
   Published = "PUBLISHED",
 }
 
+export enum QualifyingFormat {
+  Full = "FULL",
+  Short = "SHORT",
+}
+
 export enum ResultPenaltySource {
   Fia = "FIA",
   Manual = "MANUAL",
@@ -303,6 +308,7 @@ export const resultGapModeSchema = z.enum(ResultGapMode);
 export const resultPublicationStatusSchema = z.enum(
   ResultPublicationStatus,
 );
+export const qualifyingFormatSchema = z.enum(QualifyingFormat);
 export const resultPenaltySourceSchema = z.enum(ResultPenaltySource);
 export const championshipAdjustmentTargetSchema = z.enum(
   ChampionshipAdjustmentTarget,

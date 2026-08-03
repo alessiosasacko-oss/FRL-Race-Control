@@ -5,6 +5,7 @@ import { useLiveActionState as useActionState } from "@/components/live/useLiveA
 import Link from "next/link";
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -25,12 +26,14 @@ import {
 } from "lucide-react";
 import {
   RaceSession,
+  QualifyingFormat,
   ResultGapMode,
   ResultPenaltySource,
   ResultPublicationStatus,
   ResultSession,
   ResultStatus,
   resultGapModeLabels,
+  qualifyingFormatLabels,
   resultSessionLabels,
   resultStatusLabels,
 } from "@/domain";
@@ -62,6 +65,10 @@ import {
   unsavedResultWarning,
 } from "@/lib/championship/result-workspace";
 import {
+  hasAdvancedQualifyingData,
+  qualifyingFormatRecommendation,
+} from "@/lib/championship/qualifying";
+import {
   calculateResultPoints,
   scoringPositionKey,
 } from "@/lib/championship/scoring";
@@ -85,6 +92,15 @@ type RowState = {
   status: ResultStatus;
   gapInput: string;
   fastestLapInput: string;
+  qualifyingTimeInput: string;
+  qualifyingLaps: string;
+  q1TimeInput: string;
+  q1Laps: string;
+  q2TimeInput: string;
+  q2Laps: string;
+  q3TimeInput: string;
+  q3Laps: string;
+  tireCompound: string;
   legacyFastestLap: boolean;
   startingPosition: string;
   lapsCompleted: string;
@@ -101,6 +117,15 @@ function sessionForFia(session: ResultSession): RaceSession {
   if (session === ResultSession.Qualifying) return RaceSession.Qualifying;
   if (session === ResultSession.Sprint) return RaceSession.Sprint;
   return RaceSession.Race;
+}
+
+function editorStatusLabel(session: ResultSession, status: ResultStatus): string {
+  if (session !== ResultSession.Qualifying) return resultStatusLabels[status];
+  if (status === ResultStatus.Finished) return "Klassifiziert";
+  if (status === ResultStatus.Dnf) return "Keine Zeit";
+  if (status === ResultStatus.Dns) return "Nicht gestartet";
+  if (status === ResultStatus.Dsq) return "Disqualifiziert";
+  return resultStatusLabels[status];
 }
 
 function displayGap(
@@ -135,6 +160,15 @@ function emptyRow(position: number): RowState {
     status: ResultStatus.Finished,
     gapInput: position === 1 ? "Sieger" : "",
     fastestLapInput: "",
+    qualifyingTimeInput: "",
+    qualifyingLaps: "0",
+    q1TimeInput: "",
+    q1Laps: "0",
+    q2TimeInput: "",
+    q2Laps: "0",
+    q3TimeInput: "",
+    q3Laps: "0",
+    tireCompound: "",
     legacyFastestLap: false,
     startingPosition: "",
     lapsCompleted: "0",
@@ -181,6 +215,15 @@ function initialRows(
         status: result.status,
         gapInput: result.gapInput,
         fastestLapInput: result.fastestLapInput,
+        qualifyingTimeInput: result.qualifyingTimeInput,
+        qualifyingLaps: String(result.qualifyingLaps),
+        q1TimeInput: result.q1TimeInput,
+        q1Laps: String(result.q1Laps),
+        q2TimeInput: result.q2TimeInput,
+        q2Laps: String(result.q2Laps),
+        q3TimeInput: result.q3TimeInput,
+        q3Laps: String(result.q3Laps),
+        tireCompound: result.tireCompound,
         legacyFastestLap: result.legacyFastestLap,
         startingPosition: result.startingPosition
           ? String(result.startingPosition)
@@ -217,6 +260,15 @@ function initialRows(
         status: result.baseStatus,
         gapInput: displayGap(existing.gapMode, result),
         fastestLapInput: formatTiming(result.fastestLapMs),
+        qualifyingTimeInput: formatTiming(result.qualifyingTimeMs ?? result.fastestLapMs),
+        qualifyingLaps: String(result.qualifyingLaps ?? result.lapsCompleted),
+        q1TimeInput: formatTiming(result.q1TimeMs),
+        q1Laps: String(result.q1Laps ?? 0),
+        q2TimeInput: formatTiming(result.q2TimeMs),
+        q2Laps: String(result.q2Laps ?? 0),
+        q3TimeInput: formatTiming(result.q3TimeMs),
+        q3Laps: String(result.q3Laps ?? 0),
+        tireCompound: result.tireCompound ?? "",
         legacyFastestLap: result.fastestLap,
         startingPosition: result.startingPosition
           ? String(result.startingPosition)
@@ -308,6 +360,13 @@ export default function ResultsEditor({
       existingSession?.gapMode ??
       ResultGapMode.ToLeader,
   );
+  const [qualifyingFormat, setQualifyingFormat] = useState<QualifyingFormat | null>(
+    existingSession?.draftPayload?.qualifyingFormat ??
+      existingSession?.qualifyingFormat ??
+      null,
+  );
+  const publicationId = useId();
+  const publicationKey = `result:${data.selected?.race.id ?? 0}:${data.selected?.race.season.league.id ?? 0}:${session}:${existingSession?.updatedAt ?? "new"}:${publicationId}`;
   const [allowArchived, setAllowArchived] = useState(false);
   const [confirmLockedEdit, setConfirmLockedEdit] = useState(false);
   const [syncFiaPenalties, setSyncFiaPenalties] = useState(
@@ -339,6 +398,7 @@ export default function ResultsEditor({
       const parsed = JSON.parse(stored) as {
         rows?: RowState[];
         gapMode?: ResultGapMode;
+        qualifyingFormat?: QualifyingFormat | null;
       };
       const restoreTimer = window.setTimeout(() => {
         if (parsed.rows?.length) {
@@ -347,6 +407,10 @@ export default function ResultsEditor({
         }
         if (parsed.gapMode) {
           setGapMode(parsed.gapMode);
+          setDirty(true);
+        }
+        if (parsed.qualifyingFormat) {
+          setQualifyingFormat(parsed.qualifyingFormat);
           setDirty(true);
         }
       }, 0);
@@ -360,9 +424,9 @@ export default function ResultsEditor({
     if (!storageKey) return;
     window.sessionStorage.setItem(
       storageKey,
-      JSON.stringify({ rows, gapMode }),
+      JSON.stringify({ rows, gapMode, qualifyingFormat }),
     );
-  }, [gapMode, rows, storageKey]);
+  }, [gapMode, qualifyingFormat, rows, storageKey]);
 
   useEffect(() => {
     if (
@@ -690,6 +754,9 @@ export default function ResultsEditor({
     leagueId: data.selected.race.season.league.id,
     raceId: data.selected.race.id,
     session,
+    qualifyingFormat:
+      session === ResultSession.Qualifying ? qualifyingFormat : null,
+    publicationKey,
     gapMode,
     intent: "DRAFT",
     syncFiaPenalties,
@@ -711,6 +778,15 @@ export default function ResultsEditor({
         status: row.status,
         gapInput: row.gapInput,
         fastestLapInput: row.fastestLapInput,
+        qualifyingTimeInput: row.qualifyingTimeInput,
+        qualifyingLaps: Number(row.qualifyingLaps || 0),
+        q1TimeInput: row.q1TimeInput,
+        q1Laps: Number(row.q1Laps || 0),
+        q2TimeInput: row.q2TimeInput,
+        q2Laps: Number(row.q2Laps || 0),
+        q3TimeInput: row.q3TimeInput,
+        q3Laps: Number(row.q3Laps || 0),
+        tireCompound: row.tireCompound,
         legacyFastestLap: row.legacyFastestLap,
         gapToWinnerSeconds: null,
         gapToPreviousSeconds: null,
@@ -736,11 +812,15 @@ export default function ResultsEditor({
     pending ||
     published ||
     hasDuplicateDriver ||
+    (session === ResultSession.Qualifying && qualifyingFormat === null) ||
     Boolean(normalizedGaps.error);
+  const missingQualifyingFormat =
+    session === ResultSession.Qualifying && qualifyingFormat === null;
   const validationDisabled =
     pending ||
     hasDuplicateDriver ||
     hasIncompleteDriverRow ||
+    missingQualifyingFormat ||
     Boolean(normalizedGaps.error);
   const publishDisabled =
     validationDisabled || selectedDriverIds.length === 0;
@@ -774,6 +854,11 @@ export default function ResultsEditor({
       (row) => importedFiaSummary(row).decisionIds,
     ),
   });
+  const publishLabel = session === ResultSession.Qualifying
+    ? "Qualifying veröffentlichen"
+    : session === ResultSession.Race
+      ? "Rennen veröffentlichen"
+      : "Sprint veröffentlichen";
 
   return (
     <div className="space-y-6">
@@ -856,7 +941,7 @@ export default function ResultsEditor({
               onClick={() => setPublishConfirmationOpen(true)}
               className="wizard-primary-button min-h-11 justify-center"
             >
-              Veröffentlichen
+              {publishLabel}
             </button>
           </div>
         </div>
@@ -869,6 +954,45 @@ export default function ResultsEditor({
           </span>
         </div>
       </div>
+
+      {session === ResultSession.Qualifying ? (
+        <section className="rounded-2xl border border-blue-500/30 bg-blue-500/5 p-4 sm:p-5">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)] lg:items-end">
+            <div>
+              <p className="eyebrow">Manuelle Formatauswahl</p>
+              <h3 className="mt-2 text-lg font-bold text-white">Qualifying-Format</h3>
+              <p className="mt-2 text-sm text-blue-100">
+                {qualifyingFormatRecommendation(data.drivers.filter((driver) => driver.registered).length).message}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">Die endgültige Auswahl erfolgt manuell.</p>
+            </div>
+            <label className="master-label">
+              Format auswählen
+              <select
+                value={qualifyingFormat ?? ""}
+                onChange={(event) => {
+                  const next = event.target.value as QualifyingFormat | "";
+                  if (!next) return;
+                  if (
+                    qualifyingFormat === QualifyingFormat.Full &&
+                    next === QualifyingFormat.Short &&
+                    hasAdvancedQualifyingData(rows) &&
+                    !window.confirm("Q2- oder Q3-Daten sind vorhanden. Zum kurzen Qualifying wechseln? Die Daten bleiben gespeichert und werden nur ausgeblendet.")
+                  ) return;
+                  setQualifyingFormat(next);
+                  setDirty(true);
+                }}
+                className="form-control mt-2 min-h-12"
+              >
+                <option value="">Bitte manuell auswählen</option>
+                {Object.values(QualifyingFormat).map((format) => (
+                  <option key={format} value={format}>{qualifyingFormatLabels[format]}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </section>
+      ) : null}
 
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -929,6 +1053,7 @@ export default function ResultsEditor({
 
       {hasDuplicateDriver ||
       hasIncompleteDriverRow ||
+      missingQualifyingFormat ||
       normalizedGaps.error ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
           {hasDuplicateDriver
@@ -936,6 +1061,9 @@ export default function ResultsEditor({
             : ""}
           {hasIncompleteDriverRow
             ? "Mindestens eine ausgefüllte Zeile hat noch keinen ausgewählten Fahrer. "
+            : ""}
+          {missingQualifyingFormat
+            ? "Bitte das Qualifying-Format manuell auswählen. "
             : ""}
           {normalizedGaps.error}
         </div>
@@ -978,12 +1106,29 @@ export default function ResultsEditor({
                 <th className="px-3 py-3">Nr.</th>
                 <th className="px-3 py-3">Flagge</th>
                 <th className="min-w-40 px-3 py-3">Team</th>
-                <th className="min-w-24 px-3 py-3">Start</th>
+                {session === ResultSession.Qualifying ? (
+                  qualifyingFormat === QualifyingFormat.Full ? (
+                    <>
+                      <th className="min-w-32 px-3 py-3">Q1-Zeit</th>
+                      <th className="min-w-20 px-3 py-3">Q1-Rd.</th>
+                      <th className="min-w-32 px-3 py-3">Q2-Zeit</th>
+                      <th className="min-w-20 px-3 py-3">Q2-Rd.</th>
+                      <th className="min-w-32 px-3 py-3">Q3-Zeit</th>
+                      <th className="min-w-20 px-3 py-3">Q3-Rd.</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="min-w-36 px-3 py-3">Beste Zeit</th>
+                      <th className="min-w-24 px-3 py-3">Runden</th>
+                    </>
+                  )
+                ) : (
+                  <th className="min-w-24 px-3 py-3">Start</th>
+                )}
+                {session === ResultSession.Qualifying ? <th className="min-w-28 px-3 py-3">Reifen</th> : null}
                 <th className="min-w-36 px-3 py-3">Status</th>
                 <th className="min-w-36 px-3 py-3">Abstand</th>
-                <th className="min-w-36 px-3 py-3">
-                  Schnellste Runde
-                </th>
+                {session !== ResultSession.Qualifying ? <th className="min-w-36 px-3 py-3">Schnellste Runde</th> : null}
                 <th className="min-w-64 px-3 py-3">FIA-Strafe</th>
                 <th className="min-w-28 px-3 py-3">Endposition</th>
                 <th className="min-w-24 px-3 py-3 text-right">
@@ -1002,6 +1147,8 @@ export default function ResultsEditor({
                   index={index}
                   rows={rows}
                   data={data}
+                  session={session}
+                  qualifyingFormat={qualifyingFormat}
                   calculation={calculationByKey.get(row.key)}
                   points={pointsByKey.get(row.key) ?? 0}
                   fastest={fastestDrivers.has(row.key)}
@@ -1028,6 +1175,8 @@ export default function ResultsEditor({
               index={index}
               rows={rows}
               data={data}
+              session={session}
+              qualifyingFormat={qualifyingFormat}
               calculation={calculationByKey.get(row.key)}
               points={pointsByKey.get(row.key) ?? 0}
               fastest={fastestDrivers.has(row.key)}
@@ -1124,7 +1273,7 @@ export default function ResultsEditor({
             onClick={() => setPublishConfirmationOpen(true)}
             className="wizard-primary-button min-h-12 justify-center px-2 text-xs"
           >
-            Veröffentlichen
+            {publishLabel}
           </button>
         </div>
       </form>
@@ -1152,9 +1301,12 @@ export default function ResultsEditor({
                   id="publish-result-title"
                   className="mt-2 text-2xl font-black text-white"
                 >
+                  {session === ResultSession.Qualifying ? "Qualifying jetzt veröffentlichen?" : session === ResultSession.Race ? "Rennergebnis jetzt veröffentlichen?" : "Sprintergebnis jetzt veröffentlichen?"}
+                  <span className="mt-2 block text-base font-semibold text-slate-300">
                   Du veröffentlichst das Ergebnis für{" "}
                   {data.selected.race.season.league.code} –{" "}
                   {data.selected.race.name}.
+                  </span>
                 </h2>
               </div>
               <button
@@ -1176,6 +1328,13 @@ export default function ResultsEditor({
                 label="Rennen"
                 value={`Runde ${data.selected.race.round} · ${data.selected.race.name}`}
               />
+              <PublishFact
+                label="Session"
+                value={resultSessionLabels[session]}
+              />
+              {session === ResultSession.Qualifying && qualifyingFormat ? (
+                <PublishFact label="Qualifying-Format" value={qualifyingFormatLabels[qualifyingFormat]} />
+              ) : null}
               <PublishFact
                 label="Fahrer"
                 value={String(publishSummary.driverCount)}
@@ -1222,8 +1381,7 @@ export default function ResultsEditor({
                 }}
                 className="wizard-primary-button min-h-12 justify-center"
               >
-                {data.selected.race.season.league.code}-Ergebnis
-                veröffentlichen
+                {publishLabel}
               </button>
             </div>
           </section>
@@ -1268,6 +1426,8 @@ type SharedRowProps = {
   index: number;
   rows: RowState[];
   data: ResultAdminData;
+  session: ResultSession;
+  qualifyingFormat: QualifyingFormat | null;
   calculation: ReturnType<
     typeof calculateFinalClassification
   >[number] | undefined;
@@ -1463,11 +1623,83 @@ function PenaltyEditor({
   );
 }
 
+function QualifyingDesktopCells({
+  row,
+  format,
+  onUpdate,
+}: {
+  row: RowState;
+  format: QualifyingFormat | null;
+  onUpdate: (patch: Partial<RowState>) => void;
+}) {
+  const timingCell = (label: string, value: string, field: keyof RowState) => (
+    <td className="px-3 py-3">
+      {label === "Q1-Zeit" ? (
+        <span className={`mb-1 block text-[10px] font-black uppercase tracking-wider ${row.q3TimeInput ? "text-emerald-300" : row.q2TimeInput ? "text-amber-300" : "text-orange-300"}`}>
+          {row.q3TimeInput ? "Q3" : row.q2TimeInput ? "Q2 ausgeschieden" : "Q1 ausgeschieden"}
+        </span>
+      ) : null}
+      <input
+        data-result-cell
+        aria-label={label}
+        value={value}
+        onChange={(event) => onUpdate({ [field]: event.target.value })}
+        placeholder="1:21.456"
+        className="form-control min-w-28"
+      />
+    </td>
+  );
+  const lapsCell = (label: string, value: string, field: keyof RowState) => (
+    <td className="px-3 py-3">
+      <input
+        data-result-cell
+        type="number"
+        min="0"
+        aria-label={label}
+        value={value}
+        onChange={(event) => onUpdate({ [field]: event.target.value })}
+        className="form-control min-w-16"
+      />
+    </td>
+  );
+  return (
+    <>
+      {format === QualifyingFormat.Full ? (
+        <>
+          {timingCell("Q1-Zeit", row.q1TimeInput, "q1TimeInput")}
+          {lapsCell("Q1-Runden", row.q1Laps, "q1Laps")}
+          {timingCell("Q2-Zeit", row.q2TimeInput, "q2TimeInput")}
+          {lapsCell("Q2-Runden", row.q2Laps, "q2Laps")}
+          {timingCell("Q3-Zeit", row.q3TimeInput, "q3TimeInput")}
+          {lapsCell("Q3-Runden", row.q3Laps, "q3Laps")}
+        </>
+      ) : (
+        <>
+          {timingCell("Beste Qualifying-Zeit", row.qualifyingTimeInput, "qualifyingTimeInput")}
+          {lapsCell("Qualifying-Runden", row.qualifyingLaps, "qualifyingLaps")}
+        </>
+      )}
+      <td className="px-3 py-3">
+        <input
+          data-result-cell
+          value={row.tireCompound}
+          onChange={(event) => onUpdate({ tireCompound: event.target.value })}
+          placeholder="Optional"
+          aria-label="Reifenmischung"
+          className="form-control min-w-24"
+        />
+      </td>
+    </>
+  );
+}
+
 function DesktopRow({
   row,
   index,
   rows,
   data,
+  session,
+  qualifyingFormat,
   calculation,
   points,
   fastest,
@@ -1554,7 +1786,9 @@ function DesktopRow({
           <span className="mt-1 flex min-w-0 items-center gap-2 truncate text-xs text-slate-500"><TeamLogo logoUrl={team.logoUrl} teamName={team.name} shortName={team.shortName} primaryColor={team.color} size="xs" /><span className="truncate">{team.name}</span></span>
         ) : null}
       </td>
-      <td className="px-3 py-3">
+      {session === ResultSession.Qualifying ? (
+        <QualifyingDesktopCells row={row} format={qualifyingFormat} onUpdate={onUpdate} />
+      ) : <td className="px-3 py-3">
         <input
           data-result-cell
           type="number"
@@ -1566,7 +1800,7 @@ function DesktopRow({
           aria-label={`Startposition für Position ${index + 1}`}
           className="form-control min-w-20"
         />
-      </td>
+      </td>}
       <td className="px-3 py-3">
         <select
           data-result-cell
@@ -1582,7 +1816,7 @@ function DesktopRow({
             .filter((status) => status !== ResultStatus.Retired)
             .map((status) => (
               <option key={status} value={status}>
-                {resultStatusLabels[status]}
+                {editorStatusLabel(session, status)}
               </option>
             ))}
         </select>
@@ -1598,7 +1832,7 @@ function DesktopRow({
           className="form-control"
         />
       </td>
-      <td className="px-3 py-3">
+      {session !== ResultSession.Qualifying ? <td className="px-3 py-3">
         <input
           data-result-cell
           value={row.fastestLapInput}
@@ -1615,7 +1849,7 @@ function DesktopRow({
             Schnellste Runde
           </span>
         ) : null}
-      </td>
+      </td> : null}
       <td className="px-3 py-3">
         <PenaltyEditor
           row={row}
@@ -1675,12 +1909,64 @@ function DesktopRow({
   );
 }
 
+function QualifyingMobileFields({
+  row,
+  format,
+  onUpdate,
+}: {
+  row: RowState;
+  format: QualifyingFormat | null;
+  onUpdate: (patch: Partial<RowState>) => void;
+}) {
+  const field = (label: string, value: string, key: keyof RowState, type: "text" | "number" = "text") => (
+    <label className="master-label">
+      {label}
+      <input
+        type={type}
+        min={type === "number" ? 0 : undefined}
+        value={value}
+        onChange={(event) => onUpdate({ [key]: event.target.value })}
+        placeholder={type === "text" ? "1:21.456" : undefined}
+        className="form-control mt-2 min-h-12"
+      />
+    </label>
+  );
+  return (
+    <div className="space-y-3 rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
+      <p className="text-xs font-bold uppercase tracking-wider text-blue-200">
+        {format ? qualifyingFormatLabels[format] : "Qualifying-Format auswählen"}
+      </p>
+      {format === QualifyingFormat.Full ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {field("Q1-Zeit", row.q1TimeInput, "q1TimeInput")}
+          {field("Q1-Runden", row.q1Laps, "q1Laps", "number")}
+          {field("Q2-Zeit", row.q2TimeInput, "q2TimeInput")}
+          {field("Q2-Runden", row.q2Laps, "q2Laps", "number")}
+          {field("Q3-Zeit", row.q3TimeInput, "q3TimeInput")}
+          {field("Q3-Runden", row.q3Laps, "q3Laps", "number")}
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {field("Beste Zeit", row.qualifyingTimeInput, "qualifyingTimeInput")}
+          {field("Runden", row.qualifyingLaps, "qualifyingLaps", "number")}
+        </div>
+      )}
+      <label className="master-label">
+        Reifen (optional)
+        <input value={row.tireCompound} onChange={(event) => onUpdate({ tireCompound: event.target.value })} className="form-control mt-2 min-h-12" />
+      </label>
+    </div>
+  );
+}
+
 function MobileRow(props: SharedRowProps) {
   const {
     row,
     index,
     rows,
     data,
+    session,
+    qualifyingFormat,
     calculation,
     points,
     imported,
@@ -1766,7 +2052,7 @@ function MobileRow(props: SharedRowProps) {
                 )
                 .map((status) => (
                   <option key={status} value={status}>
-                    {resultStatusLabels[status]}
+                    {editorStatusLabel(session, status)}
                   </option>
                 ))}
             </select>
@@ -1852,7 +2138,9 @@ function MobileRow(props: SharedRowProps) {
               ))}
             </select>
           </label>
-          <label className="master-label">
+          {session === ResultSession.Qualifying ? (
+            <QualifyingMobileFields row={row} format={qualifyingFormat} onUpdate={onUpdate} />
+          ) : <label className="master-label">
             Schnellste Runde
             <input
               value={row.fastestLapInput}
@@ -1864,8 +2152,8 @@ function MobileRow(props: SharedRowProps) {
               placeholder="1:21.456"
               className="form-control mt-2 min-h-12"
             />
-          </label>
-          <div className="grid grid-cols-2 gap-3">
+          </label>}
+          {session !== ResultSession.Qualifying ? <div className="grid grid-cols-2 gap-3">
             <label className="master-label">
               Startposition
               <input
@@ -1894,7 +2182,7 @@ function MobileRow(props: SharedRowProps) {
                 className="form-control mt-2 min-h-12"
               />
             </label>
-          </div>
+          </div> : null}
           <PenaltyEditor
             row={row}
             data={data}

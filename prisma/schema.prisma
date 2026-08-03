@@ -112,6 +112,11 @@ enum ResultPublicationStatus {
   PUBLISHED
 }
 
+enum QualifyingFormat {
+  FULL
+  SHORT
+}
+
 enum ResultPenaltySource {
   FIA
   MANUAL
@@ -805,24 +810,26 @@ model AttendanceAudit {
 }
 
 model RaceResultSession {
-  id                Int                     @id @default(autoincrement())
-  raceId            Int
-  leagueId          Int
-  session           ResultSession
-  gapMode           ResultGapMode           @default(TO_LEADER)
-  publicationStatus ResultPublicationStatus @default(DRAFT)
-  fiaPenaltyVersion String?                 @db.VarChar(64)
-  draftPayload      Json?
-  revision          Int                     @default(1)
-  lockedAt          DateTime?
-  publishedAt       DateTime?
-  publishedByUserId Int?
-  race              Race                    @relation(fields: [raceId], references: [id], onDelete: Restrict)
-  league            League                  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  publishedBy       User?                   @relation("ResultPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
-  results           RaceResult[]
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
+  id                 Int                     @id @default(autoincrement())
+  raceId             Int
+  leagueId           Int
+  session            ResultSession
+  gapMode            ResultGapMode           @default(TO_LEADER)
+  publicationStatus  ResultPublicationStatus @default(DRAFT)
+  qualifyingFormat   QualifyingFormat?
+  lastPublicationKey String?                 @unique @db.VarChar(190)
+  fiaPenaltyVersion  String?                 @db.VarChar(64)
+  draftPayload       Json?
+  revision           Int                     @default(1)
+  lockedAt           DateTime?
+  publishedAt        DateTime?
+  publishedByUserId  Int?
+  race               Race                    @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  league             League                  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  publishedBy        User?                   @relation("ResultPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  results            RaceResult[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
 
   @@unique([raceId, leagueId, session])
   @@index([raceId, lockedAt])
@@ -846,6 +853,15 @@ model RaceResult {
   lapsBehind           Int                        @default(0)
   totalTimeMs          Int?
   fastestLapMs         Int?
+  qualifyingTimeMs     Int?
+  qualifyingLaps       Int?
+  q1TimeMs             Int?
+  q1Laps               Int?
+  q2TimeMs             Int?
+  q2Laps               Int?
+  q3TimeMs             Int?
+  q3Laps               Int?
+  tireCompound         String?                    @db.VarChar(32)
   fastestLap           Boolean                    @default(false)
   polePosition         Boolean                    @default(false)
   lapsCompleted        Int                        @default(0)

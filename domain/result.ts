@@ -2,6 +2,7 @@ import { z } from "zod";
 import { entityIdSchema } from "./common";
 import {
   resultGapModeSchema,
+  qualifyingFormatSchema,
   resultPublicationStatusSchema,
   resultSessionSchema,
   resultStatusSchema,
@@ -26,6 +27,15 @@ export const raceResultSchema = z
     lapsBehind: z.number().int().nonnegative(),
     totalTimeMs: optionalMillisecondsSchema,
     fastestLapMs: optionalMillisecondsSchema,
+    qualifyingTimeMs: optionalMillisecondsSchema,
+    qualifyingLaps: z.number().int().nonnegative().nullable(),
+    q1TimeMs: optionalMillisecondsSchema,
+    q1Laps: z.number().int().nonnegative().nullable(),
+    q2TimeMs: optionalMillisecondsSchema,
+    q2Laps: z.number().int().nonnegative().nullable(),
+    q3TimeMs: optionalMillisecondsSchema,
+    q3Laps: z.number().int().nonnegative().nullable(),
+    tireCompound: z.string().max(32).nullable(),
     fastestLap: z.boolean(),
     polePosition: z.boolean(),
     lapsCompleted: z.number().int().nonnegative(),
@@ -52,6 +62,7 @@ export const raceResultSessionSchema = z
     session: resultSessionSchema,
     gapMode: resultGapModeSchema,
     publicationStatus: resultPublicationStatusSchema,
+    qualifyingFormat: qualifyingFormatSchema.nullable(),
     revision: z.number().int().positive(),
   })
   .strict();

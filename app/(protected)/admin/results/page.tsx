@@ -181,6 +181,9 @@ export default async function ResultsAdminPage({
                     : status === "DRAFT"
                       ? "Entwurf"
                       : "Noch nicht begonnen";
+                const qualifyingStatus = resultWorkspaceStatus(sessions, ResultSession.Qualifying);
+                const raceStatus = resultWorkspaceStatus(sessions, ResultSession.Race);
+                const requiredPublished = qualifyingStatus === "PUBLISHED" && raceStatus === "PUBLISHED";
                 return (
                   <Link
                     key={league.id}
@@ -196,6 +199,11 @@ export default async function ResultsAdminPage({
                     </span>
                     <span className="mt-1 block text-xs text-slate-400">
                       {label}
+                    </span>
+                    <span className="mt-3 block space-y-1 border-t border-slate-700/70 pt-2 text-[0.7rem]">
+                      <span className="block text-slate-300">{qualifyingStatus === "PUBLISHED" ? "✓" : "○"} Qualifying: {qualifyingStatus === "PUBLISHED" ? "Veröffentlicht" : qualifyingStatus === "DRAFT" ? "Entwurf" : "Fehlt"}</span>
+                      <span className="block text-slate-300">{raceStatus === "PUBLISHED" ? "✓" : "○"} Rennen: {raceStatus === "PUBLISHED" ? "Veröffentlicht" : raceStatus === "DRAFT" ? "Entwurf" : "Fehlt"}</span>
+                      <span className={`block font-bold ${requiredPublished ? "text-emerald-300" : "text-amber-300"}`}>{requiredPublished ? "Rennwochenende vollständig" : "Rennwochenende unvollständig"}</span>
                     </span>
                   </Link>
                 );

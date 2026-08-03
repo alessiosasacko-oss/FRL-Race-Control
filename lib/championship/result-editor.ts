@@ -21,6 +21,15 @@ export type ResultEditorRowContent = {
   expectedDriverId: string;
   gapInput: string;
   fastestLapInput: string;
+  qualifyingTimeInput?: string;
+  qualifyingLaps?: string;
+  q1TimeInput?: string;
+  q1Laps?: string;
+  q2TimeInput?: string;
+  q2Laps?: string;
+  q3TimeInput?: string;
+  q3Laps?: string;
+  tireCompound?: string;
   legacyFastestLap: boolean;
   startingPosition: string;
   lapsCompleted: string;
@@ -131,6 +140,15 @@ export function isPopulatedResultRow(row: ResultEditorRowContent): boolean {
       row.expectedDriverId ||
       (row.gapInput.trim() && row.gapInput.trim() !== "Sieger") ||
       row.fastestLapInput.trim() ||
+      row.qualifyingTimeInput?.trim() ||
+      (row.qualifyingLaps && row.qualifyingLaps !== "0") ||
+      row.q1TimeInput?.trim() ||
+      (row.q1Laps && row.q1Laps !== "0") ||
+      row.q2TimeInput?.trim() ||
+      (row.q2Laps && row.q2Laps !== "0") ||
+      row.q3TimeInput?.trim() ||
+      (row.q3Laps && row.q3Laps !== "0") ||
+      row.tireCompound?.trim() ||
       row.legacyFastestLap ||
       row.startingPosition ||
       (row.lapsCompleted && row.lapsCompleted !== "0") ||
@@ -168,6 +186,15 @@ export function resultRowsForIntent(
       value.status === "FINISHED" &&
       (value.gapInput === "" || value.gapInput === "Sieger") &&
       value.fastestLapInput === "" &&
+      (value.qualifyingTimeInput === "" || value.qualifyingTimeInput === undefined) &&
+      (value.qualifyingLaps === 0 || value.qualifyingLaps === undefined) &&
+      (value.q1TimeInput === "" || value.q1TimeInput === undefined) &&
+      (value.q1Laps === 0 || value.q1Laps === undefined) &&
+      (value.q2TimeInput === "" || value.q2TimeInput === undefined) &&
+      (value.q2Laps === 0 || value.q2Laps === undefined) &&
+      (value.q3TimeInput === "" || value.q3TimeInput === undefined) &&
+      (value.q3Laps === 0 || value.q3Laps === undefined) &&
+      (value.tireCompound === "" || value.tireCompound === undefined) &&
       value.legacyFastestLap === false &&
       value.polePosition === false &&
       value.lapsCompleted === 0 &&

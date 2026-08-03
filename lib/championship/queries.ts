@@ -813,6 +813,15 @@ function resultRow(result: {
   lapsBehind: number;
   totalTimeMs: number | null;
   fastestLapMs: number | null;
+  qualifyingTimeMs: number | null;
+  qualifyingLaps: number | null;
+  q1TimeMs: number | null;
+  q1Laps: number | null;
+  q2TimeMs: number | null;
+  q2Laps: number | null;
+  q3TimeMs: number | null;
+  q3Laps: number | null;
+  tireCompound: string | null;
   fastestLap: boolean;
   polePosition: boolean;
   lapsCompleted: number;
@@ -894,6 +903,7 @@ function resultDraftPayload(value: unknown) {
   if (!parsed.success) return null;
   return {
     gapMode: parsed.data.gapMode,
+    qualifyingFormat: parsed.data.qualifyingFormat,
     results: parsed.data.results,
   };
 }
@@ -1034,6 +1044,7 @@ export async function getRaceResults(
       gapMode: session.gapMode as ResultGapMode,
       publicationStatus:
         session.publicationStatus as ResultPublicationStatus,
+      qualifyingFormat: session.qualifyingFormat as import("@/domain").QualifyingFormat | null,
       fiaPenaltyVersion: session.fiaPenaltyVersion,
       currentFiaPenaltyVersion: penaltyVersion(
         race.tickets.flatMap((ticket) =>

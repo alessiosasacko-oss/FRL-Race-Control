@@ -5,6 +5,7 @@ import {
   ResultGapMode,
   ResultSession,
   attendanceStatusSchema,
+  qualifyingFormatSchema,
   resultGapModeSchema,
   resultSessionSchema,
   resultStatusSchema,
@@ -93,6 +94,15 @@ const resultRowSchema = z.object({
   status: resultStatusSchema,
   gapInput: z.string().trim().max(40),
   fastestLapInput: z.string().trim().max(40),
+  qualifyingTimeInput: z.string().trim().max(40).default(""),
+  qualifyingLaps: z.coerce.number().int().nonnegative().default(0),
+  q1TimeInput: z.string().trim().max(40).default(""),
+  q1Laps: z.coerce.number().int().nonnegative().default(0),
+  q2TimeInput: z.string().trim().max(40).default(""),
+  q2Laps: z.coerce.number().int().nonnegative().default(0),
+  q3TimeInput: z.string().trim().max(40).default(""),
+  q3Laps: z.coerce.number().int().nonnegative().default(0),
+  tireCompound: z.string().trim().max(32).default(""),
   legacyFastestLap: z.boolean(),
   gapToWinnerSeconds: optionalNumber.default(null),
   gapToPreviousSeconds: optionalNumber.default(null),
@@ -126,6 +136,15 @@ const draftResultRowSchema = z.object({
   status: resultStatusSchema,
   gapInput: z.string().max(40),
   fastestLapInput: z.string().max(40),
+  qualifyingTimeInput: z.string().max(40).default(""),
+  qualifyingLaps: z.coerce.number().int().nonnegative().default(0),
+  q1TimeInput: z.string().max(40).default(""),
+  q1Laps: z.coerce.number().int().nonnegative().default(0),
+  q2TimeInput: z.string().max(40).default(""),
+  q2Laps: z.coerce.number().int().nonnegative().default(0),
+  q3TimeInput: z.string().max(40).default(""),
+  q3Laps: z.coerce.number().int().nonnegative().default(0),
+  tireCompound: z.string().trim().max(32).default(""),
   legacyFastestLap: z.boolean(),
   polePosition: z.boolean(),
   lapsCompleted: z.coerce.number().int().nonnegative(),
@@ -149,6 +168,8 @@ export const resultDraftSubmissionSchema = z.object({
   leagueId: entityId,
   raceId: entityId,
   session: resultSessionSchema,
+  qualifyingFormat: qualifyingFormatSchema.nullish().transform((value) => value ?? null),
+  publicationKey: z.string().max(190).default(""),
   gapMode: resultGapModeSchema,
   intent: z.literal("DRAFT"),
   syncFiaPenalties: z.boolean(),
@@ -156,6 +177,13 @@ export const resultDraftSubmissionSchema = z.object({
   confirmLockedEdit: z.boolean(),
   lockAfterSave: z.boolean().default(false),
   results: z.array(draftResultRowSchema).max(100),
+}).superRefine((submission, context) => {
+  if (submission.session === ResultSession.Qualifying && !submission.qualifyingFormat) {
+    context.addIssue({ code: "custom", path: ["qualifyingFormat"], message: "Bitte das Qualifying-Format manuell auswählen." });
+  }
+  if (submission.session !== ResultSession.Qualifying && submission.qualifyingFormat !== null) {
+    context.addIssue({ code: "custom", path: ["qualifyingFormat"], message: "Ein Qualifying-Format ist nur für das Qualifying erlaubt." });
+  }
 });
 
 export const resultSubmissionSchema = z
@@ -163,6 +191,8 @@ export const resultSubmissionSchema = z
     leagueId: entityId,
     raceId: entityId,
     session: resultSessionSchema,
+    qualifyingFormat: qualifyingFormatSchema.nullish().transform((value) => value ?? null),
+    publicationKey: z.string().max(190).default(""),
     gapMode: resultGapModeSchema,
     intent: z.enum(["DRAFT", "VALIDATE", "PUBLISH"]),
     syncFiaPenalties: z.boolean(),
@@ -172,6 +202,15 @@ export const resultSubmissionSchema = z
     results: z.array(resultRowSchema).min(1).max(100),
   })
   .superRefine((submission, context) => {
+    if (submission.session === ResultSession.Qualifying && !submission.qualifyingFormat) {
+      context.addIssue({ code: "custom", path: ["qualifyingFormat"], message: "Bitte das Qualifying-Format manuell auswählen." });
+    }
+    if (submission.session !== ResultSession.Qualifying && submission.qualifyingFormat !== null) {
+      context.addIssue({ code: "custom", path: ["qualifyingFormat"], message: "Ein Qualifying-Format ist nur für das Qualifying erlaubt." });
+    }
+    if (submission.intent === "PUBLISH" && !submission.publicationKey) {
+      context.addIssue({ code: "custom", path: ["publicationKey"], message: "Der Veröffentlichungsschlüssel fehlt." });
+    }
     const drivers = new Set<number>();
     const positions = new Set<number>();
     let poleCount = 0;
@@ -212,6 +251,11 @@ export const resultSubmissionSchema = z
           path: ["results", index, "fastestLapInput"],
           message: "Bitte eine gültige Rundenzeit eingeben.",
         });
+      }
+      for (const field of ["qualifyingTimeInput", "q1TimeInput", "q2TimeInput", "q3TimeInput"] as const) {
+        if (result[field] && parseFastestLapInput(result[field]) === null) {
+          context.addIssue({ code: "custom", path: ["results", index, field], message: "Bitte eine gültige Qualifying-Zeit eingeben." });
+        }
       }
       if (
         result.manualOverride &&

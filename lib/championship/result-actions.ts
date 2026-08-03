@@ -256,6 +256,7 @@ export async function saveResultsAction(
             },
             update: {
               gapMode: draftParsed.data.gapMode,
+              qualifyingFormat: draftParsed.data.qualifyingFormat,
               publicationStatus: ResultPublicationStatus.DRAFT,
               draftPayload: serializable(draftParsed.data),
               revision: { increment: 1 },
@@ -267,6 +268,7 @@ export async function saveResultsAction(
               session:
                 draftParsed.data.session as PrismaResultSession,
               gapMode: draftParsed.data.gapMode,
+              qualifyingFormat: draftParsed.data.qualifyingFormat,
               publicationStatus: ResultPublicationStatus.DRAFT,
               draftPayload: serializable(draftParsed.data),
             },
@@ -289,6 +291,7 @@ export async function saveResultsAction(
             newState: serializable({
               intent: "DRAFT",
               gapMode: draftParsed.data.gapMode,
+              qualifyingFormat: draftParsed.data.qualifyingFormat,
               resultCount: draftParsed.data.results.length,
               revision: resultSession.revision,
             }),
@@ -361,6 +364,12 @@ export async function saveResultsAction(
   }
 
   const existingSession = race.resultSessions[0];
+  if (
+    parsed.data.intent === "PUBLISH" &&
+    existingSession?.lastPublicationKey === parsed.data.publicationKey
+  ) {
+    return successState("Dieses Ergebnis wurde bereits veröffentlicht.", true);
+  }
   if (
     parsed.data.intent !== "VALIDATE" &&
     existingSession?.publicationStatus ===
@@ -618,6 +627,8 @@ export async function saveResultsAction(
         },
         update: {
           gapMode: parsed.data.gapMode,
+          qualifyingFormat: parsed.data.qualifyingFormat,
+          lastPublicationKey: publish ? parsed.data.publicationKey : existingSession?.lastPublicationKey,
           publicationStatus: publish
             ? ResultPublicationStatus.PUBLISHED
             : ResultPublicationStatus.DRAFT,
@@ -637,6 +648,8 @@ export async function saveResultsAction(
           leagueId: parsed.data.leagueId,
           session: parsed.data.session as PrismaResultSession,
           gapMode: parsed.data.gapMode,
+          qualifyingFormat: parsed.data.qualifyingFormat,
+          lastPublicationKey: publish ? parsed.data.publicationKey : null,
           publicationStatus: publish
             ? ResultPublicationStatus.PUBLISHED
             : ResultPublicationStatus.DRAFT,
@@ -713,6 +726,15 @@ export async function saveResultsAction(
               normalizedGaps.rows[index]?.gapToPreviousMs ?? null,
             lapsBehind: calculated.lapsBehind,
             fastestLapMs: fastestTimes[index],
+            qualifyingTimeMs: parseFastestLapInput(result.qualifyingTimeInput),
+            qualifyingLaps: result.qualifyingLaps,
+            q1TimeMs: parseFastestLapInput(result.q1TimeInput),
+            q1Laps: result.q1Laps,
+            q2TimeMs: parseFastestLapInput(result.q2TimeInput),
+            q2Laps: result.q2Laps,
+            q3TimeMs: parseFastestLapInput(result.q3TimeInput),
+            q3Laps: result.q3Laps,
+            tireCompound: result.tireCompound || null,
             fastestLap:
               fastestDrivers.has(String(result.driverId)) ||
               (!fastestTimes.some((value) => value !== null) &&
@@ -743,6 +765,15 @@ export async function saveResultsAction(
               normalizedGaps.rows[index]?.gapToPreviousMs ?? null,
             lapsBehind: calculated.lapsBehind,
             fastestLapMs: fastestTimes[index],
+            qualifyingTimeMs: parseFastestLapInput(result.qualifyingTimeInput),
+            qualifyingLaps: result.qualifyingLaps,
+            q1TimeMs: parseFastestLapInput(result.q1TimeInput),
+            q1Laps: result.q1Laps,
+            q2TimeMs: parseFastestLapInput(result.q2TimeInput),
+            q2Laps: result.q2Laps,
+            q3TimeMs: parseFastestLapInput(result.q3TimeInput),
+            q3Laps: result.q3Laps,
+            tireCompound: result.tireCompound || null,
             fastestLap:
               fastestDrivers.has(String(result.driverId)) ||
               (!fastestTimes.some((value) => value !== null) &&
@@ -895,6 +926,7 @@ export async function saveResultsAction(
           newState: serializable({
             intent: parsed.data.intent,
             gapMode: parsed.data.gapMode,
+            qualifyingFormat: parsed.data.qualifyingFormat,
             resultCount: parsed.data.results.length,
             fiaPenaltyVersion:
               shouldSynchronize
