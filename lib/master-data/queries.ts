@@ -95,6 +95,7 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
         name: true,
         shortName: true,
         color: true,
+        logoUrl: true,
         active: true,
       },
     }),
@@ -163,6 +164,7 @@ export async function getDriverFormOptions(): Promise<DriverFormOptions> {
         name: true,
         shortName: true,
         color: true,
+        logoUrl: true,
         active: true,
       },
     }),
@@ -570,6 +572,7 @@ const driverItemInclude = {
       leagueId: true,
       seasonId: true,
       organizationId: true,
+      logoUrl: true,
       organization: {
         select: {
           id: true,
@@ -578,6 +581,7 @@ const driverItemInclude = {
           color: true,
           secondaryColor: true,
           contrastColor: true,
+          logoUrl: true,
           active: true,
           suitTemplates: {
             where: { active: true, archivedAt: null },
@@ -623,6 +627,7 @@ const driverItemInclude = {
           color: true,
           secondaryColor: true,
           contrastColor: true,
+          logoUrl: true,
           active: true,
           suitTemplates: {
             where: { active: true, archivedAt: null },
@@ -746,6 +751,7 @@ function mapDriverItem(driver: DriverItemRecord): DriverItem {
           name: visibleOrganization.name,
           shortName: visibleOrganization.shortName,
           color: visibleOrganization.color,
+          logoUrl: visibleOrganization.logoUrl ?? driver.team?.logoUrl ?? null,
         }
       : null,
     assignment,

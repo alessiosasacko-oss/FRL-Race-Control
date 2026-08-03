@@ -82,17 +82,6 @@ export default function TeamOrganizationForm({
           value={contrastColor}
           onChange={setContrastColor}
         />
-        <label className="master-label">
-          Logo-URL (optional)
-          <input
-            name="logoUrl"
-            type="url"
-            maxLength={2_000}
-            defaultValue={organization?.logoUrl ?? ""}
-            placeholder="https://…"
-            className="form-control mt-2"
-          />
-        </label>
         <label className="master-label sm:col-span-2">
           Teamchef {currentSeasonName ? `· ${currentSeasonName}` : "· aktuelle Saison"}
           <select

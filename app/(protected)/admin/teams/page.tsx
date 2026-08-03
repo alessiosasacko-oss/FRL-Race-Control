@@ -1,9 +1,10 @@
-import Image from "next/image";
 import Link from "next/link";
-import { Plus, ShieldCheck, UserPlus, Users } from "lucide-react";
+import { Plus, ShieldCheck, UserPlus } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import TeamLifecycleActions from "@/components/master-data/TeamLifecycleActions";
 import TeamOrganizationForm from "@/components/master-data/TeamOrganizationForm";
+import TeamLogoUploader from "@/components/master-data/TeamLogoUploader";
+import TeamLogo from "@/components/teams/TeamLogo";
 import CountryFlag from "@/components/ui/CountryFlag";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -106,11 +107,7 @@ function TeamCard({
       <div className="p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
-            {team.logoUrl ? (
-              <Image src={team.logoUrl} alt={`${team.name} Logo`} width={64} height={64} className="size-14 shrink-0 rounded-xl object-contain sm:size-16" />
-            ) : (
-              <span className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-slate-300 sm:size-16"><Users size={24} /></span>
-            )}
+            <TeamLogo logoUrl={team.logoUrl} teamName={team.name} shortName={team.shortName} primaryColor={team.color} size="lg" priority />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="break-words text-2xl font-black text-white">{team.name}</h2>
@@ -125,6 +122,12 @@ function TeamCard({
           </div>
           <TeamLifecycleActions team={team} />
         </div>
+
+        {!team.archivedAt ? (
+          <div className="mt-6">
+            <TeamLogoUploader organizationId={team.id} teamName={team.name} shortName={team.shortName} primaryColor={team.color} initialLogoUrl={team.logoUrl} />
+          </div>
+        ) : null}
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {team.leagues.map((league) => (

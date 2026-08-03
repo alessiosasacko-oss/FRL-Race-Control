@@ -4,6 +4,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import CountryFlag from "@/components/ui/CountryFlag";
 import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
+import TeamLogo from "@/components/teams/TeamLogo";
 import { Permission, hasPermission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getGlobalTeamOverview } from "@/lib/teams/queries";
@@ -41,7 +42,7 @@ export default async function TeamsPage({ searchParams }: TeamsPageProps) {
                 <div className="h-1.5" style={{ backgroundColor: team.color }} />
                 <div className="p-5 sm:p-6">
                   <div className="flex items-start justify-between gap-4">
-                    <div><p className="eyebrow">{data.season?.name ?? "Keine Saison"}</p><h2 className="mt-2 text-2xl font-black text-white">{team.name}</h2><p className="mt-1 text-sm text-slate-400">Teamchef: {team.principalName}</p></div>
+                    <div className="flex min-w-0 items-start gap-3"><TeamLogo logoUrl={team.logoUrl} teamName={team.name} shortName={team.shortName} primaryColor={team.color} size="md" /><div className="min-w-0"><p className="eyebrow">{data.season?.name ?? "Keine Saison"}</p><h2 className="mt-2 break-words text-2xl font-black text-white">{team.name}</h2><p className="mt-1 text-sm text-slate-400">Teamchef: {team.principalName}</p></div></div>
                     <span className="rounded-xl bg-slate-800 px-3 py-2 font-mono text-sm font-bold">{team.shortName}</span>
                   </div>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

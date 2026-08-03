@@ -387,8 +387,11 @@ export async function getAttendancePageData(
             select: {
               id: true,
               name: true,
+              shortName: true,
               color: true,
+              logoUrl: true,
               seasonId: true,
+              organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true } },
             },
           },
         },
@@ -407,7 +410,7 @@ export async function getAttendancePageData(
               flag: true,
             },
           },
-          representedTeam: { select: { id: true, name: true } },
+          representedTeam: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true, organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true } } } },
           submittedBy: { select: { id: true, displayName: true } },
         },
       }),
@@ -471,16 +474,26 @@ export async function getAttendancePageData(
         team:
           driver.team?.seasonId === selectedRaceRaw.seasonId
             ? {
-                id: driver.team.id,
-                name: driver.team.name,
-                color: driver.team.color,
+              id: driver.team.organization?.id ?? driver.team.id,
+              name: driver.team.organization?.name ?? driver.team.name,
+              shortName: driver.team.organization?.shortName ?? driver.team.shortName,
+              color: driver.team.organization?.color ?? driver.team.color,
+              logoUrl: driver.team.organization?.logoUrl ?? driver.team.logoUrl,
               }
             : null,
       },
       status: (response?.status ??
         AttendanceStatus.NoResponse) as AttendanceStatus,
       substitute: response?.substituteDriver ?? null,
-      representedTeam: response?.representedTeam ?? null,
+      representedTeam: response?.representedTeam
+        ? {
+            id: response.representedTeam.organization?.id ?? response.representedTeam.id,
+            name: response.representedTeam.organization?.name ?? response.representedTeam.name,
+            shortName: response.representedTeam.organization?.shortName ?? response.representedTeam.shortName,
+            color: response.representedTeam.organization?.color ?? response.representedTeam.color,
+            logoUrl: response.representedTeam.organization?.logoUrl ?? response.representedTeam.logoUrl,
+          }
+        : null,
       submittedBy: response?.submittedBy ?? null,
       changeSource:
         (response?.changeSource as AttendanceChangeSource | undefined) ??
@@ -639,10 +652,12 @@ export async function getChampionshipPageData(
                     select: {
                       id: true,
                       name: true,
+                      shortName: true,
                       color: true,
+                      logoUrl: true,
                       organization: {
                         select: {
-                          id: true, name: true, color: true, secondaryColor: true, contrastColor: true,
+                          id: true, name: true, shortName: true, color: true, secondaryColor: true, contrastColor: true, logoUrl: true,
                           suitTemplates: { where: { active: true, archivedAt: null }, orderBy: [{ displayOrder: "asc" }, { name: "asc" }], select: { id: true, organizationId: true, name: true, configuration: true } },
                         },
                       },
@@ -661,12 +676,14 @@ export async function getChampionshipPageData(
                   name: true,
                   shortName: true,
                   color: true,
+                  logoUrl: true,
                   organization: {
                     select: {
                       id: true,
                       name: true,
                       shortName: true,
                       color: true,
+                      logoUrl: true,
                     },
                   },
                 },
@@ -822,11 +839,13 @@ function resultRow(result: {
     name: string;
     shortName: string;
     color: string;
+    logoUrl: string | null;
     organization: {
       id: number;
       name: string;
       shortName: string;
       color: string;
+      logoUrl: string | null;
       secondaryColor: string | null;
       contrastColor: string | null;
       suitTemplates: Array<{ id: number; organizationId: number; name: string; configuration: unknown }>;
@@ -932,6 +951,7 @@ export async function getRaceResults(
                   name: true,
                   shortName: true,
                   color: true,
+                  logoUrl: true,
                   organization: {
                     select: {
                       id: true,
@@ -940,6 +960,7 @@ export async function getRaceResults(
                       color: true,
                       secondaryColor: true,
                       contrastColor: true,
+                      logoUrl: true,
                       suitTemplates: {
                         where: { active: true, archivedAt: null },
                         orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
@@ -1244,6 +1265,8 @@ export async function getResultAdminData(
         name: true,
         shortName: true,
         color: true,
+        logoUrl: true,
+        organization: { select: { logoUrl: true } },
       },
     }),
   ]);
@@ -1280,7 +1303,10 @@ export async function getResultAdminData(
           ? attendanceByDriver.get(driver.id)?.driverId ?? null
           : null,
     })),
-    teams,
+    teams: teams.map(({ organization, ...team }) => ({
+      ...team,
+      logoUrl: organization?.logoUrl ?? team.logoUrl,
+    })),
     fiaPenalties: fiaTickets.flatMap((ticket) => {
       if (!ticket.decision) return [];
       const penalties =

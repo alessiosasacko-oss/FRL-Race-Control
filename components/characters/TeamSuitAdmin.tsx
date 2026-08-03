@@ -7,7 +7,7 @@ import CharacterSelect from "./CharacterSelect";
 import { archiveTeamSuitTemplateAction, saveTeamSuitTemplateAction } from "@/lib/characters/actions";
 import { defaultDriverCharacter, neutralFrlSuit, parseSuitConfiguration, suitPatterns, type TeamSuitConfiguration } from "@/lib/characters/schema";
 
-type Organization = { id: number; name: string; color: string; secondaryColor: string | null; contrastColor: string | null; suitTemplates: Array<{ id: number; organizationId: number; name: string; configuration: unknown; active: boolean; archivedAt: Date | null; displayOrder: number }> };
+type Organization = { id: number; name: string; color: string; secondaryColor: string | null; contrastColor: string | null; logoUrl: string | null; suitTemplates: Array<{ id: number; organizationId: number; name: string; configuration: unknown; active: boolean; archivedAt: Date | null; displayOrder: number }> };
 
 export default function TeamSuitAdmin({ organizations }: { organizations: Organization[] }) {
   const [organizationId, setOrganizationId] = useState(organizations[0]?.id ?? 0);
@@ -27,7 +27,7 @@ export default function TeamSuitAdmin({ organizations }: { organizations: Organi
   }
 
   return <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(18rem,.75fr)_minmax(0,1.25fr)]">
-    <aside className="master-card lg:sticky lg:top-24 lg:self-start"><div className="flex min-h-[23rem] items-end justify-center overflow-hidden rounded-2xl bg-slate-950"><DriverCharacter configuration={defaultDriverCharacter} teamSuit={configuration} pose="ARMS_CROSSED" variant="fullBody" driverNumber={1} alt="Vorschau des Rennanzugs" className="h-[22rem] max-w-full" showBackground /></div><p className="mt-3 text-center text-sm font-bold text-white">Live-Vorschau</p></aside>
+    <aside className="master-card lg:sticky lg:top-24 lg:self-start"><div className="flex min-h-[23rem] items-end justify-center overflow-hidden rounded-2xl bg-slate-950"><DriverCharacter configuration={defaultDriverCharacter} teamSuit={configuration} pose="ARMS_CROSSED" variant="fullBody" driverNumber={1} teamLogoUrl={organization?.logoUrl} alt="Vorschau des Rennanzugs" className="h-[22rem] max-w-full" showBackground /></div><p className="mt-3 text-center text-sm font-bold text-white">Live-Vorschau</p></aside>
     <div className="space-y-5">
       {organizations.length === 0 ? <div className="master-card text-sm text-slate-300">Noch keine Teamorganisation vorhanden. Lege zuerst ein Team an.</div> : <>
         <section className="master-card space-y-4">

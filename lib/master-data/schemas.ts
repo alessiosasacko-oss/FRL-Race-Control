@@ -198,10 +198,6 @@ export const teamOrganizationSchema = z
       (value) => (value === "" || value === null ? null : value),
       hexColorSchema.nullable(),
     ),
-    logoUrl: z.preprocess(
-      (value) => (value === "" || value === null ? null : value),
-      z.string().trim().url().max(2_000).nullable(),
-    ),
     active: checkbox,
     principalUserId: optionalId,
   });

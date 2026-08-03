@@ -7,6 +7,7 @@ import SectionHeader from "@/components/ui/SectionHeader";
 import Tabs from "@/components/ui/Tabs";
 import CountryFlag from "@/components/ui/CountryFlag";
 import DriverCharacter from "@/components/characters/DriverCharacter";
+import TeamLogo from "@/components/teams/TeamLogo";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import {
@@ -200,9 +201,7 @@ export default async function ChampionshipPage({
                     <DriverCharacter configuration={standing.driver.character.configuration} teamSuit={standing.driver.teamSuit.configuration} pose={standing.driver.character.normalPose} variant="portrait" driverNumber={standing.driver.number} driverInitials={standing.driver.name} alt={`Fahrercharakter von ${standing.driver.name}`} className="h-32 w-auto" showShadow={false} />
                   </div>
                   <p className="mt-3 flex items-center gap-2 text-lg font-bold text-white"><CountryFlag countryCode={null} fallbackFlag={standing.driver.flag} size="sm" />{standing.driver.name}</p>
-                  <p className="mt-1 text-sm text-slate-400">
-                    {standing.driver.team?.name ?? "Ohne Team"}
-                  </p>
+                  <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-400">{standing.driver.team ? <TeamLogo logoUrl={standing.driver.team.logoUrl} teamName={standing.driver.team.name} shortName={standing.driver.team.shortName} primaryColor={standing.driver.team.color} size="xs" /> : null}{standing.driver.team?.name ?? "Ohne Team"}</p>
                   <p className="mt-5 text-3xl font-black text-white">
                     {points(standing.points)}
                     <span className="ml-1 text-sm font-semibold text-slate-500">
@@ -280,9 +279,7 @@ function DriverStandings({
                 #{standing.driver.number} {standing.driver.name}
               </span>
             </Link>
-            <span className="hidden truncate text-slate-400 lg:block">
-              {standing.driver.team?.name ?? "Ohne Team"}
-            </span>
+            <span className="hidden min-w-0 items-center gap-2 truncate lg:flex">{standing.driver.team ? <TeamLogo logoUrl={standing.driver.team.logoUrl} teamName={standing.driver.team.name} shortName={standing.driver.team.shortName} primaryColor={standing.driver.team.color} size="xs" /> : null}<span className="truncate text-slate-400 lg:block">{standing.driver.team?.name ?? "Ohne Team"}</span></span>
             <span className="hidden text-right font-mono text-sm text-slate-500 lg:block">
               {standing.position === 1
                 ? "Leader"
@@ -342,10 +339,7 @@ function TeamStandings({
               href={`/teams/${standing.team.id}`}
               className="flex min-w-0 items-center gap-3 font-semibold text-white hover:text-blue-300"
             >
-              <span
-                className="h-9 w-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: standing.team.color }}
-              />
+              <TeamLogo logoUrl={standing.team.logoUrl} teamName={standing.team.name} shortName={standing.team.shortName} primaryColor={standing.team.color} size="sm" />
               <span className="truncate">{standing.team.name}</span>
             </Link>
             <span className="hidden text-right font-mono text-sm text-slate-500 lg:block">

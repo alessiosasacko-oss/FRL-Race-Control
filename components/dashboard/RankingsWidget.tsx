@@ -2,6 +2,7 @@ import { ListOrdered } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard/types";
 import DashboardCard from "./DashboardCard";
 import CountryFlag from "@/components/ui/CountryFlag";
+import TeamLogo from "@/components/teams/TeamLogo";
 
 export default function RankingsWidget({
   championship,
@@ -60,6 +61,12 @@ export default function RankingsWidget({
                 <span
                   className="h-7 w-1 rounded-full"
                   style={{ backgroundColor: team.color }}
+                />
+                <TeamLogo
+                  logoUrl={team.logoUrl}
+                  teamName={team.name}
+                  primaryColor={team.color}
+                  size="xs"
                 />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
                   {team.name}

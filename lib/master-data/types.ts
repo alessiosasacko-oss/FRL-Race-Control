@@ -78,6 +78,7 @@ export type TeamOrganizationOption = {
   name: string;
   shortName: string;
   color: string;
+  logoUrl: string | null;
   active: boolean;
 };
 
@@ -215,6 +216,7 @@ export type DriverItem = {
     name: string;
     shortName: string;
     color: string;
+    logoUrl: string | null;
   } | null;
   assignment: {
     season: SeasonOption;

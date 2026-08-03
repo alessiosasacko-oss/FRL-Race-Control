@@ -59,9 +59,12 @@ export async function getDashboardData(
               organization: {
                 select: {
                   id: true,
+                  name: true,
+                  shortName: true,
                   color: true,
                   secondaryColor: true,
                   contrastColor: true,
+                  logoUrl: true,
                   suitTemplates: {
                     where: { active: true, archivedAt: null },
                     orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
@@ -83,8 +86,13 @@ export async function getDashboardData(
             select: {
               id: true,
               name: true,
+              shortName: true,
               color: true,
+              logoUrl: true,
               seasonId: true,
+              organization: {
+                select: { id: true, name: true, shortName: true, color: true, logoUrl: true },
+              },
               season: { select: { id: true, name: true } },
             },
           },
@@ -227,7 +235,10 @@ export async function getDashboardData(
                       select: {
                         name: true,
                         color: true,
-                        organization: { select: { name: true, color: true } },
+                        logoUrl: true,
+                        organization: {
+                          select: { name: true, color: true, logoUrl: true },
+                        },
                       },
                     },
                   },
@@ -447,9 +458,11 @@ export async function getDashboardData(
             lineupStatus: user.driver.seasonAssignments[0]?.lineupStatus ?? "PRIMARY",
             team: user.driver.team
               ? {
-                  id: user.driver.team.id,
-                  name: user.driver.team.name,
-                  color: user.driver.team.color,
+                  id: user.driver.team.organization?.id ?? user.driver.team.id,
+                  name: user.driver.team.organization?.name ?? user.driver.team.name,
+                  shortName: user.driver.team.organization?.shortName ?? user.driver.team.shortName,
+                  color: user.driver.team.organization?.color ?? user.driver.team.color,
+                  logoUrl: user.driver.team.organization?.logoUrl ?? user.driver.team.logoUrl,
                 }
               : null,
             league: {
@@ -531,6 +544,8 @@ export async function getDashboardData(
           position: standing.position,
           name: standing.team.organization?.name ?? standing.team.name,
           color: standing.team.organization?.color ?? standing.team.color,
+          logoUrl:
+            standing.team.organization?.logoUrl ?? standing.team.logoUrl,
           points: standing.points,
         })) ?? [],
     },

@@ -14,7 +14,7 @@ export type DashboardData = {
       number: number;
       flag: string;
       lineupStatus: string;
-      team: { id: number; name: string; color: string } | null;
+      team: { id: number; name: string; shortName: string; color: string; logoUrl: string | null } | null;
       league: { id: number; code: string; name: string };
     } | null;
     season: { id: number; name: string } | null;
@@ -59,6 +59,7 @@ export type DashboardData = {
       position: number;
       name: string;
       color: string;
+      logoUrl: string | null;
       points: number;
     }>;
   };

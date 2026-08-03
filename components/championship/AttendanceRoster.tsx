@@ -8,6 +8,7 @@ import {
 } from "@/domain";
 import type { AttendanceEntryView } from "@/lib/championship/types";
 import CountryFlag from "@/components/ui/CountryFlag";
+import TeamLogo from "@/components/teams/TeamLogo";
 
 const groups = [
   AttendanceStatus.Registered,
@@ -138,11 +139,7 @@ function RosterGroup({
               <p className="truncate text-sm font-bold text-white">
                 #{entry.driver.number} {entry.driver.name}
               </p>
-              <p className="truncate text-xs text-slate-500">
-                {entry.representedTeam?.name ??
-                  entry.driver.team?.name ??
-                  "Ohne Team"}
-              </p>
+              <AttendanceTeam team={entry.representedTeam ?? entry.driver.team} />
               {entry.substitute ? (
                 <p className="mt-1 text-[0.68rem] font-bold text-amber-300">
                   Ersatz: #{entry.substitute.number} {entry.substitute.name}
@@ -159,4 +156,8 @@ function RosterGroup({
       </div>
     </div>
   );
+}
+
+function AttendanceTeam({ team }: { team: AttendanceEntryView["representedTeam"] }) {
+  return <p className="flex min-w-0 items-center gap-2 text-xs text-slate-500">{team ? <TeamLogo logoUrl={team.logoUrl} teamName={team.name} shortName={team.shortName} primaryColor={team.color} size="xs" /> : null}<span className="truncate">{team?.name ?? "Ohne Team"}</span></p>;
 }

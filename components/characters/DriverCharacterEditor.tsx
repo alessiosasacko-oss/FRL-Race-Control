@@ -16,7 +16,7 @@ import type { DriverCharacterView, TeamSuitView } from "@/lib/characters/types";
 type EditorData = {
   displayName: string;
   driver: { name: string; number: number; flag: string } | null;
-  organization: { id: number; name: string; color: string } | null;
+  organization: { id: number; name: string; color: string; logoUrl: string | null } | null;
   character: DriverCharacterView;
   selectedSuit: TeamSuitView;
   templates: TeamSuitView[];
@@ -61,7 +61,7 @@ export default function DriverCharacterEditor({ data }: { data: EditorData }) {
       <aside className="lg:sticky lg:top-24 lg:self-start">
         <div className="master-card overflow-hidden p-4 sm:p-6">
           <div className="relative flex min-h-[24rem] items-end justify-center overflow-hidden rounded-2xl bg-[radial-gradient(circle_at_50%_28%,rgba(37,99,235,.3),transparent_44%),linear-gradient(180deg,#111c31,#07101f)]">
-            <DriverCharacter configuration={configuration} teamSuit={suit.configuration} pose={normalPose} driverNumber={data.driver?.number} driverInitials={data.driver?.name ?? data.displayName} variant="fullBody" alt={`Vorschau für ${data.driver?.name ?? data.displayName}`} className="h-[23rem] max-w-full" showBackground />
+            <DriverCharacter configuration={configuration} teamSuit={suit.configuration} pose={normalPose} driverNumber={data.driver?.number} driverInitials={data.driver?.name ?? data.displayName} teamLogoUrl={data.organization?.logoUrl} variant="fullBody" alt={`Vorschau für ${data.driver?.name ?? data.displayName}`} className="h-[23rem] max-w-full" showBackground />
           </div>
           <p className="mt-4 text-center text-sm font-semibold text-white">{data.driver?.name ?? data.displayName}</p>
           <p className="text-center text-xs text-slate-400">{data.organization?.name ?? "FRL Standardanzug"}</p>

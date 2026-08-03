@@ -4,6 +4,7 @@ import { Search, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Driver, Team } from "@/domain";
 import CountryFlag from "@/components/ui/CountryFlag";
+import TeamLogo from "@/components/teams/TeamLogo";
 
 type SearchableDriver = Driver & {
   team: Team;
@@ -70,9 +71,7 @@ export default function DriverSearch({
                     {driver.name}
                   </p>
 
-                  <p className="text-sm text-slate-400">
-                    {driver.team.name}
-                  </p>
+                  <p className="flex items-center gap-2 text-sm text-slate-400"><TeamLogo logoUrl={driver.team.logoUrl} teamName={driver.team.name} shortName={driver.team.shortName} primaryColor={driver.team.color} size="xs" />{driver.team.name}</p>
 
                 </div>
 

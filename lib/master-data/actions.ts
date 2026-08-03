@@ -1787,7 +1787,6 @@ function teamOrganizationPayload(formData: FormData) {
     color: formData.get("color"),
     secondaryColor: formData.get("secondaryColor"),
     contrastColor: formData.get("contrastColor"),
-    logoUrl: formData.get("logoUrl"),
     active: formData.get("active"),
     principalUserId: formData.get("principalUserId"),
   };
@@ -1977,7 +1976,6 @@ export async function updateTeamOrganizationAction(
           color: organizationData.color,
           secondaryColor: organizationData.secondaryColor,
           contrastColor: organizationData.contrastColor,
-          logoUrl: organizationData.logoUrl,
           principalUserId: null,
           systemManaged: true,
         },

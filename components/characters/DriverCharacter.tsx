@@ -49,6 +49,7 @@ export type DriverCharacterProps = {
   variant?: "fullBody" | "portrait" | "tableThumbnail" | "winner" | "dashboardHero";
   driverNumber?: number | null;
   driverInitials?: string;
+  teamLogoUrl?: string | null;
   alt: string;
   className?: string;
   showShadow?: boolean;
@@ -62,6 +63,7 @@ function DriverCharacterComponent({
   variant = "fullBody",
   driverNumber,
   driverInitials,
+  teamLogoUrl,
   alt,
   className = "",
   showShadow = true,
@@ -154,7 +156,7 @@ function DriverCharacterComponent({
         {teamSuit.sideStripes || teamSuit.pattern === "SIDE_STRIPES" ? <><path d="m97 171 12 2-2 104-10 4Z" fill={teamSuit.accentColor} opacity="0.88" /><path d="m183 171-12 2 2 104 10 4Z" fill={teamSuit.accentColor} opacity="0.88" /></> : null}
         <path d="M106 239h68" stroke={teamSuit.accentColor} strokeOpacity="0.7" strokeWidth="2" />
         <path d="M111 250h58" stroke="#F8FAFC" strokeOpacity="0.12" strokeWidth="1.5" strokeDasharray="4 4" />
-        {teamSuit.chestLogoAsset ? <image href={teamSuit.chestLogoAsset} x="122" y="183" width="36" height="32" preserveAspectRatio="xMidYMid meet" /> : <path d="m140 184 10 10-10 10-10-10Z" fill={teamSuit.accentColor} opacity="0.9" />}
+        {teamLogoUrl || teamSuit.chestLogoAsset ? <image href={teamLogoUrl ?? teamSuit.chestLogoAsset ?? undefined} x="119" y="183" width="42" height="32" preserveAspectRatio="xMidYMid meet" /> : <path d="m140 184 10 10-10 10-10-10Z" fill={teamSuit.accentColor} opacity="0.9" />}
         {teamSuit.smallLogoAssets.slice(0, 2).map((asset, index) => <image key={asset} href={asset} x={index === 0 ? 102 : 158} y="217" width="19" height="14" preserveAspectRatio="xMidYMid meet" />)}
         {driverNumber != null ? <text x="140" y="234" textAnchor="middle" fill="#FFFFFF" fontSize="21" fontWeight="900" fontFamily="ui-monospace, monospace" stroke="#020617" strokeOpacity="0.35" strokeWidth="1">{driverNumber}</text> : null}
       </g>

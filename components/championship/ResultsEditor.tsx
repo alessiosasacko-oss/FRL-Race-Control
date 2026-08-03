@@ -35,6 +35,7 @@ import {
   resultStatusLabels,
 } from "@/domain";
 import CountryFlag from "@/components/ui/CountryFlag";
+import TeamLogo from "@/components/teams/TeamLogo";
 import { deleteResultsAction } from "@/lib/championship/actions";
 import { saveResultsAction } from "@/lib/championship/result-actions";
 import {
@@ -1550,9 +1551,7 @@ function DesktopRow({
           ))}
         </select>
         {team ? (
-          <span className="mt-1 block truncate text-xs text-slate-500">
-            {team.name}
-          </span>
+          <span className="mt-1 flex min-w-0 items-center gap-2 truncate text-xs text-slate-500"><TeamLogo logoUrl={team.logoUrl} teamName={team.name} shortName={team.shortName} primaryColor={team.color} size="xs" /><span className="truncate">{team.name}</span></span>
         ) : null}
       </td>
       <td className="px-3 py-3">
@@ -1787,9 +1786,7 @@ function MobileRow(props: SharedRowProps) {
         <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-900/60 p-3 text-sm">
           <div>
             <p className="text-xs text-slate-500">Team</p>
-            <p className="mt-1 truncate text-white">
-              {team?.shortName ?? "–"}
-            </p>
+            <p className="mt-1 flex min-w-0 items-center gap-2 truncate text-white">{team ? <TeamLogo logoUrl={team.logoUrl} teamName={team.name} shortName={team.shortName} primaryColor={team.color} size="xs" /> : null}<span className="truncate">{team?.shortName ?? "–"}</span></p>
           </div>
           <div>
             <p className="text-xs text-slate-500">Endposition</p>

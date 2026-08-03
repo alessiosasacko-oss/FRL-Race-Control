@@ -526,7 +526,9 @@ function LeagueTeamSettings({ leagues, teams }: Pick<AdminData, "leagues" | "tea
               <input aria-label={`${team.name} Sekundärfarbe`} type="color" name="secondaryColor" defaultValue={team.secondaryColor ?? team.color} className="size-10" />
               <span className="min-w-0 truncate"><strong>{team.shortName}</strong><small className="ml-2 text-[var(--color-text-muted)]">{team.name}</small></span>
               <button className="wizard-secondary-button min-h-9 px-3 py-1">Speichern</button>
-              <label className="master-label sm:col-span-3">Logo-URL<input name="logoUrl" defaultValue={team.logoUrl ?? ""} placeholder="/assets/teams/... oder https://..." className="form-control mt-1" /></label>
+              <p className="text-xs text-[var(--color-text-muted)] sm:col-span-3">
+                Das Teamlogo wird sicher in der Teamverwaltung hochgeladen.
+              </p>
             </form>
           ))}
         </div>

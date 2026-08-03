@@ -35,6 +35,7 @@ export async function getCharacterEditorData(userId: number) {
                   id: true,
                   name: true,
                   color: true,
+                  logoUrl: true,
                   secondaryColor: true,
                   contrastColor: true,
                   suitTemplates: {
@@ -60,12 +61,12 @@ export async function getCharacterEditorData(userId: number) {
   const templates = organization?.suitTemplates.map((template) => suitView(template, organization)) ?? [];
   const character = characterView(user.driverCharacter);
   const selectedSuit = templates.find((template) => template.id === character.suitVariantId) ?? suitView(null, organization);
-  return { displayName: user.displayName, driver: user.driver ? { name: user.driver.name, number: user.driver.number, flag: user.driver.flag } : null, organization: organization ? { id: organization.id, name: organization.name, color: organization.color } : null, character, selectedSuit, templates };
+  return { displayName: user.displayName, driver: user.driver ? { name: user.driver.name, number: user.driver.number, flag: user.driver.flag } : null, organization: organization ? { id: organization.id, name: organization.name, color: organization.color, logoUrl: organization.logoUrl } : null, character, selectedSuit, templates };
 }
 
 export async function getSuitAdminData() {
   return getPrismaClient().teamOrganization.findMany({
     orderBy: { name: "asc" },
-    select: { id: true, name: true, color: true, secondaryColor: true, contrastColor: true, suitTemplates: { orderBy: [{ archivedAt: "asc" }, { displayOrder: "asc" }, { name: "asc" }], select: { id: true, organizationId: true, name: true, configuration: true, active: true, archivedAt: true, displayOrder: true } } },
+    select: { id: true, name: true, color: true, secondaryColor: true, contrastColor: true, logoUrl: true, suitTemplates: { orderBy: [{ archivedAt: "asc" }, { displayOrder: "asc" }, { name: "asc" }], select: { id: true, organizationId: true, name: true, configuration: true, active: true, archivedAt: true, displayOrder: true } } },
   });
 }

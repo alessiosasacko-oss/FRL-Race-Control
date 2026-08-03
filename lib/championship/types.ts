@@ -62,7 +62,7 @@ export type AttendanceEntryView = {
     number: number;
     flag: string;
     userId: number | null;
-    team: { id: number; name: string; color: string } | null;
+    team: { id: number; name: string; shortName: string; color: string; logoUrl: string | null } | null;
   };
   status: AttendanceStatus;
   substitute: {
@@ -71,7 +71,7 @@ export type AttendanceEntryView = {
     number: number;
     flag: string;
   } | null;
-  representedTeam: { id: number; name: string } | null;
+  representedTeam: { id: number; name: string; shortName: string; color: string; logoUrl: string | null } | null;
   submittedBy: { id: number; displayName: string } | null;
   changeSource: AttendanceChangeSource | null;
   changeReason: string | null;
@@ -130,7 +130,7 @@ export type DriverStandingView = {
     name: string;
     number: number;
     flag: string;
-    team: { id: number; name: string; color: string } | null;
+    team: { id: number; name: string; shortName: string; color: string; logoUrl: string | null } | null;
     character: import("@/lib/characters/types").DriverCharacterView;
     teamSuit: import("@/lib/characters/types").TeamSuitView;
   };
@@ -153,6 +153,7 @@ export type TeamStandingView = {
     name: string;
     shortName: string;
     color: string;
+    logoUrl: string | null;
   };
 };
 
@@ -213,6 +214,7 @@ export type ResultRowView = {
     name: string;
     shortName: string;
     color: string;
+    logoUrl: string | null;
     teamSuit: import("@/lib/characters/types").TeamSuitView;
   };
   expectedDriver: { id: number; name: string } | null;
@@ -304,6 +306,7 @@ export type ResultAdminData = {
     name: string;
     shortName: string;
     color: string;
+    logoUrl: string | null;
   }>;
   fiaPenalties: Array<{
     decisionId: number;

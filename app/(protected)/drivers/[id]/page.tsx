@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import CountryFlag from "@/components/ui/CountryFlag";
 import DriverCharacter from "@/components/characters/DriverCharacter";
+import TeamLogo from "@/components/teams/TeamLogo";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getDriverById } from "@/lib/master-data/queries";
@@ -56,7 +57,7 @@ export default async function DriverDetailPage({
           <div className="grid gap-8 p-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:p-8">
             <div>
               <div className="mb-6 flex min-h-64 items-end justify-center overflow-hidden rounded-2xl bg-[radial-gradient(circle_at_50%_30%,rgba(37,99,235,.28),transparent_48%),#070e1b] lg:min-h-80">
-                <DriverCharacter configuration={driver.character.configuration} teamSuit={driver.teamSuit.configuration} pose={driver.character.normalPose} variant="fullBody" driverNumber={driver.number} driverInitials={driver.name} alt={`Fahrercharakter von ${driver.name}`} className="h-64 max-w-full lg:h-80" showBackground />
+                <DriverCharacter configuration={driver.character.configuration} teamSuit={driver.teamSuit.configuration} pose={driver.character.normalPose} variant="fullBody" driverNumber={driver.number} driverInitials={driver.name} teamLogoUrl={driver.team?.logoUrl} alt={`Fahrercharakter von ${driver.name}`} className="h-64 max-w-full lg:h-80" showBackground />
               </div>
               <div className="flex flex-wrap items-start gap-5">
                 <CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="lg" />
@@ -67,9 +68,7 @@ export default async function DriverDetailPage({
                   <h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
                     {driver.name}
                   </h1>
-                  <p className="mt-2 text-slate-400">
-                    {driver.team?.name ?? "Aktuell keinem Team zugeordnet"}
-                  </p>
+                  <p className="mt-2 inline-flex items-center gap-2 text-slate-400">{driver.team ? <TeamLogo logoUrl={driver.team.logoUrl} teamName={driver.team.name} shortName={driver.team.shortName} primaryColor={driver.team.color} size="xs" /> : null}{driver.team?.name ?? "Aktuell keinem Team zugeordnet"}</p>
                 </div>
               </div>
 
@@ -110,8 +109,9 @@ export default async function DriverDetailPage({
                     {driver.team ? (
                       <Link
                         href={`/teams/${driver.team.id}`}
-                        className="transition hover:text-blue-300"
+                        className="inline-flex items-center gap-2 transition hover:text-blue-300"
                       >
+                        <TeamLogo logoUrl={driver.team.logoUrl} teamName={driver.team.name} shortName={driver.team.shortName} primaryColor={driver.team.color} size="xs" />
                         {driver.team.name}
                       </Link>
                     ) : (

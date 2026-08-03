@@ -12,7 +12,6 @@ import {
   designThemeConfigSchema,
   hexColorSchema,
   readableTextColor,
-  teamLogoReferenceSchema,
   themeContrastWarnings,
 } from "@/lib/design/theme";
 import type { DesignActionState } from "@/lib/design/types";
@@ -272,18 +271,17 @@ export async function updateTeamBrandingAction(formData: FormData): Promise<void
   const id = Number(formData.get("teamId"));
   const color = hexColorSchema.safeParse(formData.get("color"));
   const secondaryColor = hexColorSchema.safeParse(formData.get("secondaryColor"));
-  const logoUrl = teamLogoReferenceSchema.safeParse(formData.get("logoUrl") ?? "");
-  if (!Number.isInteger(id) || id <= 0 || !color.success || !secondaryColor.success || !logoUrl.success) return;
+  if (!Number.isInteger(id) || id <= 0 || !color.success || !secondaryColor.success) return;
   const contrastColor = readableTextColor(color.data);
   const prisma = getPrismaClient();
   await prisma.$transaction(async (transaction) => {
     await transaction.teamOrganization.update({
       where: { id, active: true, archivedAt: null },
-      data: { color: color.data, secondaryColor: secondaryColor.data, contrastColor, logoUrl: logoUrl.data || null },
+      data: { color: color.data, secondaryColor: secondaryColor.data, contrastColor },
     });
     await transaction.team.updateMany({
       where: { organizationId: id },
-      data: { color: color.data, secondaryColor: secondaryColor.data, contrastColor, logoUrl: logoUrl.data || null, systemManaged: true },
+      data: { color: color.data, secondaryColor: secondaryColor.data, contrastColor, systemManaged: true },
     });
   });
   await writeSystemAudit(prisma, {
@@ -291,7 +289,7 @@ export async function updateTeamBrandingAction(formData: FormData): Promise<void
     action: "TEAM_BRANDING_UPDATED",
     entityType: "TeamOrganization",
     entityId: id,
-    metadata: { color: color.data, secondaryColor: secondaryColor.data, logoUpdated: Boolean(logoUrl.data) },
+    metadata: { color: color.data, secondaryColor: secondaryColor.data },
   });
   await revalidateDesign();
 }

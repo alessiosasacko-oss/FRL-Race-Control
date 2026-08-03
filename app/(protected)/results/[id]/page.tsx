@@ -7,6 +7,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
 import CountryFlag from "@/components/ui/CountryFlag";
 import DriverCharacter from "@/components/characters/DriverCharacter";
+import TeamLogo from "@/components/teams/TeamLogo";
 import { resultSessionLabels, resultStatusLabels } from "@/domain";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -193,11 +194,11 @@ function PodiumResult({
         />
       )}
       <div className="mt-1 flex h-32 items-end justify-center overflow-hidden">
-        <DriverCharacter configuration={result.driver.character.configuration} teamSuit={result.representedTeam.teamSuit.configuration} pose={index === 0 ? result.driver.character.winnerPose : result.driver.character.normalPose} variant={index === 0 ? "winner" : "portrait"} driverNumber={result.driver.number} driverInitials={result.driver.name} alt={`Fahrercharakter von ${result.driver.name}`} className="h-36 w-auto" showShadow={false} />
+        <DriverCharacter configuration={result.driver.character.configuration} teamSuit={result.representedTeam.teamSuit.configuration} pose={index === 0 ? result.driver.character.winnerPose : result.driver.character.normalPose} variant={index === 0 ? "winner" : "portrait"} driverNumber={result.driver.number} driverInitials={result.driver.name} teamLogoUrl={result.representedTeam.logoUrl} alt={`Fahrercharakter von ${result.driver.name}`} className="h-36 w-auto" showShadow={false} />
       </div>
       <p className="mt-4 flex items-center gap-2 text-lg font-bold text-white"><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />{result.driver.name}</p>
       <p className="mt-1 text-sm text-slate-400">
-        {result.representedTeam.name}
+        <span className="inline-flex items-center gap-2"><TeamLogo logoUrl={result.representedTeam.logoUrl} teamName={result.representedTeam.name} shortName={result.representedTeam.shortName} primaryColor={result.representedTeam.color} size="xs" />{result.representedTeam.name}</span>
       </p>
       <p className="mt-4 text-2xl font-black text-white">
         {formatPoints(result.racePoints + result.bonusPoints)} Pkt.
@@ -225,7 +226,7 @@ function ResultRow({ result }: { result: SessionResult }) {
           </p>
         ) : null}
       </td>
-      <td className="text-slate-300">{result.representedTeam.name}</td>
+      <td className="text-slate-300"><span className="inline-flex items-center gap-2"><TeamLogo logoUrl={result.representedTeam.logoUrl} teamName={result.representedTeam.name} shortName={result.representedTeam.shortName} primaryColor={result.representedTeam.color} size="xs" />{result.representedTeam.name}</span></td>
       <td className="text-slate-300">{resultStatusLabels[result.status]}</td>
       <td className="text-right font-bold text-blue-200">
         {formatPoints(result.racePoints + result.bonusPoints)}
@@ -264,7 +265,7 @@ function MobileResult({ result }: { result: SessionResult }) {
             <span className="inline-flex items-center gap-2"><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />{result.driver.name}</span>
           </Link>
           <p className="mt-1 truncate text-xs text-slate-500">
-            {result.representedTeam.name} · {resultStatusLabels[result.status]}
+            <span className="inline-flex items-center gap-2"><TeamLogo logoUrl={result.representedTeam.logoUrl} teamName={result.representedTeam.name} shortName={result.representedTeam.shortName} primaryColor={result.representedTeam.color} size="xs" />{result.representedTeam.name}</span> · {resultStatusLabels[result.status]}
           </p>
         </div>
         <strong className="text-right text-blue-200">

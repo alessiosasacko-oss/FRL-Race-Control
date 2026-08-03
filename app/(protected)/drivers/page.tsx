@@ -4,6 +4,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import CountryFlag from "@/components/ui/CountryFlag";
 import ListFilters from "@/components/master-data/ListFilters";
 import DriverCharacter from "@/components/characters/DriverCharacter";
+import TeamLogo from "@/components/teams/TeamLogo";
 import {
   hasPermission,
   Permission,
@@ -72,7 +73,7 @@ export default async function DriversPage({
                     {driver.name}
                   </h2>
                   <p className="mt-1 text-sm text-slate-400">
-                    {driver.league.code} · {driver.team?.name ?? "Ohne Team"}
+                    <span className="inline-flex items-center gap-2">{driver.team ? <TeamLogo logoUrl={driver.team.logoUrl} teamName={driver.team.name} shortName={driver.team.shortName} primaryColor={driver.team.color} size="xs" /> : null}{driver.league.code} · {driver.team?.name ?? "Ohne Team"}</span>
                   </p>
                 </div>
                 <span className="rounded-xl bg-blue-600 px-3 py-2 text-lg font-bold">
