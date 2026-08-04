@@ -12,6 +12,7 @@ export function proxy(request: NextRequest) {
   if (
     publicRoutes.has(pathname) ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/mobile/v1/") ||
     pathname.startsWith("/api/internal/") ||
     pathname === "/api/notifications/email"
   ) {
