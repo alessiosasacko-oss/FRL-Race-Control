@@ -23,6 +23,7 @@ import { logger } from "@/lib/observability/logger";
 import { processEvidenceStorageCleanupQueue } from "@/lib/storage/evidence-cleanup";
 import { processPendingResultGraphics } from "@/lib/graphics/result-graphic-service";
 import { publicRaceTrack } from "@/lib/races/visibility";
+import { cleanupMobileAuthRecords } from "@/lib/mobile-api/auth/cleanup";
 
 type JobDefinition = {
   type: AutomationJobType;
@@ -154,11 +155,15 @@ async function cleanupNotifications() {
     }),
   ]);
   const evidenceStorage = await processEvidenceStorageCleanupQueue();
+  const mobileAuth = await cleanupMobileAuthRecords();
   return {
     deletedNotifications: notifications.count,
     deletedWebhookEvents: webhooks.count,
     deletedEvidenceFiles: evidenceStorage.processed,
     failedEvidenceFileDeletions: evidenceStorage.failed,
+    deletedMobileAuthorizationCodes: mobileAuth.authorizationCodes,
+    deletedMobileOAuthAttempts: mobileAuth.oauthAttempts,
+    deletedMobileSessions: mobileAuth.sessions,
   };
 }
 

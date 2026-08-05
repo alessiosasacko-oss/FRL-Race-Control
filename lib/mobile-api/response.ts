@@ -69,14 +69,17 @@ function corsHeaders(request: Request): Headers {
   const origin = request.headers.get("origin");
   if (origin && configuredOrigins().has(origin)) {
     headers.set("Access-Control-Allow-Origin", origin);
-    headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-    headers.set("Access-Control-Allow-Headers", "Accept, Content-Type");
+    headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    headers.set(
+      "Access-Control-Allow-Headers",
+      "Accept, Authorization, Content-Type",
+    );
     headers.set("Access-Control-Max-Age", "600");
   }
   return headers;
 }
 
-function requestFingerprint(request: Request): string {
+export function mobileRequestFingerprint(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const value =
     forwarded ||
@@ -153,7 +156,7 @@ export async function handleMobileRequest(
   const startedAt = performance.now();
   const rateLimit = options.rateLimit ?? MOBILE_API_RATE_LIMIT;
   const limitResult = consumeRateLimit(
-    `mobile:${endpoint}:${requestFingerprint(request)}`,
+    `mobile:${endpoint}:${mobileRequestFingerprint(request)}`,
     rateLimit,
   );
   if (!limitResult.allowed) {

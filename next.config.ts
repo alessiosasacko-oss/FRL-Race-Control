@@ -14,7 +14,10 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["discord.js"],
   logging: {
     incomingRequests: {
-      ignore: [/\/api\/auth\/callback\//],
+      ignore: [
+        /\/api\/auth\/callback\//,
+        /\/api\/mobile\/v1\/auth\/discord\/callback/,
+      ],
     },
   },
   images: {

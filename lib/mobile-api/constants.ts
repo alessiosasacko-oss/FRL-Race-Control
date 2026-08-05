@@ -7,7 +7,7 @@ export const MOBILE_API_FEATURES = Object.freeze({
   results: true,
   driverChampionship: true,
   teamChampionship: true,
-  authentication: false,
+  authentication: true,
   attendance: false,
   fia: false,
 });

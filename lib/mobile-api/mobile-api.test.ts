@@ -203,7 +203,7 @@ test("bootstrap keeps only active leagues", () => {
     NOW,
   );
   assert.deepEqual(payload.leagues.map((league) => league.code), ["F1"]);
-  assert.equal(payload.features.authentication, false);
+  assert.equal(payload.features.authentication, true);
 });
 
 test("calendar serialization preserves the selected F2 league", () => {

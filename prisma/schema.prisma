@@ -359,6 +359,7 @@ model User {
   avatarUrl                String?                    @db.Text
   roles                    Role[]                     @default([DRIVER])
   active                   Boolean                    @default(true)
+  lockedAt                 DateTime?
   driver                   Driver?
   reportedTickets          FiaTicket[]                @relation("TicketReporter")
   archivedTickets          FiaTicket[]                @relation("TicketArchiver")
@@ -394,10 +395,13 @@ model User {
   designThemeVersions      DesignThemeVersion[]
   accounts                 Account[]
   sessions                 Session[]
+  mobileAuthorizationCodes MobileAuthorizationCode[]
+  mobileSessions           MobileSession[]
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
 
   @@index([active])
+  @@index([lockedAt])
   @@index([displayName])
 }
 
@@ -432,6 +436,74 @@ model Session {
 
   @@index([userId])
   @@index([expires])
+}
+
+model MobileOAuthAttempt {
+  id                  String                   @id @default(cuid())
+  oauthStateHash      String                   @unique @db.Char(64)
+  clientState         String                   @db.VarChar(255)
+  codeChallenge       String                   @db.VarChar(128)
+  codeChallengeMethod String                   @db.VarChar(8)
+  redirectUri         String                   @db.VarChar(255)
+  expiresAt           DateTime
+  completedAt         DateTime?
+  authorizationCode   MobileAuthorizationCode?
+  createdAt           DateTime                 @default(now())
+
+  @@index([expiresAt])
+  @@index([completedAt])
+}
+
+model MobileAuthorizationCode {
+  id             String             @id @default(cuid())
+  codeHash       String             @unique @db.Char(64)
+  userId         Int
+  oauthAttemptId String             @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthAttempt   MobileOAuthAttempt @relation(fields: [oauthAttemptId], references: [id], onDelete: Cascade)
+  createdAt      DateTime           @default(now())
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([usedAt])
+}
+
+model MobileSession {
+  id            String               @id @default(cuid())
+  userId        Int
+  tokenFamilyId String               @unique @db.Uuid
+  platform      String?              @db.VarChar(32)
+  deviceName    String?              @db.VarChar(160)
+  appVersion    String?              @db.VarChar(40)
+  expiresAt     DateTime
+  lastUsedAt    DateTime
+  revokedAt     DateTime?
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens MobileRefreshToken[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model MobileRefreshToken {
+  id        String        @id @default(cuid())
+  sessionId String
+  tokenHash String        @unique @db.Char(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  session   MobileSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@index([sessionId, createdAt])
+  @@index([expiresAt])
+  @@index([usedAt])
+  @@index([revokedAt])
 }
 
 model Driver {

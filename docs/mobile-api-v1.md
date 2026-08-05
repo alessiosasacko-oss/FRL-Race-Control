@@ -4,7 +4,7 @@ Die öffentliche Mobile API ist der einzige Datenzugang der separaten React-Nati
 
 Basis-Pfad: `/api/mobile/v1`
 
-Authentifizierung ist in v1 noch nicht aktiv. Alle Endpunkte sind ausschließlich lesend (`GET`). Für kontrollierte Browserentwicklung wird `OPTIONS` unterstützt; Browser-Origin-Freigaben kommen aus `MOBILE_API_ALLOWED_ORIGINS`. Native Apps benötigen normalerweise kein CORS.
+Die öffentlichen Endpunkte bleiben ohne Anmeldung lesbar. Die getrennte Mobile-Authentifizierung und der persönliche `/me`-Endpunkt sind in [mobile-auth-v1.md](./mobile-auth-v1.md) dokumentiert. Für kontrollierte Browserentwicklung wird `OPTIONS` unterstützt; Browser-Origin-Freigaben kommen aus `MOBILE_API_ALLOWED_ORIGINS`. Native Apps benötigen normalerweise kein CORS.
 
 ## Endpunkte
 
@@ -17,6 +17,8 @@ Authentifizierung ist in v1 noch nicht aktiv. Alle Endpunkte sind ausschließlic
 | GET | `/championship` | `league`, `seasonId`, `type` | Fahrer-WM oder TCWM / Team-WM |
 | GET | `/results` | `league`, `seasonId`, `limit`, `cursor` | veröffentlichte Ergebnisübersichten |
 | GET | `/results/{raceId}` | optional `league` | veröffentlichte Sessions eines Rennens |
+| GET/POST | `/auth/*` | PKCE, App-Code oder Token | sicherer nativer Discord-Login und Token-Lebenszyklus |
+| GET | `/me` | Mobile Bearer Token | minimiertes persönliches App-Profil |
 
 `league` ist ein Liga-Code wie `F1` oder `F2`. Ohne Angabe wird `F1` verwendet, sofern diese Liga aktiv ist; andernfalls die erste aktive Liga nach Anzeige-Reihenfolge. `seasonId` muss eine positive Ganzzahl und der Liga zugeordnet sein. Ohne Saison wird die aktive Saison der Liga gewählt. `type` akzeptiert nur `DRIVERS` und `TEAMS` und ist standardmäßig `DRIVERS`. `limit` ist positiv und wird auf maximal 50 begrenzt; der Standard ist 20. `cursor` ist die vom vorherigen Aufruf gelieferte positive Race-ID.
 
@@ -93,7 +95,7 @@ Der Endpunkt prüft absichtlich keine Datenbankverbindung und gibt keine Umgebun
     "results": true,
     "driverChampionship": true,
     "teamChampionship": true,
-    "authentication": false,
+    "authentication": true,
     "attendance": false,
     "fia": false
   }
@@ -164,6 +166,6 @@ Ausgeschlossen sind insbesondere Datenbank- und Auth-Secrets, E-Mail- und IP-Adr
 
 Das bestehende serverseitige Rate Limit wird pro Endpunkt und gehashtem Client-Fingerprint mit 120 Anfragen pro Minute verwendet. Bei Überschreitung folgen HTTP 429 und `Retry-After`. Bootstrap, Ligen, Kalender und Wertungen werden 30 bis 60 Sekunden cachebar ausgeliefert; Health und Fehler sind `no-store`.
 
-## Nächste Phase
+## Authentifizierung und nächste Phase
 
-Eine spätere, separat zu entwickelnde Authentifizierungsphase kann persönliche Profile, Rennanmeldung und berechtigte FIA-Funktionen anbinden. Dafür sind ein eigener Mobile-Login-/Token-Lebenszyklus, Scopes, Autorisierungsregeln, sichere Token-Speicherung und schreibende Endpunkte erforderlich. Diese Funktionen sind ausdrücklich nicht Bestandteil von v1.
+Der serververmittelte Discord-Login, der getrennte Mobile-Token-Lebenszyklus und `/me` sind Bestandteil von v1. Persönliche Rennanmeldung und berechtigte FIA-Schreibfunktionen bleiben einer späteren Phase vorbehalten und müssen die zentrale Mobile-Session- und Berechtigungsprüfung wiederverwenden.
