@@ -33,6 +33,7 @@ type MobileHandlerResult = {
 
 type MobileHandlerOptions = {
   rateLimit?: { limit: number; windowMs: number };
+  rateLimitMessage?: string;
 };
 
 const DEFAULT_DEVELOPMENT_ORIGINS = new Set([
@@ -69,7 +70,10 @@ function corsHeaders(request: Request): Headers {
   const origin = request.headers.get("origin");
   if (origin && configuredOrigins().has(origin)) {
     headers.set("Access-Control-Allow-Origin", origin);
-    headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    headers.set(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, DELETE, OPTIONS",
+    );
     headers.set(
       "Access-Control-Allow-Headers",
       "Accept, Authorization, Content-Type",
@@ -164,14 +168,15 @@ export async function handleMobileRequest(
       request,
       429,
       "RATE_LIMITED",
-      "Zu viele Anfragen. Bitte später erneut versuchen.",
+      options.rateLimitMessage ??
+        "Zu viele Anfragen. Bitte später erneut versuchen.",
       { "Retry-After": String(limitResult.retryAfterSeconds) },
     );
   }
 
   try {
     const result = await operation();
-    logger.info("Public mobile API request completed", {
+    logger.info("Mobile API request completed", {
       endpoint,
       status: result.status ?? 200,
       durationMs: Math.round(performance.now() - startedAt),
@@ -194,7 +199,7 @@ export async function handleMobileRequest(
     }
 
     const reference = crypto.randomUUID();
-    logger.error("Public mobile API request failed", error, {
+    logger.error("Mobile API request failed", error, {
       endpoint,
       reference,
       durationMs: Math.round(performance.now() - startedAt),
@@ -212,6 +217,16 @@ export function mobileOptions(request: Request): Response {
   const headers = corsHeaders(request);
   headers.set("Allow", "GET, OPTIONS");
   headers.set("Cache-Control", "public, max-age=600");
+  return new Response(null, { status: 204, headers });
+}
+
+export function mobileOptionsFor(
+  request: Request,
+  methods: readonly string[],
+): Response {
+  const headers = corsHeaders(request);
+  headers.set("Allow", [...methods, "OPTIONS"].join(", "));
+  headers.set("Cache-Control", "private, no-store, max-age=0");
   return new Response(null, { status: 204, headers });
 }
 

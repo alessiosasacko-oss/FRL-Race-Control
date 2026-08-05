@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  AttendanceStatus as PrismaAttendanceStatus,
   ChampionshipAdjustmentTarget as PrismaAdjustmentTarget,
   ChampionshipAuditAction as PrismaAuditAction,
   type Prisma,
@@ -22,6 +21,10 @@ import {
 import {
   Permission,
 } from "@/lib/auth/permissions";
+import {
+  AttendanceServiceError,
+  changeDriverAttendance,
+} from "@/lib/attendance/service";
 import {
   requireAuthenticatedUser,
   requirePermission,
@@ -47,7 +50,6 @@ import {
 } from "@/lib/notifications/service";
 import {
   attendanceChangeIsAllowed,
-  attendanceNotificationRecipients,
   authorizeAttendanceChange,
   shouldPersistAttendanceChange,
 } from "./attendance-policy";
@@ -302,128 +304,32 @@ export async function updateAttendanceAction(
   ) {
     return successState("Der Anmeldestatus ist bereits aktuell.");
   }
-  const source = authorization.source;
-  const actorRole = authorization.actorRole;
-  if (!source || !actorRole) {
-    return errorState("Die Änderung konnte nicht autorisiert werden.");
-  }
-  const track = publicRaceTrack(race);
-
   try {
-    await prisma.$transaction(async (transaction) => {
-      const attendance = await transaction.raceAttendance.upsert({
-        where: {
-          raceId_driverId: {
-            raceId: race.id,
-            driverId: driver.id,
-          },
-        },
-        update: {
-          status: parsed.data.status as PrismaAttendanceStatus,
-          leagueScheduleId: leagueSchedule.id,
-          substituteDriverId: parsed.data.substituteDriverId,
-          representedTeamId,
-          submittedByUserId: user.id,
-          changeSource: source,
-          changeReason: parsed.data.reason,
-          changedAt: new Date(),
-        },
-        create: {
-          raceId: race.id,
-          leagueScheduleId: leagueSchedule.id,
-          driverId: driver.id,
-          status: parsed.data.status as PrismaAttendanceStatus,
-          substituteDriverId: parsed.data.substituteDriverId,
-          representedTeamId,
-          submittedByUserId: user.id,
-          changeSource: source,
-          changeReason: parsed.data.reason,
-        },
-      });
-      const audit = await transaction.attendanceAudit.create({
-        data: {
-          attendanceId: attendance.id,
-          leagueScheduleId: leagueSchedule.id,
-          raceId: race.id,
-          leagueId: driver.leagueId,
-          driverId: driver.id,
-          changedByUserId: user.id,
-          actorRole,
-          source,
-          previousStatus:
-            (existing?.status as AttendanceStatus | undefined) ??
-            AttendanceStatus.NoResponse,
-          newStatus: parsed.data.status,
-          reason: parsed.data.reason,
-        },
-      });
-      await transaction.championshipAudit.create({
-        data: {
-          leagueId: driver.leagueId,
-          seasonId: race.seasonId,
-          raceId: race.id,
-          actorId: user.id,
-          action: PrismaAuditAction.ATTENDANCE_CHANGED,
-          entityType: "RaceAttendance",
-          entityId: attendance.id,
-          previousState: existing ? serializable(existing) : undefined,
-          newState: serializable(attendance),
-        },
-      });
-      await recordWebhookEvent(transaction, {
-        type: WebhookEventType.AttendanceChanged,
-        source: "attendance-action",
-        dedupeKey: `attendance-changed:${attendance.id}:${attendance.updatedAt.getTime()}`,
-        payload: {
-          attendanceId: attendance.id,
-          raceId: race.id,
-          driverId: driver.id,
-          status: parsed.data.status,
-          actorId: user.id,
-          source,
-          reason: parsed.data.reason,
-        },
-      });
-      const notificationRecipients = attendanceNotificationRecipients({
-        source,
-        actorUserId: user.id,
-        driverUserId: driver.userId,
-        teamPrincipalUserId: driver.team?.principalUserId ?? null,
-      });
-      if (notificationRecipients.driver.length > 0) {
-        await createNotifications(transaction, notificationRecipients.driver, {
-          type: NotificationType.Attendance,
-          title: "Rennanmeldung geändert",
-          message: `${source === AttendanceChangeSource.TeamPrincipal ? "Dein Teamchef" : "Die Administration"} hat dich für den ${track.name} in ${leagueSchedule.league.code} ${parsed.data.status === AttendanceStatus.Registered ? "angemeldet" : "abgemeldet"}.`,
-          href: `/attendance?raceId=${race.id}&leagueId=${driver.leagueId}`,
-          relatedEntity: { type: "RaceAttendance", id: attendance.id },
-          dedupeKey: `attendance-actor-change:${audit.id}`,
-        });
-      }
-      if (notificationRecipients.teamPrincipal.length > 0) {
-        await createNotifications(
-          transaction,
-          notificationRecipients.teamPrincipal,
-          {
-            type: NotificationType.Attendance,
-            title: `${driver.name} hat die Rennanmeldung geändert`,
-            message: `${driver.name} ist für den ${track.name} jetzt ${parsed.data.status === AttendanceStatus.Registered ? "angemeldet" : "abgemeldet"}.`,
-            href: `/attendance?raceId=${race.id}&leagueId=${driver.leagueId}`,
-            relatedEntity: {
-              type: "RaceAttendance",
-              id: attendance.id,
-            },
-            dedupeKey: `attendance-driver-change:${audit.id}`,
-          },
-        );
-      }
+    const result = await changeDriverAttendance({
+      actor: { userId: user.id, roles: user.roles },
+      raceId: race.id,
+      driverId: driver.id,
+      status: parsed.data.status,
+      mode: parsed.data.changeMode,
+      reason: parsed.data.reason,
+      substituteDriverId: parsed.data.substituteDriverId,
+      representedTeamId: parsed.data.representedTeamId,
+      origin: "WEB",
     });
-  } catch {
+    return successState(
+      result.changed
+        ? "Rennanmeldung wurde gespeichert."
+        : "Der Anmeldestatus ist bereits aktuell.",
+    );
+  } catch (error) {
+    if (error instanceof AttendanceServiceError) {
+      return errorState(
+        error.message,
+        error.field ? { [error.field]: [error.message] } : undefined,
+      );
+    }
     return databaseError();
   }
-
-  await revalidateSports(race.id);
-  return successState("Rennanmeldung wurde gespeichert.");
 }
 
 function milliseconds(seconds: number | null): number | null {

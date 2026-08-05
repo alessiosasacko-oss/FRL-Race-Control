@@ -215,3 +215,87 @@ export type MobileResultDetail = {
 export type MobileChampionshipStanding =
   | MobileDriverStanding
   | MobileTeamStanding;
+
+export type MobileAttendanceWindowStatus =
+  | "NOT_OPEN"
+  | "OPEN"
+  | "CLOSED"
+  | "RACE_STARTED"
+  | "RACE_CANCELLED";
+
+export type MobileAttendanceStatus =
+  | "REGISTERED"
+  | "DECLINED"
+  | "NO_RESPONSE";
+
+export type MobileAttendanceReplacement = {
+  substituteDriver: {
+    id: number;
+    displayName: string;
+    number: number;
+    flag: string;
+  };
+  representedTeam: {
+    id: number;
+    name: string;
+  } | null;
+} | null;
+
+export type MobileAttendanceSubstituteAssignment = {
+  expectedDriver: {
+    id: number;
+    displayName: string;
+  };
+  representedTeam: {
+    id: number;
+    name: string;
+  } | null;
+} | null;
+
+export type MobileAttendanceRace = {
+  raceId: number;
+  league: MobileLeagueRef;
+  season: MobileSeasonRef;
+  round: number;
+  raceName: string;
+  circuit: string | null;
+  country: string | null;
+  countryCode: string | null;
+  track: MobileTrack | null;
+  isMysteryRace: boolean;
+  mysteryRevealed: boolean;
+  revealAt: string | null;
+  weekendDate: string;
+  scheduledAt: string;
+  timezone: string;
+  opensAt: string | null;
+  closesAt: string | null;
+  windowStatus: MobileAttendanceWindowStatus;
+  windowMessage: string;
+  remainingSeconds: number;
+  status: MobileAttendanceStatus;
+  statusLabel: string;
+  changedAt: string | null;
+  changeSource: string | null;
+  canRespond: boolean;
+  cannotRespondReason: string | null;
+  resultPublished: boolean;
+  raceCancelled: boolean;
+  sprintWeekend: boolean;
+  availableResponses: Array<"REGISTERED" | "DECLINED">;
+  replacement: MobileAttendanceReplacement;
+  substituteAssignment: MobileAttendanceSubstituteAssignment;
+};
+
+export type MobileAttendanceDetail = MobileAttendanceRace & {
+  driver: {
+    id: number;
+    displayName: string;
+    number: number;
+    flag: string;
+    countryCode: string;
+    league: MobileLeagueRef;
+    team: { id: number; name: string; logoUrl: string | null } | null;
+  };
+  canChange: boolean;
+};
