@@ -13,6 +13,7 @@ import {
   NotificationType,
   notificationTypeLabels,
 } from "@/domain";
+import { activeNotificationTypes } from "@/lib/notifications/types";
 import {
   updateNotificationSettingsAction,
   updateProfileSettingsAction,
@@ -55,7 +56,7 @@ function CategoryGrid({
 }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-      {Object.values(NotificationType).map((type) => (
+      {activeNotificationTypes.map((type) => (
         <label
           key={type}
           className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/30 px-3 py-3 text-sm text-slate-300 transition hover:border-blue-500/60"

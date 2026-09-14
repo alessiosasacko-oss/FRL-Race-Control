@@ -137,6 +137,7 @@ export const navigationSettingsSchema = z.object({
       z.enum([
         "dashboard",
         "calendar",
+        "results",
         "attendance",
         "championship",
         "fia",
@@ -417,7 +418,7 @@ const defaultNavigation: NavigationSettings = {
   logoSize: "MEDIUM",
   activeStyle: "COMBINED",
   mobileBottomNavigation: true,
-  mobileItems: ["dashboard", "calendar", "attendance", "championship"],
+  mobileItems: ["dashboard", "calendar", "championship", "results"],
 };
 
 function recolor(

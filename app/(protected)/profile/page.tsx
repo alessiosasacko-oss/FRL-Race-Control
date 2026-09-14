@@ -3,13 +3,11 @@ import Link from "next/link";
 import {
   Award,
   BellRing,
-  CalendarCheck,
   Crown,
   Flag,
   Gauge,
   Medal,
   Settings,
-  ShieldAlert,
   Trophy,
   UserRound,
 } from "lucide-react";
@@ -26,13 +24,6 @@ const statConfig = [
   { key: "poles", label: "Pole Positions", icon: Gauge },
   { key: "fastestLaps", label: "Schnellste Runden", icon: Award },
   { key: "championships", label: "Meisterschaften", icon: Crown },
-  {
-    key: "attendancePercentage",
-    label: "Teilnahme",
-    icon: CalendarCheck,
-    suffix: "%",
-  },
-  { key: "penalties", label: "Strafen", icon: ShieldAlert },
 ] as const;
 
 export default async function ProfilePage() {
@@ -103,7 +94,7 @@ export default async function ProfilePage() {
                 Karrierestatistik
               </h2>
               <p className="text-sm text-slate-400">
-                Aus Resultaten, Anmeldungen und FIA-Entscheidungen
+                Aus veröffentlichten Rennresultaten und Meisterschaftsdaten
               </p>
             </div>
           </div>
@@ -115,7 +106,6 @@ export default async function ProfilePage() {
                   <Icon className="text-blue-400" size={22} />
                   <p className="mt-4 text-3xl font-bold text-white">
                     {data.statistics[stat.key]}
-                    {"suffix" in stat ? stat.suffix : ""}
                   </p>
                   <p className="mt-1 text-sm text-slate-400">
                     {stat.label}

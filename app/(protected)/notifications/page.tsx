@@ -14,7 +14,6 @@ import AppLayout from "@/components/layout/AppLayout";
 import NotificationIcon from "@/components/notifications/NotificationIcon";
 import {
   NotificationPriority,
-  NotificationType,
   notificationPriorityLabels,
   notificationTypeLabels,
 } from "@/domain";
@@ -30,6 +29,7 @@ import {
   getNotificationPageData,
   parseNotificationListQuery,
 } from "@/lib/notifications/queries";
+import { activeNotificationTypes } from "@/lib/notifications/types";
 
 type NotificationsPageProps = {
   searchParams: Promise<
@@ -135,7 +135,7 @@ export default async function NotificationsPage({
               className="form-control mt-2"
             >
               <option value="">Alle Typen</option>
-              {Object.values(NotificationType).map((type) => (
+              {activeNotificationTypes.map((type) => (
                 <option key={type} value={type}>
                   {notificationTypeLabels[type]}
                 </option>

@@ -45,7 +45,6 @@ export const championshipAdjustmentSchema = z
     reason: z.string().trim().min(3).max(1000),
     actorId: entityIdSchema,
     raceId: entityIdSchema.nullable(),
-    fiaTicketId: entityIdSchema.nullable(),
   })
   .strict();
 

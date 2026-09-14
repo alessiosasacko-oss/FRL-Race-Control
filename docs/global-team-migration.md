@@ -16,7 +16,7 @@ Die additive Migration:
   Kombination aus Team, Saison und Liga;
 - lässt unerwartete Dubletten sowie unabhängige, nicht verknüpfte Legacy-Teams
   unverändert, statt Namen automatisch zu erraten;
-- löscht oder verschiebt keine Ergebnisse, Teamwertungen, FIA-Daten,
+- löscht oder verschiebt keine Ergebnisse, Teamwertungen oder historischen Verwaltungsdaten,
   Anmeldungen oder Fahrerhistorien.
 
 Neue technische Slots entstehen ausschließlich über

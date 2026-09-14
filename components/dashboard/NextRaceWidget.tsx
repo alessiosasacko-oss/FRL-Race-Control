@@ -2,35 +2,18 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
-  CheckCircle2,
   Clock3,
   EyeOff,
-  Flag,
   MapPin,
 } from "lucide-react";
-import {
-  attendanceStatusLabels,
-  AttendanceStatus,
-} from "@/domain";
 import type { DashboardData } from "@/lib/dashboard/types";
 import Countdown from "./Countdown";
 
-const attendanceTone: Record<AttendanceStatus, string> = {
-  [AttendanceStatus.NoResponse]:
-    "border-amber-500/25 bg-amber-500/10 text-amber-200",
-  [AttendanceStatus.Registered]:
-    "border-emerald-500/25 bg-emerald-500/10 text-emerald-200",
-  [AttendanceStatus.Declined]:
-    "border-red-500/25 bg-red-500/10 text-red-200",
-};
-
 export default function NextRaceWidget({
   race,
-  attendance,
   league,
 }: {
   race: DashboardData["nextRace"];
-  attendance: DashboardData["attendance"];
   league: string | null;
 }) {
   if (!race) {
@@ -41,8 +24,8 @@ export default function NextRaceWidget({
           Kein Renntermin geplant
         </h2>
         <p className="mt-3 max-w-xl text-slate-400">
-          Sobald ein Rennen terminiert ist, erscheinen Countdown und
-          Rennanmeldung hier.
+          Sobald ein Rennen terminiert ist, erscheinen Countdown und alle
+          wichtigen Renninformationen hier.
         </p>
         <Link href="/calendar" className="wizard-primary-button mt-6 w-full sm:w-auto">
           Kalender öffnen
@@ -101,9 +84,8 @@ export default function NextRaceWidget({
           </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Link href="/attendance" className="wizard-primary-button w-full sm:w-auto">
-              <CheckCircle2 size={18} />
-              Rennanmeldung öffnen
+            <Link href={`/calendar/${race.id}`} className="wizard-primary-button w-full sm:w-auto">
+              Rennwochenende öffnen
               <ArrowRight size={17} />
             </Link>
             <Link href="/calendar" className="wizard-secondary-button w-full sm:w-auto">
@@ -136,14 +118,6 @@ export default function NextRaceWidget({
               · {race.timezone}
             </p>
           </div>
-          {attendance ? (
-            <div
-              className={`mt-5 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold ${attendanceTone[attendance.status]}`}
-            >
-              <Flag size={16} />
-              Anmeldung: {attendanceStatusLabels[attendance.status]}
-            </div>
-          ) : null}
         </aside>
       </div>
     </section>

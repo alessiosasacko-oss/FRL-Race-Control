@@ -1,11 +1,10 @@
 import { CheckCircle2, Circle, Clock3 } from "lucide-react";
 import { TicketStatus, ticketStatusLabels } from "@/domain";
-import { startFiaReviewAction } from "@/lib/fia/actions";
 import type { FiaTicketDetail } from "@/lib/fia/types";
 
 type StatusCardProps = {
   ticket: FiaTicketDetail;
-  canReview: boolean;
+  canReview?: boolean;
 };
 
 const workflow = [
@@ -16,11 +15,8 @@ const workflow = [
 
 export default function StatusCard({
   ticket,
-  canReview,
 }: StatusCardProps) {
   const currentIndex = workflow.indexOf(ticket.status);
-  const startReview = startFiaReviewAction.bind(null, ticket.id);
-
   return (
     <section className="rounded-2xl border border-violet-500/25 bg-violet-500/5 p-5">
       <div className="flex items-center gap-2">
@@ -44,13 +40,6 @@ export default function StatusCard({
           );
         })}
       </ol>
-      {ticket.status === TicketStatus.Open && canReview ? (
-        <form action={startReview} className="mt-6">
-          <button type="submit" className="wizard-primary-button w-full">
-            Untersuchung beginnen
-          </button>
-        </form>
-      ) : null}
     </section>
   );
 }

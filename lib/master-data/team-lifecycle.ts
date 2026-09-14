@@ -54,8 +54,8 @@ const dependencyLabels: Record<keyof TeamDependencyCounts, string> = {
   globalStandings: "ligaübergreifende Teamwertungen",
   contributions: "ligaübergreifende Punktebeiträge",
   adjustments: "Meisterschaftsanpassungen",
-  attendance: "Rennanmeldungen",
-  fiaData: "FIA-Verknüpfungen",
+  attendance: "historische Terminverknüpfungen",
+  fiaData: "historische Fallverknüpfungen",
   notifications: "Benachrichtigungen",
   brandingAssets: "gespeicherte Logos oder Branding-Assets",
 };

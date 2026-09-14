@@ -24,7 +24,7 @@ const teamForm = source("components/master-data/TeamOrganizationForm.tsx");
 
 test("successful driver actions request a live refresh", () => {
   assert.match(driverForm, /useLiveActionState as useActionState/);
-  assert.deepEqual(scopesForPathname("/admin/drivers/15"), ["drivers", "teams", "attendance", "championship"]);
+  assert.deepEqual(scopesForPathname("/admin/drivers/15"), ["drivers", "teams", "championship"]);
 });
 
 test("successful role changes request a live refresh", () => {
@@ -113,7 +113,7 @@ test("events contain no personal data", () => {
   const event = createAppDataChangedEvent(["drivers", "teams"], 123);
   assert.equal(isAppDataChangedEvent(event), true);
   assert.deepEqual(Object.keys(event).sort(), ["eventId", "scopes", "timestamp", "type"]);
-  assert.equal(appDataScopes.length, 13);
+  assert.equal(appDataScopes.length, 11);
   assert.equal(isAppDataChangedEvent({ ...event, scopes: ["email"] }), false);
 });
 

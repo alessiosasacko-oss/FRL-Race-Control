@@ -36,11 +36,6 @@ export default function LeagueForm({
     formatStartMinute(league.raceStartMinute),
   );
   const [raceTimezone, setRaceTimezone] = useState(league.raceTimezone);
-  const [deadlineHours, setDeadlineHours] = useState(
-    league.defaultAttendanceDeadlineMinutes === null
-      ? ""
-      : String(league.defaultAttendanceDeadlineMinutes / 60),
-  );
   const [updateFutureSchedules, setUpdateFutureSchedules] =
     useState(false);
   const action = updateLeagueAction.bind(null, league.id);
@@ -126,23 +121,6 @@ export default function LeagueForm({
               ))}
             </datalist>
           </label>
-          <label className="master-label">
-            Standard-Anmeldeschluss
-            <input
-              type="number"
-              name="defaultAttendanceDeadlineHours"
-              value={deadlineHours}
-              onChange={(event) => setDeadlineHours(event.target.value)}
-              min={0}
-              max={720}
-              placeholder="z. B. 24"
-              className="form-control mt-2"
-            />
-            <span className="mt-2 block text-xs font-normal text-slate-500">
-              Stunden vor dem Liga-Start; leer bedeutet kein automatischer
-              Anmeldeschluss.
-            </span>
-          </label>
           <label className="master-label sm:col-span-2">
             Reihenfolge
             <input
@@ -190,10 +168,6 @@ export default function LeagueForm({
                           Number(raceStartTime.slice(0, 2)) * 60 +
                           Number(raceStartTime.slice(3, 5)),
                         raceTimezone,
-                        defaultAttendanceDeadlineMinutes:
-                          deadlineHours === ""
-                            ? null
-                            : Number(deadlineHours) * 60,
                       },
                     );
                     preview = new Intl.DateTimeFormat("de-DE", {

@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   CalendarDays,
   Calculator,
-  ClipboardCheck,
   Flag,
   Layers3,
   Megaphone,
@@ -50,12 +49,6 @@ const areas = [
     title: "Teams",
     description: "Saison, Team Principal, Farbe und Fahrerfeld",
     icon: Flag,
-  },
-  {
-    href: "/admin/attendance",
-    title: "Rennanmeldung",
-    description: "Teilnahme, Teamchef-Eingriffe, Fristen und Audit-Historie",
-    icon: ClipboardCheck,
   },
   {
     href: "/admin/championship",

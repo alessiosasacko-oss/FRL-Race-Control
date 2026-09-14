@@ -265,7 +265,6 @@ export async function getUserDataQualityReport() {
 export const editableSystemRoles = [
   Role.Driver,
   Role.TeamPrincipal,
-  Role.Steward,
   Role.Admin,
   Role.SuperAdmin,
 ] as const;

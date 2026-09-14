@@ -11,6 +11,7 @@ import type {
   NotificationListQuery,
   NotificationPageData,
 } from "./types";
+import { retiredNotificationTypes } from "./types";
 
 const PAGE_SIZE = 20;
 
@@ -57,7 +58,9 @@ export async function getNotificationPageData(
   const where = {
     userId,
     ...stateWhere,
-    type: query.type,
+    type: query.type
+      ? query.type
+      : { notIn: [...retiredNotificationTypes] },
     priority: query.priority,
     OR: query.q
       ? [
@@ -74,7 +77,7 @@ export async function getNotificationPageData(
   const [total, unreadCount] = await prisma.$transaction([
     prisma.notification.count({ where }),
     prisma.notification.count({
-      where: { userId, readAt: null, archivedAt: null },
+      where: { userId, readAt: null, archivedAt: null, type: { notIn: [...retiredNotificationTypes] } },
     }),
   ]);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -111,7 +114,7 @@ export async function getRecentNotifications(
   take = 5,
 ): Promise<NotificationItem[]> {
   const notifications = await getPrismaClient().notification.findMany({
-    where: { userId, archivedAt: null },
+    where: { userId, archivedAt: null, type: { notIn: [...retiredNotificationTypes] } },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take,
     select: {
@@ -133,6 +136,6 @@ export const getUnreadNotificationCount = cache(async function getUnreadNotifica
   userId: number,
 ): Promise<number> {
   return getPrismaClient().notification.count({
-    where: { userId, readAt: null, archivedAt: null },
+    where: { userId, readAt: null, archivedAt: null, type: { notIn: [...retiredNotificationTypes] } },
   });
 });

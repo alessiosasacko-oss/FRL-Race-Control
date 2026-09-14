@@ -16,7 +16,6 @@ import { activeUserRoleRequirementMessage } from "@/lib/users/policy";
 const editableRoles = [
   Role.Driver,
   Role.TeamPrincipal,
-  Role.Steward,
   Role.Admin,
   Role.SuperAdmin,
 ] as const;
@@ -82,12 +81,12 @@ export function RoleEditor({
           </label>
         ))}
       </div>
-      {roles.includes(Role.FiaPresident) ? (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-          FIA-Präsident ist eine Legacy-Rolle. Bestehende Leserechte bleiben erhalten; neue Freigabeschritte werden nicht erzeugt.
-          <input type="hidden" name="roles" value={Role.FiaPresident} />
+      {roles.filter((role) => role === Role.FiaPresident || role === Role.Steward).map((role) => (
+        <div key={role} className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+          Eine stillgelegte Systemrolle bleibt für bestehende Datensätze erhalten und kann hier nicht neu vergeben werden.
+          <input type="hidden" name="roles" value={role} />
         </div>
-      ) : null}
+      ))}
       <div className="rounded-xl border border-slate-800 bg-slate-950/35 p-4 text-sm">
         <p className="font-bold text-white">Änderungsübersicht</p>
         {changes.length ? (
@@ -139,7 +138,7 @@ export function SportAssignmentEditor({
       </div>
       <label className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-800 px-4 text-sm"><input type="checkbox" name="active" defaultChecked={driver?.active ?? true} className="size-5 accent-blue-600" />Sportlich aktiv</label>
       <p className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-sm text-blue-100">
-        Liga und globales Team werden getrennt gespeichert. Historische Ergebnisse und Anmeldungen werden nicht verändert.
+        Liga und globales Team werden getrennt gespeichert. Historische Ergebnisse und Zuordnungen werden nicht verändert.
       </p>
       <ReasonAndConfirmation />
       <ActionState state={state} />

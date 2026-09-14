@@ -13,13 +13,10 @@ const mobileNavigation = source("components/layout/MobileNavigation.tsx");
 const dashboard = source("app/(protected)/dashboard/page.tsx");
 const personalDashboard = source("components/dashboard/PersonalDashboard.tsx");
 const raceWeekend = source("app/(protected)/calendar/[id]/page.tsx");
-const attendance = source("components/championship/AttendanceRoster.tsx");
 const resultEditor = source("components/championship/ResultsEditor.tsx");
+const resultOverview = source("app/(protected)/results/page.tsx");
 const resultView = source("app/(protected)/results/[id]/page.tsx");
 const championship = source("app/(protected)/championship/page.tsx");
-const fiaDetail = source("app/(protected)/fia/[id]/page.tsx");
-const discussion = source("components/fia/DiscussionCard.tsx");
-const evidence = source("components/fia/EvidenceCard.tsx");
 const automation = source("app/(protected)/admin/automation/page.tsx");
 const designEditor = source("components/design/DesignBrandingEditor.tsx");
 const globalStyles = source("app/globals.css");
@@ -29,14 +26,14 @@ test("desktop sidebar and mobile navigation use the lg boundary", () => {
   assert.match(mobileNavigation, /lg:hidden/);
 });
 
-test("public navigation has a touch-safe mobile menu and preserves desktop links", () => {
-  assert.match(publicNavbar, /aria-label="Navigation öffnen"/);
-  assert.match(publicNavbar, /mobile-touch-target/);
-  assert.match(publicNavbar, /hidden items-center gap-8 lg:flex/);
+test("public navigation keeps branding and login touch-safe at every width", () => {
+  assert.match(publicNavbar, /min-h-11/);
+  assert.match(publicNavbar, /aria-label="FRL Race Control Startseite"/);
+  assert.match(publicNavbar, /href="\/login"/);
 });
 
 test("mobile navigation never renders more than four primary destinations plus More", () => {
-  assert.match(mobileNavigation, /mobileItems\s*\.slice\(0, 4\)/);
+  assert.match(mobileNavigation, /\.filter\(\(item\) => hasPermission\(user\.roles, item\.permission\)\)\.slice\(0, 4\)/);
   assert.match(mobileNavigation, />\s*Mehr\s*</);
 });
 
@@ -63,11 +60,6 @@ test("race weekend exposes the viewer league time and collapses secondary schedu
   assert.match(raceWeekend, /Weitere Streckendaten/);
 });
 
-test("attendance uses tabs below lg and three columns at lg", () => {
-  assert.match(attendance, /grid grid-cols-3 gap-2 lg:hidden/);
-  assert.match(attendance, /hidden gap-4 lg:grid lg:grid-cols-3/);
-});
-
 test("result editing keeps cards below lg and the desktop table at lg", () => {
   assert.match(resultEditor, /shadow-\[var\(--shadow-card\)\] lg:block/);
   assert.match(resultEditor, /space-y-4 lg:hidden/);
@@ -75,6 +67,7 @@ test("result editing keeps cards below lg and the desktop table at lg", () => {
 });
 
 test("published results use cards below lg", () => {
+  assert.match(resultOverview, /md:grid-cols-2/);
   assert.match(resultView, /overflow-x-auto lg:block/);
   assert.match(resultView, /space-y-3 lg:hidden/);
 });
@@ -82,22 +75,6 @@ test("published results use cards below lg", () => {
 test("championship details stay compact below lg", () => {
   assert.match(championship, /text-slate-500 lg:grid/);
   assert.match(championship, /text-slate-400 lg:block/);
-});
-
-test("FIA detail preserves the mobile information, chat, evidence, decision and history order", () => {
-  const status = fiaDetail.indexOf("<StatusCard");
-  const discussionIndex = fiaDetail.indexOf("<DiscussionCard");
-  const evidenceIndex = fiaDetail.indexOf("<EvidenceCard");
-  const decision = fiaDetail.indexOf("<DecisionCard");
-  const history = fiaDetail.indexOf("<HistoryCard");
-  assert.ok(status < discussionIndex && discussionIndex < evidenceIndex);
-  assert.ok(evidenceIndex < decision && decision < history);
-});
-
-test("FIA chat and evidence keep mobile touch controls and contained video", () => {
-  assert.match(discussion, /min-h-12 min-w-12/);
-  assert.match(discussion, /fixed inset-x-0 bottom-0/);
-  assert.match(evidence, /aspect-video w-full/);
 });
 
 test("admin jobs have a mobile card alternative", () => {

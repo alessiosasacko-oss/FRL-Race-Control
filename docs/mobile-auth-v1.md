@@ -136,7 +136,7 @@ Die App speichert den Refresh-Token ausschließlich im nativen sicheren Speicher
 
 `GET /me` liefert die notwendige öffentliche User-ID, Discord-Anzeigename und Avatar, Fahrername/-nummer/Flagge, aktuelle Liga, aktuelles Team und Teamlogo, Rollen, öffentliche Berechtigungskennungen, Benutzerstatus und Mobile-Session-ID. Alle Werte stammen aus der Datenbank.
 
-Ausgeschlossen sind insbesondere E-Mail, Discord- und Auth.js-Tokens, Bot-Token, Secrets, interne FIA-Daten, Steward-Kommentare und unnötige Datenbankbezeichner.
+Ausgeschlossen sind insbesondere E-Mail, Discord- und Auth.js-Tokens, Bot-Token, Secrets, interne Sportgerichts- und Verwaltungsdaten sowie unnötige Datenbankbezeichner.
 
 ## Fehler und Schutzmaßnahmen
 

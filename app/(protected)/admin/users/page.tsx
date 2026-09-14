@@ -20,6 +20,8 @@ type UsersPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
+const assignableRoles = [Role.Driver, Role.TeamPrincipal, Role.Admin, Role.SuperAdmin] as const;
+
 export default async function UsersAdminPage({ searchParams }: UsersPageProps) {
   await requirePermission(Permission.ManageUsers);
   const query = parseUserListQuery(await searchParams);
@@ -104,7 +106,7 @@ function UserFilters({ query, options }: { query: ReturnType<typeof parseUserLis
   return (
     <form action="/admin/users" className="surface-panel grid gap-3 p-4 lg:grid-cols-[minmax(12rem,1fr)_repeat(4,minmax(9rem,.6fr))_auto]">
       <label className="master-label">Suche<input name="q" defaultValue={query.q} placeholder="Discord- oder Fahrername" className="form-control mt-2" /></label>
-      <label className="master-label">Rolle<select name="role" defaultValue={query.role ?? ""} className="form-control mt-2"><option value="">Alle Rollen</option>{Object.values(Role).map((role) => <option key={role} value={role}>{roleLabels[role]}{role === Role.FiaPresident ? " · Legacy" : ""}</option>)}</select></label>
+      <label className="master-label">Rolle<select name="role" defaultValue={query.role ?? ""} className="form-control mt-2"><option value="">Alle aktiven Rollen</option>{assignableRoles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></label>
       <label className="master-label">Liga<select name="leagueId" defaultValue={query.leagueId ?? ""} className="form-control mt-2"><option value="">Alle Ligen</option>{options.leagues.map((league) => <option key={league.id} value={league.id}>{league.code}</option>)}</select></label>
       <label className="master-label">Team<select name="teamId" defaultValue={query.teamId ?? ""} className="form-control mt-2"><option value="">Alle Teams</option>{options.organizations.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label>
       <label className="master-label">Fahrerstatus<select name="lineupStatus" defaultValue={query.lineupStatus ?? ""} className="form-control mt-2"><option value="">Alle</option><option value={DriverLineupStatus.Primary}>Stammfahrer</option><option value={DriverLineupStatus.Substitute}>Ersatzfahrer</option></select></label>
@@ -154,7 +156,8 @@ function MobileUserCard({ user }: { user: UserListItem }) {
 }
 
 function RoleBadge({ role }: { role: Role }) {
-  return <span className={`rounded-full border px-2 py-1 text-[0.65rem] font-bold ${role === Role.FiaPresident ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : "border-blue-500/20 bg-blue-500/10 text-blue-200"}`}>{roleLabels[role]}{role === Role.FiaPresident ? " · Legacy" : ""}</span>;
+  const retired = role === Role.FiaPresident || role === Role.Steward;
+  return <span className={`rounded-full border px-2 py-1 text-[0.65rem] font-bold ${retired ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : "border-blue-500/20 bg-blue-500/10 text-blue-200"}`}>{retired ? "Historische Rolle" : roleLabels[role]}</span>;
 }
 
 function QualityMetric({ label, value, warning = false }: { label: string; value: number; warning?: boolean }) {

@@ -9,8 +9,6 @@ import {
   ResultStatus as PrismaResultStatus,
 } from "@/generated/prisma/client";
 import {
-  AttendanceChangeSource,
-  AttendanceStatus,
   ChampionshipAdjustmentTarget,
   DiscordChannelPurpose,
   NotificationPriority,
@@ -21,20 +19,12 @@ import {
 import {
   Permission,
 } from "@/lib/auth/permissions";
-import {
-  AttendanceServiceError,
-  changeDriverAttendance,
-} from "@/lib/attendance/service";
-import {
-  requireAuthenticatedUser,
-  requirePermission,
-} from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import {
-  attendanceUpdateSchema,
   championshipAdjustmentInputSchema,
   deleteResultSubmissionSchema,
   recalculationInputSchema,
@@ -48,11 +38,6 @@ import {
   createNotifications,
   leagueUserIds,
 } from "@/lib/notifications/service";
-import {
-  attendanceChangeIsAllowed,
-  authorizeAttendanceChange,
-  shouldPersistAttendanceChange,
-} from "./attendance-policy";
 
 function errorState(
   message: string,
@@ -81,10 +66,8 @@ function databaseError(): SportsActionState {
 }
 
 async function revalidateSports(raceId?: number): Promise<void> {
-  revalidatePath("/attendance");
   revalidatePath("/championship");
   revalidatePath("/calendar");
-  revalidatePath("/admin/attendance");
   revalidatePath("/admin/results");
   revalidatePath("/admin/scoring");
   revalidatePath("/admin/adjustments");
@@ -92,244 +75,11 @@ async function revalidateSports(raceId?: number): Promise<void> {
   revalidatePath("/dashboard");
   revalidatePath("/notifications");
   if (raceId) revalidatePath(`/results/${raceId}`);
-  await touchAppDataRevisionSafely(getPrismaClient(), ["attendance", "results", "championship", "calendar", "notifications"]);
+  await touchAppDataRevisionSafely(getPrismaClient(), ["results", "championship", "calendar", "notifications"]);
 }
 
 function serializable(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-}
-
-export async function updateAttendanceAction(
-  _previousState: SportsActionState,
-  formData: FormData,
-): Promise<SportsActionState> {
-  const user = await requireAuthenticatedUser();
-  const parsed = attendanceUpdateSchema.safeParse({
-    raceId: formData.get("raceId"),
-    driverId: formData.get("driverId"),
-    status: formData.get("status"),
-    substituteDriverId: formData.get("substituteDriverId"),
-    representedTeamId: formData.get("representedTeamId"),
-    changeMode: formData.get("changeMode") ?? undefined,
-    reason: formData.get("reason"),
-  });
-
-  if (!parsed.success) return validationState(parsed);
-
-  const prisma = getPrismaClient();
-  const race = await prisma.race.findUnique({
-    where: { id: parsed.data.raceId },
-    include: {
-      season: {
-        select: {
-          id: true,
-          participatingLeagues: { select: { id: true } },
-        },
-      },
-    },
-  });
-  const driver = await prisma.driver.findUnique({
-    where: { id: parsed.data.driverId },
-    include: {
-      team: {
-        select: {
-          id: true,
-          seasonId: true,
-          principalUserId: true,
-        },
-      },
-    },
-  });
-
-  if (
-    !race ||
-    !driver ||
-    !race.season.participatingLeagues.some(
-      (league) => league.id === driver.leagueId,
-    ) ||
-    (driver.team !== null && driver.team.seasonId !== race.seasonId)
-  ) {
-    return errorState("Rennen oder Fahrer wurde nicht gefunden.");
-  }
-
-  const authorization = authorizeAttendanceChange(
-    { userId: user.id, roles: user.roles },
-    {
-      driverUserId: driver.userId,
-      driverLeagueId: driver.leagueId,
-      teamId: driver.team?.id ?? null,
-      teamPrincipalUserId: driver.team?.principalUserId ?? null,
-    },
-    parsed.data.changeMode,
-  );
-  const leagueSchedule = await prisma.raceLeagueSchedule.findUnique({
-    where: {
-      raceId_leagueId: {
-        raceId: race.id,
-        leagueId: driver.leagueId,
-      },
-    },
-    include: {
-      league: { select: { code: true, name: true } },
-    },
-  });
-
-  if (!authorization.allowed || !leagueSchedule) {
-    return errorState(
-      "Du darfst die Rennanmeldung dieses Fahrers nicht ändern.",
-    );
-  }
-
-  if (
-    !attendanceChangeIsAllowed(
-      authorization,
-      leagueSchedule.attendanceDeadline,
-      parsed.data.reason,
-    )
-  ) {
-    if (authorization.reasonRequired && !parsed.data.reason) {
-      return errorState("Bitte gib einen Grund für die Änderung an.", {
-        reason: ["Ein Grund ist für Teamchef- und Adminänderungen Pflicht."],
-      });
-    }
-    return errorState("Der Anmeldeschluss ist bereits abgelaufen.");
-  }
-
-  if (
-    authorization.source !== AttendanceChangeSource.Admin &&
-    (parsed.data.substituteDriverId ||
-      parsed.data.representedTeamId !== null)
-  ) {
-    return errorState(
-      "Ersatzfahrer dürfen nur Administratoren zuweisen.",
-    );
-  }
-
-  if (parsed.data.status === "REGISTERED") {
-    const usedAsSubstitute = await prisma.raceAttendance.findFirst({
-      where: {
-        raceId: race.id,
-        substituteDriverId: driver.id,
-        driverId: { not: driver.id },
-      },
-      select: { id: true },
-    });
-    if (usedAsSubstitute) {
-      return errorState(
-        "Der Fahrer ist für dieses Rennen bereits als Ersatzfahrer eingetragen.",
-      );
-    }
-  }
-
-  let representedTeamId =
-    parsed.data.representedTeamId ?? driver.team?.id ?? null;
-
-  if (parsed.data.substituteDriverId) {
-    if (parsed.data.substituteDriverId === driver.id) {
-      return errorState(
-        "Fahrer und Ersatzfahrer müssen unterschiedlich sein.",
-      );
-    }
-    const [substitute, representedTeam, duplicate] =
-      await prisma.$transaction([
-        prisma.driver.findFirst({
-          where: {
-            id: parsed.data.substituteDriverId,
-            leagueId: driver.leagueId,
-            active: true,
-            team: {
-              seasonId: race.seasonId,
-            },
-          },
-          select: { id: true },
-        }),
-        parsed.data.representedTeamId
-          ? prisma.team.findFirst({
-              where: {
-                id: parsed.data.representedTeamId,
-                seasonId: race.seasonId,
-                leagueId: driver.leagueId,
-              },
-              select: { id: true },
-            })
-          : prisma.team.findFirst({
-              where: {
-                id: driver.team?.id ?? 0,
-                seasonId: race.seasonId,
-              },
-              select: { id: true },
-            }),
-        prisma.raceAttendance.findFirst({
-          where: {
-            raceId: race.id,
-            driverId: { not: driver.id },
-            OR: [
-              { driverId: parsed.data.substituteDriverId },
-              { substituteDriverId: parsed.data.substituteDriverId },
-            ],
-          },
-          select: { id: true },
-        }),
-      ]);
-
-    if (!substitute || !representedTeam) {
-      return errorState(
-        "Ersatzfahrer und vertretenes Team müssen zur Liga und Saison gehören.",
-      );
-    }
-    if (duplicate) {
-      return errorState(
-        "Dieser Ersatzfahrer ist für das Rennen bereits eingetragen.",
-      );
-    }
-    representedTeamId = representedTeam.id;
-  }
-
-  const existing = await prisma.raceAttendance.findUnique({
-    where: {
-      raceId_driverId: {
-        raceId: race.id,
-        driverId: driver.id,
-      },
-    },
-  });
-  if (
-    existing &&
-    !shouldPersistAttendanceChange(
-      existing.status as AttendanceStatus,
-      parsed.data.status,
-    ) &&
-    existing.substituteDriverId === parsed.data.substituteDriverId &&
-    existing.representedTeamId === representedTeamId
-  ) {
-    return successState("Der Anmeldestatus ist bereits aktuell.");
-  }
-  try {
-    const result = await changeDriverAttendance({
-      actor: { userId: user.id, roles: user.roles },
-      raceId: race.id,
-      driverId: driver.id,
-      status: parsed.data.status,
-      mode: parsed.data.changeMode,
-      reason: parsed.data.reason,
-      substituteDriverId: parsed.data.substituteDriverId,
-      representedTeamId: parsed.data.representedTeamId,
-      origin: "WEB",
-    });
-    return successState(
-      result.changed
-        ? "Rennanmeldung wurde gespeichert."
-        : "Der Anmeldestatus ist bereits aktuell.",
-    );
-  } catch (error) {
-    if (error instanceof AttendanceServiceError) {
-      return errorState(
-        error.message,
-        error.field ? { [error.field]: [error.message] } : undefined,
-      );
-    }
-    return databaseError();
-  }
 }
 
 function milliseconds(seconds: number | null): number | null {
@@ -816,12 +566,11 @@ export async function createChampionshipAdjustmentAction(
     points: formData.get("points"),
     reason: formData.get("reason"),
     raceId: formData.get("raceId"),
-    fiaTicketId: formData.get("fiaTicketId"),
   });
   if (!parsed.success) return validationState(parsed);
 
   const prisma = getPrismaClient();
-  const [season, driver, team, race, ticket] =
+  const [season, driver, team, race] =
     await prisma.$transaction([
       prisma.season.findUnique({
         where: { id: parsed.data.seasonId },
@@ -860,15 +609,6 @@ export async function createChampionshipAdjustmentAction(
             where: { id: 0 },
             select: { seasonId: true },
           }),
-      parsed.data.fiaTicketId
-        ? prisma.fiaTicket.findUnique({
-            where: { id: parsed.data.fiaTicketId },
-            select: { seasonId: true, leagueId: true },
-          })
-        : prisma.fiaTicket.findFirst({
-            where: { id: 0 },
-            select: { seasonId: true, leagueId: true },
-          }),
     ]);
 
   if (
@@ -894,14 +634,6 @@ export async function createChampionshipAdjustmentAction(
   if (race && race.seasonId !== season.id) {
     return errorState("Das Rennen gehört nicht zur Saison.");
   }
-  if (
-    ticket &&
-    (ticket.seasonId !== season.id ||
-      ticket.leagueId !== parsed.data.leagueId)
-  ) {
-    return errorState("Das FIA-Ticket gehört nicht zur Saison.");
-  }
-
   try {
     await prisma.$transaction(async (transaction) => {
       const adjustment =
@@ -922,7 +654,6 @@ export async function createChampionshipAdjustmentAction(
             reason: parsed.data.reason,
             actorId: user.id,
             raceId: parsed.data.raceId,
-            fiaTicketId: parsed.data.fiaTicketId,
           },
         });
       await transaction.championshipAudit.create({

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  PenaltyType,
   ResultGapMode,
   ResultPublicationStatus,
   ResultSession,
@@ -9,7 +8,6 @@ import {
 } from "@/domain";
 import {
   affectsChampionship,
-  aggregateFiaPenalties,
   calculateFinalClassification,
   driverBelongsToResultContext,
   fastestLapKeys,
@@ -75,7 +73,6 @@ test("result validation prevents duplicate drivers", () => {
     session: ResultSession.Race,
     gapMode: ResultGapMode.ToLeader,
     intent: "PUBLISH",
-    syncFiaPenalties: true,
     allowArchived: false,
     confirmLockedEdit: false,
     results: [row, { ...row, position: 2 }],
@@ -148,30 +145,7 @@ test("fastest-lap parsing normalizes both supported formats", () => {
   );
 });
 
-test("FIA import de-duplicates decisions", () => {
-  const summary = aggregateFiaPenalties([
-    {
-      decisionId: 10,
-      penaltyType: PenaltyType.TimePenalty,
-      penaltyValue: 5,
-    },
-    {
-      decisionId: 10,
-      penaltyType: PenaltyType.TimePenalty,
-      penaltyValue: 5,
-    },
-    {
-      decisionId: 11,
-      penaltyType: PenaltyType.Disqualification,
-      penaltyValue: null,
-    },
-  ]);
-  assert.deepEqual(summary.decisionIds, [10, 11]);
-  assert.equal(summary.penaltyMilliseconds, 5000);
-  assert.equal(summary.disqualified, true);
-});
-
-test("manual override wins without mutating imported FIA values", () => {
+test("manual override wins without mutating historical penalty values", () => {
   const [result] = calculateFinalClassification([
     {
       key: "driver",
@@ -320,7 +294,6 @@ test("drafts preserve incomplete rows while publication rejects them", () => {
     session: ResultSession.Race,
     gapMode: ResultGapMode.ToLeader,
     intent: "DRAFT" as const,
-    syncFiaPenalties: false,
     allowArchived: false,
     confirmLockedEdit: false,
     results: [

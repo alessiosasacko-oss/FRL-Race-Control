@@ -15,7 +15,7 @@ export async function globalSearch(
   const prisma = getPrismaClient();
   const q = parsed.data;
   const number = /^\d+$/.test(q) ? Number(q) : null;
-  const [drivers, teams, races, tickets, seasons] =
+  const [drivers, teams, races, seasons] =
     await Promise.all([
       prisma.driver.findMany({
         where: {
@@ -88,18 +88,6 @@ export async function globalSearch(
           },
         },
       }),
-      prisma.fiaTicket.findMany({
-        where: {
-          OR: [
-            { title: { contains: q, mode: "insensitive" } },
-            { description: { contains: q, mode: "insensitive" } },
-            ...(number === null ? [] : [{ id: number }]),
-          ],
-        },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        include: { league: { select: { code: true } } },
-      }),
       prisma.season.findMany({
         where: {
           OR: [
@@ -139,13 +127,6 @@ export async function globalSearch(
         href: `/results/${race.id}`,
       };
     }),
-    ...tickets.map((ticket) => ({
-      id: `ticket-${ticket.id}`,
-      kind: "ticket" as const,
-      title: `#${ticket.id} ${ticket.title}`,
-      subtitle: `${ticket.league.code} · FIA Race Control`,
-      href: `/fia/${ticket.id}`,
-    })),
     ...seasons.map((season) => ({
       id: `season-${season.id}`,
       kind: "season" as const,

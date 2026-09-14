@@ -13,6 +13,15 @@ export function validateRoleChange(input: {
   nextRoles: readonly Role[];
   activeSuperAdminCount: number;
 }): string | null {
+  const retiredRoles = [Role.FiaPresident, Role.Steward] as const;
+  const newlyAddedRetiredRole = retiredRoles.find(
+    (role) =>
+      input.nextRoles.includes(role) && !input.currentRoles.includes(role),
+  );
+  if (newlyAddedRetiredRole) {
+    return "Stillgelegte historische Rollen können nicht neu vergeben werden.";
+  }
+
   const actorIsSuperAdmin = input.actorRoles.includes(Role.SuperAdmin);
   const currentIsSuperAdmin = input.currentRoles.includes(Role.SuperAdmin);
   const nextIsSuperAdmin = input.nextRoles.includes(Role.SuperAdmin);

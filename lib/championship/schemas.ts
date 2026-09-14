@@ -1,10 +1,8 @@
 import { z } from "zod";
 import {
-  AttendanceStatus,
   ChampionshipAdjustmentTarget,
   ResultGapMode,
   ResultSession,
-  attendanceStatusSchema,
   qualifyingFormatSchema,
   resultGapModeSchema,
   resultSessionSchema,
@@ -58,31 +56,9 @@ export const sportsListQuerySchema = z.object({
     .preprocess(firstValue, optionalEntityId)
     .catch(null)
     .transform((value) => value ?? undefined),
-  attendanceStatus: z
-    .preprocess(firstValue, attendanceStatusSchema.optional())
-    .catch(undefined),
   table: z
     .preprocess(firstValue, z.enum(["drivers", "teams"]))
     .catch("drivers"),
-});
-
-export const attendanceUpdateSchema = z.object({
-  raceId: entityId,
-  driverId: entityId,
-  status: z.enum([
-    AttendanceStatus.Registered,
-    AttendanceStatus.Declined,
-  ]),
-  substituteDriverId: optionalEntityId,
-  representedTeamId: optionalEntityId,
-  changeMode: z.enum(["SELF", "MANAGEMENT"]).default("SELF"),
-  reason: z.preprocess(
-    (value) =>
-      value === "" || value === null || value === undefined
-        ? null
-        : value,
-    z.string().trim().max(1000).nullable(),
-  ),
 });
 
 const resultRowSchema = z.object({
@@ -172,7 +148,6 @@ export const resultDraftSubmissionSchema = z.object({
   publicationKey: z.string().max(190).default(""),
   gapMode: resultGapModeSchema,
   intent: z.literal("DRAFT"),
-  syncFiaPenalties: z.boolean(),
   allowArchived: z.boolean(),
   confirmLockedEdit: z.boolean(),
   lockAfterSave: z.boolean().default(false),
@@ -195,7 +170,6 @@ export const resultSubmissionSchema = z
     publicationKey: z.string().max(190).default(""),
     gapMode: resultGapModeSchema,
     intent: z.enum(["DRAFT", "VALIDATE", "PUBLISH"]),
-    syncFiaPenalties: z.boolean(),
     allowArchived: z.boolean(),
     confirmLockedEdit: z.boolean(),
     lockAfterSave: z.boolean().default(false),
@@ -332,7 +306,6 @@ export const championshipAdjustmentInputSchema = z
     points: z.coerce.number().min(-10000).max(10000),
     reason: z.string().trim().min(3).max(1000),
     raceId: optionalEntityId,
-    fiaTicketId: optionalEntityId,
   })
   .superRefine((adjustment, context) => {
     if (

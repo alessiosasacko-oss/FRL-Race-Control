@@ -178,7 +178,7 @@ export default async function TeamPrincipalChampionshipPage({
           <EmptyState
             icon={<Trophy size={23} />}
             title="Noch keine globale Wertung"
-            description="Die Teamchef-WM erscheint, sobald alle aktiven Ligen eines Rennwochenendes veröffentlicht und alle FIA-Fälle abgeschlossen sind."
+            description="Die Teamchef-WM erscheint, sobald alle aktiven Ligen und Sitzungen eines Rennwochenendes veröffentlicht sind."
           />
         )}
 

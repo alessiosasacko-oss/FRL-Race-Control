@@ -11,7 +11,6 @@ export const leagues = leagueSchema.array().parse([
     raceWeekday: 7,
     raceStartMinute: 1140,
     raceTimezone: "Europe/Berlin",
-    defaultAttendanceDeadlineMinutes: 1440,
     displayOrder: 1,
   },
   {
@@ -24,7 +23,6 @@ export const leagues = leagueSchema.array().parse([
     raceWeekday: 7,
     raceStartMinute: 960,
     raceTimezone: "Europe/Berlin",
-    defaultAttendanceDeadlineMinutes: 1440,
     displayOrder: 2,
   },
   {
@@ -37,7 +35,6 @@ export const leagues = leagueSchema.array().parse([
     raceWeekday: 6,
     raceStartMinute: 1140,
     raceTimezone: "Europe/Berlin",
-    defaultAttendanceDeadlineMinutes: 1440,
     displayOrder: 3,
   },
   {
@@ -50,7 +47,6 @@ export const leagues = leagueSchema.array().parse([
     raceWeekday: 6,
     raceStartMinute: 960,
     raceTimezone: "Europe/Berlin",
-    defaultAttendanceDeadlineMinutes: 1440,
     displayOrder: 4,
   },
   {
@@ -63,7 +59,6 @@ export const leagues = leagueSchema.array().parse([
     raceWeekday: 5,
     raceStartMinute: 1140,
     raceTimezone: "Europe/Berlin",
-    defaultAttendanceDeadlineMinutes: 1440,
     displayOrder: 5,
   },
   {
@@ -76,7 +71,6 @@ export const leagues = leagueSchema.array().parse([
     raceWeekday: 5,
     raceStartMinute: 960,
     raceTimezone: "Europe/Berlin",
-    defaultAttendanceDeadlineMinutes: 1440,
     displayOrder: 6,
   },
 ]);

@@ -52,13 +52,6 @@ export const leagueUpdateSchema = z.object({
         return false;
       }
     }, "Ungültige IANA-Zeitzone."),
-  defaultAttendanceDeadlineHours: z.preprocess(
-    (value) =>
-      value === "" || value === null || value === undefined
-        ? null
-        : value,
-    z.coerce.number().int().min(0).max(720).nullable(),
-  ),
   displayOrder: z.coerce.number().int().min(0).max(999),
   updateFutureSchedules: checkbox,
   confirmFutureScheduleUpdate: checkbox,
@@ -127,17 +120,6 @@ export const raceSchema = z
       });
     }
   });
-
-export const raceDeadlineOverrideSchema = z.object({
-  leagueId: entityId,
-  localDeadline: z.preprocess(
-    (value) => (value === "" || value === null ? null : value),
-    z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
-      .nullable(),
-  ),
-});
 
 export const driverSchema = z.object({
   name,

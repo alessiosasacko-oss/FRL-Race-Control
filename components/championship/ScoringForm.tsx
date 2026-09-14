@@ -139,7 +139,7 @@ export default function ScoringForm({ season }: ScoringFormProps) {
           />
           <Check
             name="deductPenaltyPoints"
-            label="FIA-Punktabzüge berücksichtigen"
+            label="Punktabzüge berücksichtigen"
             checked={configuration?.deductPenaltyPoints ?? false}
           />
         </div>

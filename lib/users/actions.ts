@@ -50,13 +50,11 @@ async function refreshUserAdministration(userId?: number, driverId?: number): Pr
   revalidatePath("/drivers/[id]", "page");
   revalidatePath("/teams");
   revalidatePath("/teams/[id]", "page");
-  revalidatePath("/attendance");
-  revalidatePath("/admin/attendance");
   revalidatePath("/championship");
   revalidatePath("/championship/team-principals");
   revalidatePath("/admin/results");
   revalidatePath("/dashboard");
-  await touchAppDataRevisionSafely(getPrismaClient(), ["users", "drivers", "teams", "attendance", "championship"]);
+  await touchAppDataRevisionSafely(getPrismaClient(), ["users", "drivers", "teams", "championship"]);
 }
 
 export async function updateUserRolesAction(
@@ -213,7 +211,7 @@ export async function updateUserRolesAction(
   }
   const advisories = [
     added.includes(Role.Driver) && !target.driver
-      ? "Fahrerrolle gespeichert. Für Rennanmeldung und Liga-Zuordnung muss noch ein Fahrerprofil eingerichtet werden."
+      ? "Fahrerrolle gespeichert. Für die Liga- und Teamzuordnung muss noch ein Fahrerprofil eingerichtet werden."
       : null,
     added.includes(Role.TeamPrincipal) &&
     target.principalTeams.length === 0 &&

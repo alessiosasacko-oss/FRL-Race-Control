@@ -33,8 +33,7 @@ export default async function LeagueAdminPage() {
                   </h2>
                 </div>
                 <p className="text-xs text-slate-500">
-                  {league.counts.drivers} Fahrer · {league.counts.teams} Teams ·{" "}
-                  {league.counts.tickets} FIA-Tickets
+                  {league.counts.drivers} Fahrer · {league.counts.teams} Teams
                 </p>
               </div>
               <LeagueForm league={league} />

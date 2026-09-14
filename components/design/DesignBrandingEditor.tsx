@@ -11,12 +11,10 @@ import {
   Gauge,
   Palette,
   RotateCcw,
-  ShieldAlert,
   Upload,
 } from "lucide-react";
 import AppBackground from "@/components/design/AppBackground";
 import BackgroundEditor from "@/components/design/BackgroundEditor";
-import CountryFlag from "@/components/ui/CountryFlag";
 import {
   publishDesignAction,
   restoreDefaultDesignAction,
@@ -81,12 +79,10 @@ const tokenFields: Array<[keyof ThemeTokens, string, string]> = [
   ["open", "Offen", "Offene Vorgänge"],
   ["warning", "Warnung", "Warnungen und offene Fristen"],
   ["error", "Fehler", "Fehler und kritische Zustände"],
-  ["penalty", "Strafe", "FIA-Strafen"],
+  ["penalty", "Strafe", "Zeit- und Ergebnisstrafen"],
   ["archived", "Archiviert", "Archivierte Inhalte"],
   ["live", "Live", "Live- und Online-Zustände"],
   ["admin", "Admin", "Administrationsrollen"],
-  ["steward", "Steward", "Steward-Rollen"],
-  ["fia", "FIA", "Race-Control-Akzent"],
   ["teamPrincipal", "Teamchef", "Teamchef-Rollen"],
   ["firstPlace", "Platz 1", "Sieger und WM-Führung"],
   ["secondPlace", "Platz 2", "Zweiter Platz"],
@@ -94,24 +90,14 @@ const tokenFields: Array<[keyof ThemeTokens, string, string]> = [
   ["fastestLap", "Schnellste Runde", "Fastest-Lap-Markierung"],
   ["positionGain", "Positionsgewinn", "Positive Trends"],
   ["positionLoss", "Positionsverlust", "Negative Trends"],
-  ["fiaOpen", "FIA offen", "Offene Tickets"],
-  ["fiaReview", "FIA in Bearbeitung", "Laufende Untersuchung"],
-  ["fiaVoting", "FIA Abstimmung", "Offene Abstimmungen"],
-  ["fiaAccepted", "FIA angenommen", "Angenommene Vorschläge"],
-  ["fiaRejected", "FIA abgelehnt", "Abgelehnte Vorschläge"],
-  ["fiaTie", "FIA unentschieden", "Gleichstand"],
-  ["fiaResolved", "FIA erledigt", "Abgeschlossene Tickets"],
-  ["fiaArchived", "FIA archiviert", "Archivierte Tickets"],
 ];
 
 const pageFields: Array<[keyof PageAccents, string]> = [
   ["dashboard", "Dashboard"],
   ["calendar", "Kalender"],
   ["raceWeekend", "Rennwochenende"],
-  ["attendance", "Rennanmeldung"],
   ["results", "Ergebnisse"],
   ["championship", "Meisterschaft"],
-  ["fia", "FIA"],
   ["drivers", "Fahrer"],
   ["teams", "Teams"],
   ["notifications", "Benachrichtigungen"],
@@ -138,7 +124,6 @@ function ActionFeedback({ state }: { state: DesignActionState }) {
     </div>
   );
 }
-
 export default function DesignBrandingEditor({ data }: { data: AdminData }) {
   const [config, setConfig] = useState(data.config);
   const [previewMode, setPreviewMode] = useState<"DARK" | "LIGHT">(
@@ -389,7 +374,6 @@ export default function DesignBrandingEditor({ data }: { data: AdminData }) {
     </div>
   );
 }
-
 function SurfaceSettings({ config, setConfig }: { config: DesignThemeConfig; setConfig: React.Dispatch<React.SetStateAction<DesignThemeConfig>> }) {
   const settings = config.componentSettings;
   function update<K extends keyof typeof settings>(key: K, value: (typeof settings)[K]) {
@@ -434,9 +418,8 @@ function SurfaceSettings({ config, setConfig }: { config: DesignThemeConfig; set
 const mobileNavigationOptions = [
   "dashboard",
   "calendar",
-  "attendance",
   "championship",
-  "fia",
+  "results",
   "notifications",
   "drivers",
   "teams",
@@ -566,16 +549,15 @@ function DesignPreview({ config, mode, style, viewport }: { config: DesignThemeC
       <div className="p-4">
         <div className="relative overflow-hidden rounded-2xl border p-5" style={{ borderColor: "var(--accent-race-weekend)", background: "linear-gradient(135deg,color-mix(in srgb,var(--accent-race-weekend) 20%,var(--color-card)),var(--color-card))" }}>
           <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "var(--accent-race-weekend)" }}>Race weekend</p>
-          <h3 className="mt-2 text-2xl font-black">Belgian Grand Prix</h3>
-          <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>Spa-Francorchamps · Runde 08</p>
-          <div className="mt-4 flex items-center gap-3"><Gauge size={26} style={{ color: "var(--color-secondary)" }} /><span className="font-mono text-xl font-black">02:14:38</span></div>
+          <h3 className="mt-2 text-2xl font-black">Nächstes Rennwochenende</h3>
+          <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>Strecke und Runde aus dem Rennkalender</p>
+          <div className="mt-4 flex items-center gap-3"><Gauge size={26} style={{ color: "var(--color-secondary)" }} /><span className="font-mono text-xl font-black">Countdown</span></div>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2">
-          {[['WM', 'P03'], ['Punkte', '128'], ['Siege', '02']].map(([label, value]) => <div key={label} className="rounded-xl border p-3" style={{ borderColor: "var(--color-border)", background: "var(--color-card)" }}><p className="text-[9px] uppercase" style={{ color: "var(--color-text-muted)" }}>{label}</p><strong className="mt-1 block text-xl">{value}</strong></div>)}
+          {[['WM', '–'], ['Punkte', '–'], ['Siege', '–']].map(([label, value]) => <div key={label} className="rounded-xl border p-3" style={{ borderColor: "var(--color-border)", background: "var(--color-card)" }}><p className="text-[9px] uppercase" style={{ color: "var(--color-text-muted)" }}>{label}</p><strong className="mt-1 block text-xl">{value}</strong></div>)}
         </div>
-        <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold"><span className="rounded-full px-2 py-1" style={{ color: "var(--color-success)", background: "color-mix(in srgb,var(--color-success) 14%,transparent)" }}><CheckCircle2 className="mr-1 inline" size={11} />Erledigt</span><span className="rounded-full px-2 py-1" style={{ color: "var(--color-fia)", background: "color-mix(in srgb,var(--color-fia) 14%,transparent)" }}><ShieldAlert className="mr-1 inline" size={11} />FIA offen</span></div>
-        <div className="mt-3 overflow-hidden rounded-xl border" style={{ borderColor: "var(--color-border)" }}><div className="grid grid-cols-[2rem_1fr_auto] gap-2 p-3 text-xs" style={{ background: "var(--color-background-elevated)" }}><span>1</span><strong className="inline-flex items-center gap-2"><CountryFlag countryCode="DE" size="sm" />Max Mustermann</strong><span style={{ color: "var(--color-position-1)" }}>156 Pkt.</span></div><div className="grid grid-cols-[2rem_1fr_auto] gap-2 border-t p-3 text-xs" style={{ borderColor: "var(--color-border)", background: "var(--color-card)" }}><span>2</span><strong className="inline-flex items-center gap-2"><CountryFlag countryCode="AT" size="sm" />Alex Racing</strong><span>149 Pkt.</span></div></div>
-        <div className="mt-3 rounded-xl border p-3" style={{ borderColor: "var(--color-fia)", background: "color-mix(in srgb,var(--color-fia) 9%,var(--color-card))" }}><p className="text-xs font-black" style={{ color: "var(--color-fia)" }}>⚖ FIA Strafenvorschlag</p><p className="mt-1 text-xs">+10 Sekunden · Abstimmung läuft</p></div>
+        <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold"><span className="rounded-full px-2 py-1" style={{ color: "var(--color-success)", background: "color-mix(in srgb,var(--color-success) 14%,transparent)" }}><CheckCircle2 className="mr-1 inline" size={11} />Veröffentlicht</span></div>
+        <div className="mt-3 overflow-hidden rounded-xl border" style={{ borderColor: "var(--color-border)" }}><div className="grid grid-cols-[2rem_1fr_auto] gap-2 p-3 text-xs" style={{ background: "var(--color-background-elevated)" }}><span>1</span><strong>Fahrerwertung</strong><span style={{ color: "var(--color-position-1)" }}>Punkte</span></div><div className="grid grid-cols-[2rem_1fr_auto] gap-2 border-t p-3 text-xs" style={{ borderColor: "var(--color-border)", background: "var(--color-card)" }}><span>2</span><strong>Teamwertung</strong><span>Stand</span></div></div>
         <div className="mt-3 flex gap-2"><button className="flex-1 rounded-xl px-3 py-2 text-xs font-black text-white" style={{ background: "var(--color-primary)" }}>Primäraktion</button><button className="rounded-xl border px-3 py-2 text-xs font-bold" style={{ borderColor: "var(--color-border)" }}><Eye size={14} /></button></div>
         <label className="mt-3 block text-[10px] font-bold">Formularfeld<input readOnly value="Vorschau" className="mt-1 w-full rounded-lg border bg-transparent px-3 py-2 text-xs" style={{ borderColor: "var(--color-border)" }} /></label>
         <div className="mt-3 flex items-center justify-center rounded-xl border border-dashed p-5" style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}><Flag className="mr-2" size={18} /> Track Layout Platzhalter</div>

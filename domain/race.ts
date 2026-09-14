@@ -24,7 +24,6 @@ export const raceSchema = z
     sprint: z.boolean(),
     doublePoints: z.boolean(),
     mystery: z.boolean(),
-    attendanceDeadline: isoDateTimeSchema.nullable(),
   })
   .strict()
   .refine(

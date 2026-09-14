@@ -3,7 +3,6 @@ import "server-only";
 import {
   ChampionshipAuditAction,
   GlobalWeekendStatus,
-  PenaltyType,
   type Prisma,
   type PrismaClient,
   RaceSession,
@@ -30,9 +29,6 @@ const blockReasonLabels: Record<GlobalWeekendBlockReason, string> = {
   NO_ACTIVE_LEAGUES: "Keine aktiven Liga-Zeitpläne vorhanden.",
   RESULTS_INCOMPLETE:
     "Noch nicht alle Ergebnisse der aktiven Ligen und Sessions sind veröffentlicht.",
-  FIA_TICKETS_OPEN: "Noch nicht alle FIA-Tickets sind abgeschlossen.",
-  FIA_PENALTIES_NOT_APPLIED:
-    "Mindestens eine FIA-Strafe ist noch nicht im Ergebnis angewendet.",
   TEAM_ORGANIZATION_MISSING:
     "Mindestens ein Ergebnis-Team besitzt keine globale Organisation.",
 };
@@ -51,15 +47,6 @@ function requiredResultSessions(
   return required.length > 0
     ? [...new Set(required)]
     : [ResultSession.RACE];
-}
-
-function hasResultImpact(
-  penaltyType: PenaltyType,
-): boolean {
-  return (
-    penaltyType === PenaltyType.TIME_PENALTY ||
-    penaltyType === PenaltyType.DISQUALIFICATION
-  );
 }
 
 function normalizedContributionKey(input: {
@@ -191,40 +178,6 @@ export async function synchronizeGlobalTeamPrincipalChampionship(
           },
         },
       },
-      tickets: {
-        select: {
-          id: true,
-          leagueId: true,
-          session: true,
-          status: true,
-          drivers: { select: { driverId: true } },
-          decision: {
-            select: {
-              id: true,
-              affectedDriverId: true,
-              penaltyType: true,
-              penalties: { select: { penaltyType: true } },
-              resultPenaltyApplications: {
-                where: { active: true },
-                select: {
-                  result: {
-                    select: {
-                      driverId: true,
-                      resultSession: {
-                        select: {
-                          raceId: true,
-                          leagueId: true,
-                          session: true,
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
       globalWeekend: {
         select: {
           id: true,
@@ -258,40 +211,6 @@ export async function synchronizeGlobalTeamPrincipalChampionship(
       )
       .map(({ leagueId, session }) => `${leagueId}:${session}`),
   );
-  const openTicketCount = race.tickets.filter(
-    (ticket) => ticket.status !== "RESOLVED" || ticket.decision === null,
-  ).length;
-  let unappliedPenaltyCount = 0;
-  for (const ticket of race.tickets) {
-    if (!ticket.decision) continue;
-    const penalties =
-      ticket.decision.penalties.length > 0
-        ? ticket.decision.penalties
-        : [{ penaltyType: ticket.decision.penaltyType }];
-    if (!penalties.some(({ penaltyType }) => hasResultImpact(penaltyType))) {
-      continue;
-    }
-    const resultSession =
-      ticket.session === RaceSession.QUALIFYING
-        ? ResultSession.QUALIFYING
-        : ticket.session === RaceSession.SPRINT
-          ? ResultSession.SPRINT
-          : ResultSession.RACE;
-    const affectedDriverIds = ticket.decision.affectedDriverId
-      ? [ticket.decision.affectedDriverId]
-      : ticket.drivers.map(({ driverId }) => driverId);
-    for (const driverId of affectedDriverIds) {
-      const applied =
-        ticket.decision.resultPenaltyApplications.some(
-          ({ result }) =>
-            result.driverId === driverId &&
-            result.resultSession.raceId === race.id &&
-            result.resultSession.leagueId === ticket.leagueId &&
-            result.resultSession.session === resultSession,
-        );
-      if (!applied) unappliedPenaltyCount += 1;
-    }
-  }
   const publishedPointSessions = race.resultSessions.filter(
     (session) =>
       session.publicationStatus === ResultPublicationStatus.PUBLISHED &&
@@ -313,8 +232,6 @@ export async function synchronizeGlobalTeamPrincipalChampionship(
     activeLeagueIds,
     requiredSessions: requiredSessions as DomainResultSession[],
     publishedSessionKeys,
-    openTicketCount,
-    unappliedPenaltyCount,
     unmappedTeamIds,
   });
 
@@ -486,7 +403,7 @@ export async function synchronizeGlobalTeamPrincipalChampionship(
       priority: NotificationPriority.Normal,
       title: `Teamchef-WM: Runde finalisiert`,
       message:
-        "Alle Liga-Ergebnisse und FIA-Entscheidungen sind verarbeitet.",
+        "Alle Liga-Ergebnisse des Rennwochenendes sind verarbeitet.",
       href: `/championship/team-principals?seasonId=${race.seasonId}`,
       relatedEntity: { type: "Race", id: race.id },
       dedupeKey: `team-principal-weekend:${race.id}:${

@@ -49,12 +49,12 @@ async function organizationIdFrom(context: RouteParams): Promise<number | null> 
 async function refreshTeamLogoViews(): Promise<void> {
   for (const path of [
     "/admin/teams", "/teams", "/drivers", "/championship", "/admin/results",
-    "/attendance", "/dashboard", "/profile/character", "/admin/design/driver-suits",
+    "/dashboard", "/profile/character", "/admin/design/driver-suits",
   ]) revalidatePath(path);
   revalidatePath("/teams/[id]", "page");
   revalidatePath("/drivers/[id]", "page");
   revalidatePath("/results/[id]", "page");
-  await touchAppDataRevisionSafely(getPrismaClient(), ["teams", "drivers", "championship", "results", "attendance", "users"]);
+  await touchAppDataRevisionSafely(getPrismaClient(), ["teams", "drivers", "championship", "results", "users"]);
 }
 
 export async function POST(request: Request, context: RouteParams) {

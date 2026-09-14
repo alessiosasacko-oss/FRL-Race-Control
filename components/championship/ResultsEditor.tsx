@@ -2,7 +2,6 @@
 
 import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
 
-import Link from "next/link";
 import {
   useEffect,
   useId,
@@ -11,12 +10,10 @@ import {
   useState,
 } from "react";
 import {
-  AlertTriangle,
   ArrowDown,
   ArrowUp,
   GripVertical,
   Plus,
-  RefreshCcw,
   Save,
   Search,
   ShieldCheck,
@@ -25,7 +22,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  RaceSession,
   QualifyingFormat,
   ResultGapMode,
   ResultPenaltySource,
@@ -50,7 +46,6 @@ import {
   withDefaultResultRows,
 } from "@/lib/championship/result-editor";
 import {
-  aggregateFiaPenalties,
   calculateFinalClassification,
   fastestLapKeys,
   formatTiming,
@@ -114,11 +109,10 @@ type RowState = {
   manualOverrideReason: string;
 };
 
-function sessionForFia(session: ResultSession): RaceSession {
-  if (session === ResultSession.Qualifying) return RaceSession.Qualifying;
-  if (session === ResultSession.Sprint) return RaceSession.Sprint;
-  return RaceSession.Race;
-}
+type HistoricalPenaltySummary = {
+  penaltyMilliseconds: number;
+  disqualified: boolean;
+};
 
 function editorStatusLabel(session: ResultSession, status: ResultStatus): string {
   if (session !== ResultSession.Qualifying) return resultStatusLabels[status];
@@ -370,9 +364,6 @@ export default function ResultsEditor({
   const publicationKey = `result:${data.selected?.race.id ?? 0}:${data.selected?.race.season.league.id ?? 0}:${session}:${existingSession?.updatedAt ?? "new"}:${publicationId}`;
   const [allowArchived, setAllowArchived] = useState(false);
   const [confirmLockedEdit, setConfirmLockedEdit] = useState(false);
-  const [syncFiaPenalties, setSyncFiaPenalties] = useState(
-    !existingSession || existingSession.fiaPenaltyVersion === null,
-  );
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [removedRow, setRemovedRow] = useState<{
     row: RowState;
@@ -518,24 +509,17 @@ export default function ResultsEditor({
     },
   );
   const normalizedGaps = normalizeGaps(parsedGaps, gapMode);
-  const currentFiaPenalties = data.fiaPenalties.filter(
-    (penalty) => penalty.session === sessionForFia(session),
-  );
-
-  function storedFiaSummary(driverId: number) {
+  function historicalPenaltySummary(driverId: number) {
     const result = existingSession?.results.find(
       (candidate) => candidate.driverId === driverId,
     );
     const applications =
       result?.penaltyApplications.filter(
         (application) =>
-          application.source === ResultPenaltySource.Fia &&
+          application.source !== ResultPenaltySource.Manual &&
           application.active,
       ) ?? [];
     return {
-      decisionIds: applications.flatMap((application) =>
-        application.decisionId ? [application.decisionId] : [],
-      ),
       penaltyMilliseconds: applications.reduce(
         (sum, application) =>
           sum + application.penaltyMilliseconds,
@@ -547,31 +531,17 @@ export default function ResultsEditor({
     };
   }
 
-  function importedFiaSummary(row: RowState) {
+  function importedPenaltySummary(row: RowState): HistoricalPenaltySummary {
     const driverId = Number(row.driverId);
-    if (
-      existingSession &&
-      !syncFiaPenalties &&
-      existingSession.results.some(
-        (result) => result.driverId === driverId,
-      )
-    ) {
-      return storedFiaSummary(driverId);
+    if (!existingSession || !Number.isInteger(driverId)) {
+      return { penaltyMilliseconds: 0, disqualified: false };
     }
-    return aggregateFiaPenalties(
-      currentFiaPenalties
-        .filter((penalty) => penalty.driverId === driverId)
-        .map((penalty) => ({
-          decisionId: penalty.decisionId,
-          penaltyType: penalty.penaltyType,
-          penaltyValue: penalty.penaltyValue,
-        })),
-    );
+    return historicalPenaltySummary(driverId);
   }
 
   const calculated = calculateFinalClassification(
     rows.map((row, index) => {
-      const imported = importedFiaSummary(row);
+      const imported = importedPenaltySummary(row);
       return {
         key: row.key,
         order: index,
@@ -760,7 +730,6 @@ export default function ResultsEditor({
     publicationKey,
     gapMode,
     intent: "DRAFT",
-    syncFiaPenalties,
     allowArchived,
     confirmLockedEdit,
     lockAfterSave: false,
@@ -851,9 +820,6 @@ export default function ResultsEditor({
   const publishSummary = resultPublishSummary({
     driverIds: selectedDriverIds,
     fastestDriverNames,
-    decisionIds: rows.flatMap(
-      (row) => importedFiaSummary(row).decisionIds,
-    ),
   });
   const publishLabel = session === ResultSession.Qualifying
     ? "Qualifying veröffentlichen"
@@ -913,18 +879,6 @@ export default function ResultsEditor({
             >
               <Save size={17} />
               Entwurf speichern
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => {
-                setSyncFiaPenalties(true);
-                setDirty(true);
-              }}
-              className="wizard-secondary-button min-h-11 justify-center"
-            >
-              <RefreshCcw size={17} />
-              FIA-Strafen
             </button>
             <button
               form="result-editor-form"
@@ -1025,33 +979,6 @@ export default function ResultsEditor({
         </div>
       </div>
 
-      {existingSession?.fiaPenaltiesChanged ? (
-        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
-          <div className="flex gap-3">
-            <AlertTriangle className="shrink-0" size={20} />
-            <div className="space-y-3">
-              <p>
-                Die finalen FIA-Entscheidungen haben sich seit dem
-                letzten Entwurf geändert. Manuelle Anpassungen werden
-                nicht überschrieben.
-              </p>
-              <label className="flex min-h-11 items-center gap-3 font-semibold">
-                <input
-                  type="checkbox"
-                  checked={syncFiaPenalties}
-                  onChange={(event) => {
-                    setSyncFiaPenalties(event.target.checked);
-                    setDirty(true);
-                  }}
-                  className="h-5 w-5 accent-amber-500"
-                />
-                FIA-Strafen erneut synchronisieren
-              </label>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {hasDuplicateDriver ||
       hasIncompleteDriverRow ||
       missingQualifyingFormat ||
@@ -1137,7 +1064,7 @@ export default function ResultsEditor({
                 <th className="min-w-36 px-3 py-3">Status</th>
                 <th className="min-w-36 px-3 py-3">Abstand</th>
                 {session !== ResultSession.Qualifying ? <th className="min-w-36 px-3 py-3">Schnellste Runde</th> : null}
-                <th className="min-w-64 px-3 py-3">FIA-Strafe</th>
+                <th className="min-w-64 px-3 py-3">Strafen</th>
                 <th className="min-w-28 px-3 py-3">Endposition</th>
                 <th className="min-w-24 px-3 py-3 text-right">
                   Punkte
@@ -1160,7 +1087,7 @@ export default function ResultsEditor({
                   calculation={calculationByKey.get(row.key)}
                   points={pointsByKey.get(row.key) ?? 0}
                   fastest={fastestDrivers.has(row.key)}
-                  imported={importedFiaSummary(row)}
+                  imported={importedPenaltySummary(row)}
                   onUpdate={(patch) => updateRow(index, patch)}
                   onSelectDriver={(driverId) =>
                     selectDriver(index, driverId)
@@ -1188,7 +1115,7 @@ export default function ResultsEditor({
               calculation={calculationByKey.get(row.key)}
               points={pointsByKey.get(row.key) ?? 0}
               fastest={fastestDrivers.has(row.key)}
-              imported={importedFiaSummary(row)}
+              imported={importedPenaltySummary(row)}
               onUpdate={(patch) => updateRow(index, patch)}
               onSelectDriver={(driverId) =>
                 selectDriver(index, driverId)
@@ -1356,20 +1283,15 @@ export default function ResultsEditor({
                 }
               />
               <PublishFact
-                label="FIA-Strafen"
-                value={`${publishSummary.fiaDecisionCount} Entscheidung${
-                  publishSummary.fiaDecisionCount === 1 ? "" : "en"
-                }`}
-              />
-              <PublishFact
                 label="Punkte"
                 value="Fahrer- und Team-WM werden neu berechnet"
               />
             </dl>
             <p className="mt-4 text-sm leading-6 text-slate-400">
               Liga, Rennen und Sitzung werden beim Speichern erneut
-              serverseitig geprüft. Die bestehende FIA-, Punkte- und
-              Meisterschaftslogik bleibt maßgeblich.
+              serverseitig geprüft. Die bestehende Punkte- und
+              Meisterschaftslogik bleibt maßgeblich; historische
+              Ergebnisstrafen bleiben erhalten.
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button
@@ -1441,7 +1363,7 @@ type SharedRowProps = {
   >[number] | undefined;
   points: number;
   fastest: boolean;
-  imported: ReturnType<typeof aggregateFiaPenalties>;
+  imported: HistoricalPenaltySummary;
   onUpdate: (patch: Partial<RowState>) => void;
   onSelectDriver: (driverId: number) => void;
   onMove: (direction: -1 | 1) => void;
@@ -1541,39 +1463,24 @@ function DriverPicker({
 
 function PenaltyEditor({
   row,
-  data,
   imported,
   onUpdate,
 }: Pick<
   SharedRowProps,
-  "row" | "data" | "imported" | "onUpdate"
+  "row" | "imported" | "onUpdate"
 >) {
-  const tickets = data.fiaPenalties.filter(
-    (penalty) => imported.decisionIds.includes(penalty.decisionId),
-  );
   return (
     <div className="space-y-2 text-xs">
-      <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-2">
-        <p className="font-semibold text-blue-300">
-          Von FIA übernommen
-        </p>
-        <p className="mt-1 text-slate-300">
-          {imported.disqualified
-            ? "DSQ"
-            : imported.penaltyMilliseconds > 0
-              ? `+${formatTiming(imported.penaltyMilliseconds)}`
-              : "Keine ergebniswirksame Zeitstrafe"}
-        </p>
-        {tickets.map((ticket) => (
-          <Link
-            key={ticket.ticketId}
-            href={`/fia/${ticket.ticketId}`}
-            className="mt-1 block text-blue-400 hover:underline"
-          >
-            FIA-Ticket #{ticket.ticketId}
-          </Link>
-        ))}
-      </div>
+      {imported.disqualified || imported.penaltyMilliseconds > 0 ? (
+        <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-2">
+          <p className="font-semibold text-blue-300">Historische Strafe</p>
+          <p className="mt-1 text-slate-300">
+            {imported.disqualified
+              ? "DSQ"
+              : `+${formatTiming(imported.penaltyMilliseconds)}`}
+          </p>
+        </div>
+      ) : null}
       <label className="flex min-h-9 items-center gap-2 text-slate-300">
         <input
           type="checkbox"
@@ -1861,7 +1768,6 @@ function DesktopRow({
       <td className="px-3 py-3">
         <PenaltyEditor
           row={row}
-          data={data}
           imported={imported}
           onUpdate={onUpdate}
         />
@@ -2104,7 +2010,7 @@ function MobileRow(props: SharedRowProps) {
           </div>
           <div>
             <p className="text-xs text-slate-500">
-              FIA-Strafe
+              Historische Strafe
             </p>
             <p className="mt-1 text-blue-200">
               {imported.disqualified
@@ -2193,7 +2099,6 @@ function MobileRow(props: SharedRowProps) {
           </div> : null}
           <PenaltyEditor
             row={row}
-            data={data}
             imported={imported}
             onUpdate={onUpdate}
           />

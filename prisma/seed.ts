@@ -1,23 +1,18 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
-  EvidenceType as PrismaEvidenceType,
   NotificationType as PrismaNotificationType,
-  PenaltyType as PrismaPenaltyType,
   PrismaClient,
   RaceSession as PrismaRaceSession,
   RaceStatus as PrismaRaceStatus,
   ResultSession as PrismaResultSession,
   Role as PrismaRole,
-  TicketStatus as PrismaTicketStatus,
-  TicketAuditAction as PrismaTicketAuditAction,
 } from "../generated/prisma/client";
 import { drivers } from "../lib/data/drivers";
 import { leagues } from "../lib/data/leagues";
 import { races } from "../lib/data/races";
 import { seasons } from "../lib/data/seasons";
 import { teams } from "../lib/data/teams";
-import { fiaTickets } from "../lib/data/tickets";
 import {
   DEFAULT_RACE_POINTS,
   DEFAULT_SPRINT_POINTS,
@@ -39,13 +34,13 @@ async function seed(): Promise<void> {
     where: { id: 1 },
     update: {
       displayName: "FRL Race Control",
-      roles: [PrismaRole.ADMIN, PrismaRole.STEWARD],
+      roles: [PrismaRole.ADMIN],
       active: true,
     },
     create: {
       id: 1,
       displayName: "FRL Race Control",
-      roles: [PrismaRole.ADMIN, PrismaRole.STEWARD],
+      roles: [PrismaRole.ADMIN],
       active: true,
     },
   });
@@ -81,8 +76,6 @@ async function seed(): Promise<void> {
       raceWeekday: league.raceWeekday,
       raceStartMinute: league.raceStartMinute,
       raceTimezone: league.raceTimezone,
-      defaultAttendanceDeadlineMinutes:
-        league.defaultAttendanceDeadlineMinutes,
       displayOrder: league.displayOrder,
     };
 
@@ -203,9 +196,6 @@ async function seed(): Promise<void> {
       sprint: race.sprint,
       doublePoints: race.doublePoints,
       mystery: race.mystery,
-      attendanceDeadline: race.attendanceDeadline
-        ? new Date(race.attendanceDeadline)
-        : null,
     };
 
     const raceRecord = await prisma.race.upsert({
@@ -233,14 +223,12 @@ async function seed(): Promise<void> {
         update: {
           scheduledAt: schedule.scheduledAt,
           timezone: schedule.timezone,
-          attendanceDeadline: schedule.attendanceDeadline,
         },
         create: {
           raceId: raceRecord.id,
           leagueId: schedule.league.id,
           scheduledAt: schedule.scheduledAt,
           timezone: schedule.timezone,
-          attendanceDeadline: schedule.attendanceDeadline,
         },
       });
     }
@@ -254,7 +242,6 @@ async function seed(): Promise<void> {
         data: {
           scheduledAt: firstSchedule.scheduledAt,
           timezone: firstSchedule.timezone,
-          attendanceDeadline: firstSchedule.attendanceDeadline,
         },
       });
     }
@@ -331,130 +318,6 @@ async function seed(): Promise<void> {
     }
   }
 
-  for (const ticket of fiaTickets) {
-    const data = {
-      leagueId: ticket.leagueId,
-      seasonId: ticket.seasonId,
-      raceId: ticket.raceId,
-      reportedByUserId: ticket.reportedByUserId,
-      title: ticket.title,
-      description: ticket.description,
-      session: ticket.session as PrismaRaceSession,
-      lap: ticket.lap,
-      status: ticket.status as PrismaTicketStatus,
-      createdAt: new Date(ticket.createdAt),
-      updatedAt: new Date(ticket.updatedAt),
-    };
-
-    await prisma.fiaTicket.upsert({
-      where: { id: ticket.id },
-      update: data,
-      create: { id: ticket.id, ...data },
-    });
-
-    await prisma.fiaTicketDriver.deleteMany({
-      where: { ticketId: ticket.id },
-    });
-
-    await prisma.fiaTicketDriver.createMany({
-      data: ticket.involvedDriverIds.map((driverId) => ({
-        ticketId: ticket.id,
-        driverId,
-      })),
-    });
-
-    await prisma.fiaTicketSteward.deleteMany({
-      where: { ticketId: ticket.id },
-    });
-
-    if (ticket.assignedStewardIds.length > 0) {
-      await prisma.fiaTicketSteward.createMany({
-        data: ticket.assignedStewardIds.map((userId) => ({
-          ticketId: ticket.id,
-          userId,
-        })),
-      });
-    }
-
-    for (const evidence of ticket.evidence) {
-      const evidenceData = {
-        ticketId: ticket.id,
-        submittedByUserId: evidence.submittedByUserId,
-        type: evidence.type as PrismaEvidenceType,
-        url: evidence.url,
-        label: evidence.label,
-        storagePath: evidence.storagePath,
-        originalFilename: evidence.originalFilename,
-        mimeType: evidence.mimeType,
-        fileSize: evidence.fileSize,
-        createdAt: new Date(evidence.createdAt),
-      };
-
-      await prisma.evidence.upsert({
-        where: { id: evidence.id },
-        update: evidenceData,
-        create: { id: evidence.id, ...evidenceData },
-      });
-    }
-
-    if (ticket.decision) {
-      const decisionData = {
-        penaltyType: ticket.decision.penaltyType as PrismaPenaltyType,
-        penaltyValue: ticket.decision.penaltyValue,
-        reason: ticket.decision.reason,
-        decidedAt: new Date(ticket.decision.decidedAt),
-      };
-
-      const decision = await prisma.decision.upsert({
-        where: { ticketId: ticket.id },
-        update: decisionData,
-        create: { ticketId: ticket.id, ...decisionData },
-      });
-
-      await prisma.decisionSteward.deleteMany({
-        where: { decisionId: decision.id },
-      });
-
-      if (ticket.decision.decidedByUserIds.length > 0) {
-        await prisma.decisionSteward.createMany({
-          data: ticket.decision.decidedByUserIds.map((userId) => ({
-            decisionId: decision.id,
-            userId,
-          })),
-        });
-      }
-    }
-
-    const existingCreationEntry = await prisma.fiaTicketAuditLog.findFirst({
-      where: {
-        ticketId: ticket.id,
-        action: PrismaTicketAuditAction.CREATED,
-      },
-      select: { id: true },
-    });
-
-    const creationEntryData = {
-      ticketId: ticket.id,
-      actorId: ticket.reportedByUserId,
-      action: PrismaTicketAuditAction.CREATED,
-      fromStatus: null,
-      toStatus: PrismaTicketStatus.OPEN,
-      details: "Ticket erstellt",
-      createdAt: new Date(ticket.createdAt),
-    };
-
-    if (existingCreationEntry) {
-      await prisma.fiaTicketAuditLog.update({
-        where: { id: existingCreationEntry.id },
-        data: creationEntryData,
-      });
-    } else {
-      await prisma.fiaTicketAuditLog.create({
-        data: creationEntryData,
-      });
-    }
-  }
-
   const explicitlySeededTables = [
     "User",
     "League",
@@ -463,8 +326,6 @@ async function seed(): Promise<void> {
     "Driver",
     "Race",
     "Championship",
-    "FiaTicket",
-    "Evidence",
   ] as const;
 
   for (const table of explicitlySeededTables) {

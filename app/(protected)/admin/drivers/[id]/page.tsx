@@ -57,7 +57,7 @@ export default async function DriverAdminDetailPage({
                     : "Keine aktive Saisonzuordnung"}
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
-                  {driver.assignment?.lineupStatus === "SUBSTITUTE" ? "Ersatzfahrer" : "Stammfahrer"} · {driver.ticketCount} FIA-Verknüpfungen · {driver.standingCount} Tabellenstände
+                  {driver.assignment?.lineupStatus === "SUBSTITUTE" ? "Ersatzfahrer" : "Stammfahrer"} · {driver.standingCount} Tabellenstände
                 </p>
               </div>
             </div>

@@ -112,19 +112,7 @@ test("publish summary counts drivers without duplicates", () => {
     resultPublishSummary({
       driverIds: ["1", "2", "2", ""],
       fastestDriverNames: [],
-      decisionIds: [],
     }).driverCount,
-    2,
-  );
-});
-
-test("publish summary counts FIA decisions without duplicates", () => {
-  assert.equal(
-    resultPublishSummary({
-      driverIds: [],
-      fastestDriverNames: [],
-      decisionIds: [7, 7, 8],
-    }).fiaDecisionCount,
     2,
   );
 });
@@ -134,7 +122,6 @@ test("publish summary keeps unique fastest-lap drivers", () => {
     resultPublishSummary({
       driverIds: [],
       fastestDriverNames: ["Alex", "Alex", "Sam"],
-      decisionIds: [],
     }).fastestDriverNames,
     ["Alex", "Sam"],
   );
@@ -145,7 +132,6 @@ test("publish summary supports no fastest lap", () => {
     resultPublishSummary({
       driverIds: [],
       fastestDriverNames: [],
-      decisionIds: [],
     }).fastestDriverNames,
     [],
   );

@@ -45,17 +45,17 @@ export default function MobileNavigation({
   const itemsById = {
     dashboard: driverNavigationItems[0],
     calendar: driverNavigationItems[1],
-    attendance: driverNavigationItems[2],
-    championship: driverNavigationItems[3],
-    fia: driverNavigationItems[4],
-    notifications: driverNavigationItems[5],
+    championship: driverNavigationItems[2],
+    results: driverNavigationItems[3],
+    notifications: driverNavigationItems[4],
     drivers: leagueNavigationItems[0],
     teams: leagueNavigationItems[1],
   } as const;
   const configuredItems = settings.mobileItems
-    .slice(0, 4)
-    .map((id) => itemsById[id])
-    .filter((item) => hasPermission(user.roles, item.permission));
+    .map((id) => id in itemsById ? itemsById[id as keyof typeof itemsById] : null)
+    .filter(Boolean) as NavigationItem[];
+  const visibleItems = configuredItems
+    .filter((item) => hasPermission(user.roles, item.permission)).slice(0, 4);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -70,9 +70,9 @@ export default function MobileNavigation({
       <nav
         aria-label="Mobile Hauptnavigation"
         className="app-mobile-nav fixed inset-x-0 bottom-0 z-50 grid border-t px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
-        style={{ gridTemplateColumns: `repeat(${configuredItems.length + 1}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${visibleItems.length + 1}, minmax(0, 1fr))` }}
       >
-        {configuredItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           const active = isCurrent(pathname, item.href);
           return (
@@ -91,7 +91,7 @@ export default function MobileNavigation({
               >
                 <Icon size={19} />
               </span>
-              {item.name === "Rennanmeldung" ? "Anmeldung" : item.name}
+              {item.name}
             </Link>
           );
         })}

@@ -1,5 +1,4 @@
 import {
-  PenaltyType,
   ResultGapMode,
   ResultPublicationStatus,
   ResultSession,
@@ -35,18 +34,6 @@ export type ResultCalculation = ResultCalculationInput & {
   effectiveStatus: ResultStatus;
   adjustedTimeMs: number | null;
   finalPosition: number | null;
-};
-
-export type FiaPenaltyInput = {
-  decisionId: number;
-  penaltyType: PenaltyType;
-  penaltyValue: number | null;
-};
-
-export type FiaPenaltySummary = {
-  decisionIds: number[];
-  penaltyMilliseconds: number;
-  disqualified: boolean;
 };
 
 function parseClock(value: string): number | null {
@@ -174,34 +161,6 @@ export function normalizeGaps(
   }
 
   return { rows, error: null };
-}
-
-export function aggregateFiaPenalties(
-  penalties: readonly FiaPenaltyInput[],
-): FiaPenaltySummary {
-  const unique = new Map(
-    penalties.map((penalty) => [penalty.decisionId, penalty]),
-  );
-  let penaltyMilliseconds = 0;
-  let disqualified = false;
-
-  for (const penalty of unique.values()) {
-    if (penalty.penaltyType === PenaltyType.TimePenalty) {
-      penaltyMilliseconds += Math.max(
-        0,
-        Math.round((penalty.penaltyValue ?? 0) * 1000),
-      );
-    }
-    if (penalty.penaltyType === PenaltyType.Disqualification) {
-      disqualified = true;
-    }
-  }
-
-  return {
-    decisionIds: [...unique.keys()].sort((left, right) => left - right),
-    penaltyMilliseconds,
-    disqualified,
-  };
 }
 
 function classificationGroup(result: ResultCalculation): number {

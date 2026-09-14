@@ -11,10 +11,8 @@ export const appDataScopes = [
   "seasons",
   "leagues",
   "calendar",
-  "attendance",
   "results",
   "championship",
-  "fia",
   "notifications",
   "automation",
   "design",
@@ -56,15 +54,13 @@ export function isAppDataChangedEvent(value: unknown): value is AppDataChangedEv
 
 export function scopesForPathname(pathname: string): AppDataScope[] {
   if (pathname.includes("/admin/users") || pathname.includes("/profile") || pathname.includes("/settings")) return ["users", "drivers"];
-  if (pathname.includes("/admin/drivers") || pathname.startsWith("/drivers")) return ["drivers", "teams", "attendance", "championship"];
+  if (pathname.includes("/admin/drivers") || pathname.startsWith("/drivers")) return ["drivers", "teams", "championship"];
   if (pathname.includes("/admin/teams") || pathname.startsWith("/teams")) return ["teams", "drivers", "championship"];
   if (pathname.includes("/admin/seasons")) return ["seasons", "leagues", "calendar"];
   if (pathname.includes("/admin/leagues")) return ["leagues", "seasons", "calendar"];
-  if (pathname.includes("/calendar") || pathname.includes("/admin/races") || pathname.includes("/admin/tracks")) return ["calendar", "attendance", "results"];
-  if (pathname.includes("/attendance")) return ["attendance", "drivers", "teams"];
+  if (pathname.includes("/calendar") || pathname.includes("/admin/races") || pathname.includes("/admin/tracks")) return ["calendar", "results"];
   if (pathname.includes("/results") || pathname.includes("/admin/scoring") || pathname.includes("/admin/adjustments")) return ["results", "championship"];
   if (pathname.includes("/championship")) return ["championship", "results"];
-  if (pathname.includes("/fia")) return ["fia", "notifications", "results"];
   if (pathname.includes("/notifications") || pathname.includes("/admin/announcements")) return ["notifications"];
   if (pathname.includes("/admin/automation")) return ["automation", "notifications"];
   if (pathname.includes("/admin/design")) return ["design"];

@@ -35,13 +35,11 @@ export async function getProfileData(
         poles: 0,
         fastestLaps: 0,
         championships: 0,
-        attendancePercentage: 0,
-        penalties: 0,
       },
     };
   }
 
-  const [results, championships, eligibleRaces, attendance, penalties] =
+  const [results, championships] =
     await Promise.all([
       prisma.raceResult.findMany({
         where: {
@@ -57,32 +55,6 @@ export async function getProfileData(
       }),
       prisma.driverStanding.count({
         where: { driverId: user.driver.id, position: 1 },
-      }),
-      prisma.race.count({
-        where: {
-          season: {
-            participatingLeagues: {
-              some: { id: user.driver.leagueId },
-            },
-          },
-          scheduledAt: { lte: new Date() },
-          status: { not: "CANCELLED" },
-        },
-      }),
-      prisma.raceAttendance.count({
-        where: {
-          driverId: user.driver.id,
-          status: "REGISTERED",
-          race: { scheduledAt: { lte: new Date() } },
-        },
-      }),
-      prisma.fiaTicket.count({
-        where: {
-          drivers: { some: { driverId: user.driver.id } },
-          decision: {
-            is: { penaltyType: { not: "NO_FURTHER_ACTION" } },
-          },
-        },
       }),
     ]);
   const classifiedResults = results.filter(
@@ -114,11 +86,6 @@ export async function getProfileData(
       poles: results.filter((result) => result.polePosition).length,
       fastestLaps: results.filter((result) => result.fastestLap).length,
       championships,
-      attendancePercentage:
-        eligibleRaces > 0
-          ? Math.round((attendance / eligibleRaces) * 100)
-          : 0,
-      penalties,
     },
   };
 }

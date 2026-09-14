@@ -1,14 +1,10 @@
 import type {
-  AttendanceChangeSource,
-  AttendanceStatus,
   PenaltyType,
-  RaceSession,
   ResultGapMode,
   ResultPenaltySource,
   ResultPublicationStatus,
   ResultSession,
   ResultStatus,
-  Role,
 } from "@/domain";
 
 export type SportsActionState = {
@@ -30,7 +26,6 @@ export type SportsListQuery = {
   seasonId?: number;
   raceId?: number;
   teamId?: number;
-  attendanceStatus?: AttendanceStatus;
   table: "drivers" | "teams";
 };
 
@@ -46,7 +41,6 @@ export type RaceOption = {
   sprint: boolean;
   doublePoints: boolean;
   mystery: boolean;
-  attendanceDeadline: string | null;
   season: {
     id: number;
     name: string;
@@ -54,59 +48,6 @@ export type RaceOption = {
     league: { id: number; code: string; name: string };
   };
 };
-
-export type AttendanceEntryView = {
-  driver: {
-    id: number;
-    name: string;
-    number: number;
-    flag: string;
-    userId: number | null;
-    team: { id: number; name: string; shortName: string; color: string; logoUrl: string | null } | null;
-  };
-  status: AttendanceStatus;
-  substitute: {
-    id: number;
-    name: string;
-    number: number;
-    flag: string;
-  } | null;
-  representedTeam: { id: number; name: string; shortName: string; color: string; logoUrl: string | null } | null;
-  submittedBy: { id: number; displayName: string } | null;
-  changeSource: AttendanceChangeSource | null;
-  changeReason: string | null;
-  changedAt: string | null;
-};
-
-export type AttendancePageData = {
-  accessibleLeagues: Array<{ id: number; code: string; name: string }>;
-  selectedLeague: { id: number; code: string; name: string } | null;
-  races: RaceOption[];
-  selectedRace: RaceOption | null;
-  entries: AttendanceEntryView[];
-  teams: Array<{ id: number; name: string }>;
-  substituteDrivers: Array<{
-    id: number;
-    name: string;
-    number: number;
-    flag: string;
-  }>;
-  ownDriverId: number | null;
-  principalTeamIds: number[];
-  counts: Record<AttendanceStatus, number>;
-  auditEntries: Array<{
-    id: number;
-    driverName: string;
-    previousStatus: AttendanceStatus;
-    newStatus: AttendanceStatus;
-    source: AttendanceChangeSource;
-    actorRole: Role;
-    actorName: string | null;
-    reason: string | null;
-    createdAt: string;
-  }>;
-};
-
 export type DriverStandingView = {
   position: number;
   points: number;
@@ -246,9 +187,6 @@ export type ResultSessionView = {
   gapMode: ResultGapMode;
   publicationStatus: ResultPublicationStatus;
   qualifyingFormat: import("@/domain").QualifyingFormat | null;
-  fiaPenaltyVersion: string | null;
-  currentFiaPenaltyVersion: string;
-  fiaPenaltiesChanged: boolean;
   revision: number;
   lockedAt: string | null;
   publishedAt: string | null;
@@ -327,16 +265,6 @@ export type ResultAdminData = {
     shortName: string;
     color: string;
     logoUrl: string | null;
-  }>;
-  fiaPenalties: Array<{
-    decisionId: number;
-    ticketId: number;
-    driverId: number;
-    penaltyType: PenaltyType;
-    penaltyValue: number | null;
-    reason: string;
-    updatedAt: string;
-    session: RaceSession;
   }>;
   scoring: {
     fastestLapPoint: number;

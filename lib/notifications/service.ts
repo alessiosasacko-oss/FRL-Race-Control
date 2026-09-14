@@ -19,26 +19,19 @@ import { recordWebhookEvent } from "@/lib/integrations/events";
 import { zonedLocalToUtc } from "@/lib/master-data/timezone";
 import { renderNotificationEmail } from "@/lib/email/templates";
 import type { NotificationPayload } from "./types";
+import { retiredNotificationTypes } from "./types";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const discordPurposeByNotification: Partial<
   Record<DomainNotificationType, DiscordChannelPurpose>
 > = {
-  [DomainNotificationType.AttendanceOpen]:
-    DiscordChannelPurpose.AttendanceOpened,
-  [DomainNotificationType.AttendanceClosingSoon]:
-    DiscordChannelPurpose.AttendanceClosingSoon,
-  [DomainNotificationType.AttendanceClosed]:
-    DiscordChannelPurpose.AttendanceClosed,
   [DomainNotificationType.RaceReminder]:
     DiscordChannelPurpose.RaceWeekend,
   [DomainNotificationType.NewRace]:
     DiscordChannelPurpose.RaceWeekend,
   [DomainNotificationType.RaceResult]:
     DiscordChannelPurpose.RaceResults,
-  [DomainNotificationType.FiaDecision]:
-    DiscordChannelPurpose.FiaDecision,
   [DomainNotificationType.Penalty]:
     DiscordChannelPurpose.PenaltyIssued,
   [DomainNotificationType.NewSeason]:
@@ -147,6 +140,7 @@ export async function createNotifications(
     };
   } = {},
 ): Promise<void> {
+  if (retiredNotificationTypes.includes(payload.type as typeof retiredNotificationTypes[number])) return;
   const uniqueRecipientIds = [...new Set(recipientIds)];
   if (uniqueRecipientIds.length === 0) return;
 
@@ -306,8 +300,6 @@ export async function leagueUserIds(
             hasSome: [
               PrismaRole.SUPER_ADMIN,
               PrismaRole.ADMIN,
-              PrismaRole.FIA_PRESIDENT,
-              PrismaRole.STEWARD,
             ],
           },
         },

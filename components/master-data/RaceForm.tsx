@@ -188,10 +188,6 @@ export default function RaceForm({
                     {schedule.localStart.replace("T", " ")} ·{" "}
                     {schedule.timezone}
                   </p>
-                  <ScheduleDeadlineOverride
-                    leagueId={schedule.league.id}
-                    defaultValue={schedule.attendanceDeadlineLocal}
-                  />
                 </div>
               ))}
             </div>
@@ -281,37 +277,5 @@ function Check({
       />
       {label}
     </label>
-  );
-}
-
-function ScheduleDeadlineOverride({
-  leagueId,
-  defaultValue,
-}: {
-  leagueId: number;
-  defaultValue: string;
-}) {
-  const [enabled, setEnabled] = useState(false);
-
-  return (
-    <div className="mt-2">
-      <label className="flex items-center gap-2 text-[0.68rem] font-semibold text-slate-500">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(event) => setEnabled(event.target.checked)}
-          className="size-3.5 accent-blue-500"
-        />
-        Anmeldeschluss individuell ändern
-      </label>
-      {enabled ? (
-        <input
-          type="datetime-local"
-          name={`attendanceDeadline-${leagueId}`}
-          defaultValue={defaultValue}
-          className="form-control mt-2 text-xs"
-        />
-      ) : null}
-    </div>
   );
 }

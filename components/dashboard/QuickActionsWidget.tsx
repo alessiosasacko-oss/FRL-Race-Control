@@ -1,9 +1,9 @@
 import Link from "next/link";
 import {
   CalendarDays,
-  ClipboardCheck,
+  Bell,
   Flag,
-  Shield,
+  ListOrdered,
   Trophy,
   Users,
   Zap,
@@ -11,12 +11,12 @@ import {
 import DashboardCard from "./DashboardCard";
 
 const actions = [
-  { href: "/attendance", label: "Anmeldung", icon: ClipboardCheck },
-  { href: "/fia", label: "FIA", icon: Shield },
   { href: "/calendar", label: "Kalender", icon: CalendarDays },
   { href: "/championship", label: "Meisterschaft", icon: Trophy },
+  { href: "/results", label: "Ergebnisse", icon: ListOrdered },
   { href: "/teams", label: "Teams", icon: Flag },
   { href: "/drivers", label: "Fahrer", icon: Users },
+  { href: "/notifications", label: "Hinweise", icon: Bell },
 ] as const;
 
 export default function QuickActionsWidget() {

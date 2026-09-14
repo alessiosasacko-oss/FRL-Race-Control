@@ -29,6 +29,7 @@ import {
   EyeOff,
   Flag,
   GripVertical,
+  ListOrdered,
   Medal,
   Pencil,
   Plus,
@@ -38,7 +39,6 @@ import {
   Trophy,
   X,
 } from "lucide-react";
-import AttendanceWidget from "@/components/dashboard/AttendanceWidget";
 import NextRaceWidget from "@/components/dashboard/NextRaceWidget";
 import NotificationsWidget from "@/components/dashboard/NotificationsWidget";
 import QuickActionsWidget from "@/components/dashboard/QuickActionsWidget";
@@ -257,7 +257,7 @@ export default function PersonalDashboard({
 
       <div className="space-y-2">
         {editing ? <p className="text-xs font-semibold text-cyan-300">Fahrer-Hero und Next Race sind fest angeheftet.</p> : null}
-        <NextRaceWidget race={data.nextRace} attendance={data.attendance} league={data.identity.driver?.league.code ?? null} />
+        <NextRaceWidget race={data.nextRace} league={data.identity.driver?.league.code ?? null} />
       </div>
 
       {editing ? (
@@ -382,11 +382,10 @@ function SortableWidget({
 
 function DashboardWidget({ item, data }: { item: DashboardWidgetItem; data: DashboardData }) {
   switch (item.id) {
-    case "attendance": return <AttendanceWidget race={data.nextRace} driverId={data.identity.driver?.id ?? null} attendance={data.attendance} />;
     case "quick-actions": return <QuickActionsWidget />;
     case "championship-position": return <MetricBlock label="WM-Position" value={data.championship.driver ? `P${data.championship.driver.position}` : "–"} detail={data.championship.driver?.gapToLeader === 0 ? "Meisterschaftsführung" : data.championship.driver ? `${data.championship.driver.gapToLeader} Pkt. Rückstand` : "Noch keine Wertung"} icon={Trophy} tone="yellow" className="h-full" />;
     case "championship-points": return <MetricBlock label="Saisonpunkte" value={data.championship.driver?.points ?? "–"} detail={data.championship.driver ? `${data.championship.driver.lastRacePoints} beim letzten Rennen` : "Noch keine Saisonpunkte"} icon={Medal} tone="cyan" className="h-full" />;
-    case "fia-open-tickets": return <MetricBlock label="Offene FIA-Tickets" value={data.fia.openTickets} detail="Race-Control-Vorgänge" icon={ShieldAlert} tone={data.fia.openTickets > 0 ? "purple" : "green"} className="h-full" />;
+    case "latest-result": return <MetricBlock label="Letztes Ergebnis" value={data.latestResult?.position ? `P${data.latestResult.position}` : "–"} detail={data.latestResult ? `${data.latestResult.raceName} · ${data.latestResult.points} Pkt.` : "Noch kein Ergebnis veröffentlicht"} icon={ListOrdered} tone="blue" className="h-full" />;
     case "unread-notifications": return <MetricBlock label="Ungelesen" value={data.unreadNotificationCount} detail="Neue Benachrichtigungen" icon={Bell} tone={data.unreadNotificationCount > 0 ? "orange" : "green"} className="h-full" />;
     case "recent-activity": return <NotificationsWidget notifications={data.notifications.slice(0, 4)} />;
     case "rankings": return <RankingsWidget championship={data.championship} />;

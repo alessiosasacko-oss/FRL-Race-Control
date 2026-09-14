@@ -62,7 +62,7 @@ export default async function UserAdminDetailPage({ params, searchParams }: User
               <p className="mt-2 text-sm text-slate-400">Discord-ID: {user.discordId ? `${user.discordId.slice(0, 4)}…${user.discordId.slice(-4)}` : "Nicht verfügbar"}</p>
               <p className="mt-1 break-all text-sm text-slate-400">{user.email ?? "Keine E-Mail hinterlegt"}</p>
               <p className="mt-1 text-sm text-slate-500">Letzte Anmeldung: {user.lastLoginAt ? new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(user.lastLoginAt)) : "Noch keine Sitzung"}</p>
-              <div className="mt-3 flex flex-wrap gap-2">{user.roles.map((role) => <span key={role} className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-bold text-blue-200">{roleLabels[role]}{role === Role.FiaPresident ? " · Legacy" : ""}</span>)}</div>
+              <div className="mt-3 flex flex-wrap gap-2">{user.roles.map((role) => <span key={role} className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-bold text-blue-200">{role === Role.FiaPresident || role === Role.Steward ? "Historische Rolle" : roleLabels[role]}</span>)}</div>
             </div>
             {user.driver ? <div className="rounded-xl border border-slate-800 p-4"><CountryFlag countryCode={user.driver.countryCode} size="lg" showLabel /><p className="mt-2 font-bold text-white">#{user.driver.number} {user.driver.name}</p><p className="mt-1 text-xs text-slate-500">{currentAssignment ? `${currentAssignment.league.code} · ${currentAssignment.organization?.name ?? "Kein Team zugeordnet"}` : "Keine aktive Saisonzuordnung"}</p></div> : <p className="text-sm text-slate-500">Kein Fahrerprofil</p>}
           </div>

@@ -149,8 +149,7 @@ export default async function DriverDetailPage({
                 <ShieldCheck className="text-blue-400" size={22} />
                 <h2 className="mt-3 font-semibold text-white">Race Control</h2>
                 <p className="mt-2 text-sm text-slate-400">
-                  {driver.ticketCount} FIA-Tickets · {driver.standingCount}{" "}
-                  Wertungseinträge
+                  {driver.standingCount} Wertungseinträge
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-500">

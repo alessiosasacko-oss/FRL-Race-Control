@@ -257,7 +257,7 @@ export async function getLeagueAdminItems(): Promise<LeagueAdminItem[]> {
         },
       },
       _count: {
-        select: { drivers: true, teams: true, tickets: true },
+        select: { drivers: true, teams: true },
       },
       raceSchedules: {
         where: {
@@ -288,8 +288,6 @@ export async function getLeagueAdminItems(): Promise<LeagueAdminItem[]> {
     raceWeekday: league.raceWeekday,
     raceStartMinute: league.raceStartMinute,
     raceTimezone: league.raceTimezone,
-    defaultAttendanceDeadlineMinutes:
-      league.defaultAttendanceDeadlineMinutes,
     displayOrder: league.displayOrder,
     futureSchedules: league.raceSchedules.map((schedule) => ({
       id: schedule.id,
@@ -314,7 +312,6 @@ export async function getLeagueAdminItems(): Promise<LeagueAdminItem[]> {
     counts: {
       drivers: league._count.drivers,
       teams: league._count.teams,
-      tickets: league._count.tickets,
     },
   }));
 }
@@ -425,7 +422,6 @@ export async function getRaceItems(
           league: { select: { id: true, code: true, name: true } },
         },
       },
-      _count: { select: { tickets: true } },
     },
   });
 
@@ -437,8 +433,6 @@ export async function getRaceItems(
       ) ?? race.leagueSchedules[0];
     const displayStart = displaySchedule?.scheduledAt ?? race.scheduledAt;
     const displayTimezone = displaySchedule?.timezone ?? race.timezone;
-    const displayDeadline =
-      displaySchedule?.attendanceDeadline ?? race.attendanceDeadline;
     return {
       id: race.id,
       seasonId: race.seasonId,
@@ -460,13 +454,6 @@ export async function getRaceItems(
       doublePoints: race.doublePoints,
       mystery: race.mystery,
       trackRevealed: track.revealed,
-      attendanceDeadline: displayDeadline?.toISOString() ?? null,
-      attendanceDeadlineLocal: displayDeadline
-        ? formatLocalDateTimeInput(
-            displayDeadline,
-            displayTimezone,
-          )
-        : "",
       leagueSchedules: race.leagueSchedules.map((schedule) => ({
         id: schedule.id,
         league: schedule.league,
@@ -476,21 +463,12 @@ export async function getRaceItems(
           schedule.timezone,
         ),
         timezone: schedule.timezone,
-        attendanceDeadline:
-          schedule.attendanceDeadline?.toISOString() ?? null,
-        attendanceDeadlineLocal: schedule.attendanceDeadline
-          ? formatLocalDateTimeInput(
-              schedule.attendanceDeadline,
-              schedule.timezone,
-            )
-          : "",
       })),
       season: {
         id: race.season.id,
         name: race.season.name,
         leagues: race.season.participatingLeagues,
       },
-      ticketCount: race._count.tickets,
     };
   });
 }
@@ -550,7 +528,7 @@ export async function getDriverById(
         take: 1,
         select: { position: true, points: true, wins: true, podiums: true, polePositions: true, fastestLaps: true },
       },
-      _count: { select: { ticketLinks: true, standings: true } },
+      _count: { select: { standings: true } },
     },
   });
 
@@ -558,7 +536,6 @@ export async function getDriverById(
 
   return {
     ...mapDriverItem(driver),
-    ticketCount: driver._count.ticketLinks,
     standingCount: driver._count.standings,
     standing: driver.standings[0] ?? null,
   };

@@ -11,6 +11,26 @@ const snowflakeSchema = z
   .trim()
   .regex(/^\d{17,20}$/, "Eine Discord-ID muss 17 bis 20 Ziffern enthalten.");
 
+const activeDiscordChannelPurposes = [
+  DiscordChannelPurpose.RaceWeekend,
+  DiscordChannelPurpose.SprintResults,
+  DiscordChannelPurpose.QualifyingResults,
+  DiscordChannelPurpose.RaceResults,
+  DiscordChannelPurpose.DriverStandings,
+  DiscordChannelPurpose.TeamStandings,
+  DiscordChannelPurpose.PenaltyIssued,
+  DiscordChannelPurpose.SeasonStarted,
+  DiscordChannelPurpose.SeasonFinished,
+  DiscordChannelPurpose.AdminAnnouncement,
+] as const;
+
+const activeDiscordRoles = [
+  Role.Driver,
+  Role.TeamPrincipal,
+  Role.Admin,
+  Role.SuperAdmin,
+] as const;
+
 export const announcementInputSchema = z.object({
   title: z.string().trim().min(3).max(160),
   content: z.string().trim().min(3).max(10_000),
@@ -37,7 +57,7 @@ export const discordChannelMappingInputSchema = z.object({
     (value) => (value === "" || value === null ? null : value),
     z.coerce.number().int().positive().nullable(),
   ),
-  purpose: z.enum(DiscordChannelPurpose),
+  purpose: z.enum(activeDiscordChannelPurposes),
   channelId: snowflakeSchema,
   channelName: z.preprocess(
     (value) => (value === "" || value === null ? null : value),
@@ -48,7 +68,7 @@ export const discordChannelMappingInputSchema = z.object({
 
 export const discordRoleMappingInputSchema = z.object({
   guildSettingsId: z.coerce.number().int().positive(),
-  role: z.enum(Role),
+  role: z.enum(activeDiscordRoles),
   discordRoleId: snowflakeSchema,
   discordRoleName: z.preprocess(
     (value) => (value === "" || value === null ? null : value),

@@ -3,18 +3,17 @@
 :root {
   --color-primary: #3b82f6;
   --color-secondary: #22d3ee;
-  --color-background: #05080e;
-  --color-background-elevated: #0b1220;
-  --color-card: #101a2a;
-  --color-sidebar: #07101d;
-  --color-header: #080f1b;
+  --color-background: #04070d;
+  --color-background-elevated: #09111d;
+  --color-card: #0d1726;
+  --color-sidebar: #060e19;
+  --color-header: #070d17;
   --color-text: #f8fafc;
   --color-text-muted: #94a3b8;
   --color-border: #27364e;
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #fb7185;
-  --color-fia: #f43f5e;
   --color-live: #22d3ee;
   --background: var(--color-background);
   --surface: var(--color-background-elevated);
@@ -59,6 +58,8 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   min-width: 320px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 body::before {
@@ -211,12 +212,15 @@ body::before {
 
 .app-shell {
   color: var(--color-text);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 3%, transparent), transparent 24rem),
+    transparent;
 }
 
 .app-sidebar {
   border-color: color-mix(in srgb, var(--color-border) 82%, transparent);
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 6%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 9%, transparent), transparent 32%),
     color-mix(in srgb, var(--color-sidebar) 96%, transparent);
   box-shadow: 16px 0 55px rgb(0 0 0 / 0.16);
   backdrop-filter: blur(24px);
@@ -224,7 +228,7 @@ body::before {
 
 .app-topbar {
   border-color: color-mix(in srgb, var(--color-border) 78%, transparent);
-  background: color-mix(in srgb, var(--color-header) 90%, transparent);
+  background: color-mix(in srgb, var(--color-header) 86%, transparent);
   box-shadow: 0 14px 40px rgb(0 0 0 / 0.12);
 }
 
@@ -329,10 +333,8 @@ body::before {
 .page-accent-dashboard { --page-accent: var(--accent-dashboard); }
 .page-accent-calendar { --page-accent: var(--accent-calendar); }
 .page-accent-race { --page-accent: var(--accent-race-weekend); }
-.page-accent-attendance { --page-accent: var(--accent-attendance); }
 .page-accent-results { --page-accent: var(--accent-results); }
 .page-accent-championship { --page-accent: var(--accent-championship); }
-.page-accent-fia { --page-accent: var(--accent-fia); }
 .page-accent-drivers { --page-accent: var(--accent-drivers); }
 .page-accent-teams { --page-accent: var(--accent-teams); }
 .page-accent-notifications { --page-accent: var(--accent-notifications); }
@@ -369,7 +371,7 @@ summary {
 
 @layer components {
   .page-container {
-    @apply mx-auto w-full max-w-[1540px];
+    @apply mx-auto w-full max-w-[1480px];
   }
 
   .page-stack {
@@ -384,7 +386,8 @@ summary {
     @apply border;
     border-radius: var(--radius-card);
     border-color: color-mix(in srgb, var(--color-border) 82%, transparent);
-    background: linear-gradient(145deg, color-mix(in srgb, var(--color-card) 96%, white 4%), var(--color-card));
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--color-card) 95%, white 5%), color-mix(in srgb, var(--color-card) 98%, black));
     box-shadow: var(--shadow-card);
   }
 
@@ -463,11 +466,22 @@ summary {
     box-shadow: 0 12px 30px color-mix(in srgb, var(--color-primary) 25%, transparent);
   }
 
+  .wizard-primary-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 36px color-mix(in srgb, var(--color-primary) 34%, transparent);
+  }
+
   .wizard-secondary-button {
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-semibold transition;
     color: var(--color-text-muted);
     border-color: var(--color-border);
     background: color-mix(in srgb, var(--color-card) 72%, transparent);
+  }
+
+  .wizard-secondary-button:hover {
+    color: var(--color-text);
+    border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border));
+    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-card));
   }
 
   .danger-button {

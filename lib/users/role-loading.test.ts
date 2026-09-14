@@ -38,7 +38,7 @@ const basePolicy = {
 };
 
 test("admin can add DRIVER", () => {
-  assert.equal(validateRoleChange({ ...basePolicy, currentRoles: [Role.Steward], nextRoles: [Role.Steward, Role.Driver] }), null);
+  assert.equal(validateRoleChange({ ...basePolicy, currentRoles: [Role.TeamPrincipal], nextRoles: [Role.TeamPrincipal, Role.Driver] }), null);
 });
 
 test("user actions export only async runtime functions", () => {
@@ -85,12 +85,12 @@ test("user admin forms import initial state from the neutral module", () => {
   assert.doesNotMatch(userForms, /initialUserAdminActionState,[\s\S]*from "@\/lib\/users\/actions"/);
 });
 
-test("admin can add STEWARD", () => {
-  assert.equal(validateRoleChange({ ...basePolicy, nextRoles: [Role.Driver, Role.Steward] }), null);
+test("retired system roles cannot be added", () => {
+  assert.match(validateRoleChange({ ...basePolicy, nextRoles: [Role.Driver, Role.Steward] }) ?? "", /stillgelegte historische Rollen/i);
 });
 
 test("admin can remove a non-protected role", () => {
-  assert.equal(validateRoleChange({ ...basePolicy, currentRoles: [Role.Driver, Role.Steward], nextRoles: [Role.Driver] }), null);
+  assert.equal(validateRoleChange({ ...basePolicy, currentRoles: [Role.Driver, Role.TeamPrincipal], nextRoles: [Role.Driver] }), null);
 });
 
 test("role changes create explicit audit entries", () => {
@@ -113,9 +113,9 @@ test("missing active season assignment receives a safe label", () => {
   assert.match(listPage, /Keine aktive Saisonzuordnung/);
 });
 
-test("legacy FIA_PRESIDENT remains recognized", () => {
+test("retired roles remain preserved for historical accounts", () => {
   assert.match(detailPage, /Role\.FiaPresident/);
-  assert.match(source("components/users/UserAdminForms.tsx"), /Legacy-Rolle/);
+  assert.match(source("components/users/UserAdminForms.tsx"), /stillgelegte Systemrolle/);
 });
 
 test("team principal without a real team assignment can be stored", () => {
@@ -123,7 +123,7 @@ test("team principal without a real team assignment can be stored", () => {
 });
 
 test("driver without a profile can be stored", () => {
-  assert.equal(validateRoleChange({ ...basePolicy, currentRoles: [Role.Steward], nextRoles: [Role.Steward, Role.Driver] }), null);
+  assert.equal(validateRoleChange({ ...basePolicy, currentRoles: [Role.TeamPrincipal], nextRoles: [Role.TeamPrincipal, Role.Driver] }), null);
 });
 
 test("roleless active users receive the explicit policy message", () => {
@@ -136,7 +136,7 @@ test("missing role confirmation receives the explicit message", () => {
 });
 
 test("driver and team principal assignments produce non-blocking guidance", () => {
-  assert.match(actions, /Fahrerrolle gespeichert\. Für Rennanmeldung und Liga-Zuordnung/);
+  assert.match(actions, /Fahrerrolle gespeichert\. Für die Liga- und Teamzuordnung/);
   assert.match(actions, /Teamchefrolle gespeichert\. Teambezogene Rechte/);
 });
 

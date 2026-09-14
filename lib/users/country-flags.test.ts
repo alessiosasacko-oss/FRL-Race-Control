@@ -83,10 +83,6 @@ test("result administration uses CountryFlag", () => {
   assert.match(source("components/championship/ResultsEditor.tsx"), /<CountryFlag/);
 });
 
-test("race attendance uses CountryFlag", () => {
-  assert.match(source("components/championship/AttendanceRoster.tsx"), /<CountryFlag/);
-});
-
 test("Windows compatible rendering is documented", () => {
   const documentation = source("docs/cross-platform-flags.md");
   assert.match(documentation, /Windows 10 und Windows 11/);

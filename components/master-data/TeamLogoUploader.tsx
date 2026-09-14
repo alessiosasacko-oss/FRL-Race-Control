@@ -66,7 +66,7 @@ export default function TeamLogoUploader({
         setProgress(100);
         if (input.current) input.current.value = "";
         setState({ tone: "success", message: response.message ?? "Logo wurde erfolgreich hochgeladen." });
-        dispatchAppDataChanged(["teams", "drivers", "championship", "results", "attendance", "users"]);
+        dispatchAppDataChanged(["teams", "drivers", "championship", "results", "users"]);
       } else {
         setState({ tone: "error", message: response?.message ?? "Das Logo konnte nicht gespeichert werden." });
       }
@@ -88,7 +88,7 @@ export default function TeamLogoUploader({
       if (!response.ok) throw new Error(payload.message ?? "Das Logo konnte nicht entfernt werden.");
       setLogoUrl(null);
       setState({ tone: "success", message: payload.message ?? "Logo wurde entfernt." });
-      dispatchAppDataChanged(["teams", "drivers", "championship", "results", "attendance", "users"]);
+      dispatchAppDataChanged(["teams", "drivers", "championship", "results", "users"]);
     } catch (error: unknown) {
       setState({ tone: "error", message: error instanceof Error ? error.message : "Das Logo konnte nicht entfernt werden." });
     } finally {

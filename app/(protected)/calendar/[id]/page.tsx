@@ -80,9 +80,6 @@ export default async function RaceWeekendPage({
                 </span>
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:mt-7 lg:flex lg:flex-wrap">
-                <Link href="/attendance" className="wizard-primary-button">
-                  Rennanmeldung
-                </Link>
                 <Link href={`/results/${race.id}`} className="wizard-secondary-button">
                   Ergebnisse
                 </Link>

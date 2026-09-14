@@ -4,7 +4,6 @@ import {
   CalendarDays,
   Flag,
   Search,
-  Shield,
   Trophy,
   UserRound,
   Users,
@@ -18,7 +17,6 @@ const kindConfig = {
   driver: { label: "Fahrer", icon: UserRound },
   team: { label: "Team", icon: Users },
   race: { label: "Rennen", icon: Flag },
-  ticket: { label: "FIA", icon: Shield },
   season: { label: "Saison", icon: Trophy },
 } as const;
 
@@ -131,14 +129,14 @@ export default function GlobalSearch() {
                 ref={inputRef}
                 value={query}
                 onChange={(event) => updateQuery(event.target.value)}
-                placeholder="Fahrer, Teams, Rennen, FIA-Tickets oder Saisons"
+                placeholder="Fahrer, Teams, Rennen oder Saisons"
                 className="min-w-0 flex-1 bg-transparent py-5 text-white outline-none placeholder:text-slate-500"
               />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Suche schließen"
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+                className="flex size-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white"
               >
                 <X size={18} />
               </button>

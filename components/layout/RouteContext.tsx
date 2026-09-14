@@ -5,9 +5,8 @@ import { usePathname } from "next/navigation";
 const routeLabels = [
   { path: "/dashboard", title: "Dashboard", context: "Persönliche Rennzentrale" },
   { path: "/calendar", title: "Rennkalender", context: "Aktuelle Saison" },
-  { path: "/attendance", title: "Rennanmeldung", context: "Teilnahmestatus" },
   { path: "/championship", title: "Meisterschaft", context: "Fahrer & Teams" },
-  { path: "/fia", title: "FIA Race Control", context: "Tickets & Entscheidungen" },
+  { path: "/results", title: "Ergebnisse", context: "Offizielle Klassifikationen" },
   { path: "/drivers", title: "Fahrer", context: "Ligaübersicht" },
   { path: "/teams", title: "Teams", context: "Ligaübersicht" },
   { path: "/notifications", title: "Benachrichtigungen", context: "Deine Inbox" },

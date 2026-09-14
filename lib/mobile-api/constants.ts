@@ -8,18 +8,13 @@ export const MOBILE_API_FEATURES = Object.freeze({
   driverChampionship: true,
   teamChampionship: true,
   authentication: true,
-  attendance: true,
+  attendance: false,
   fia: false,
 });
 
 export const MOBILE_API_RATE_LIMIT = Object.freeze({
   limit: 120,
   windowMs: 60_000,
-});
-
-export const MOBILE_ATTENDANCE_RATE_LIMITS = Object.freeze({
-  read: { limit: 60, windowMs: 60_000 },
-  write: { limit: 20, windowMs: 10 * 60_000 },
 });
 
 export const MOBILE_API_CACHE_SECONDS = Object.freeze({

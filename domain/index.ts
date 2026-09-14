@@ -1,5 +1,4 @@
 export * from "./championship";
-export * from "./attendance";
 export * from "./automation";
 export * from "./common";
 export * from "./driver";

@@ -1,11 +1,11 @@
 import "server-only";
-import type {
-  AnnouncementTarget,
-  AutomationJobStatus,
+import {
   AutomationJobType,
   DiscordChannelPurpose,
-  NotificationPriority,
   Role,
+  type AnnouncementTarget,
+  type AutomationJobStatus,
+  type NotificationPriority,
 } from "@/domain";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { buildLeagueChannelMatrixRows } from "@/lib/discord/channel-matrix";
@@ -14,6 +14,16 @@ import type {
   AnnouncementListItem,
   AutomationDashboardData,
 } from "./types";
+
+/* Historical enum values stay in the database, but retired features are
+ * excluded from every active automation configuration view. */
+const retiredChannelPurposes = [
+  DiscordChannelPurpose.AttendanceOpened,
+  DiscordChannelPurpose.AttendanceClosingSoon,
+  DiscordChannelPurpose.AttendanceClosed,
+  DiscordChannelPurpose.FiaDecision,
+] as const;
+const retiredRoles = [Role.FiaPresident, Role.Steward] as const;
 
 export async function getAutomationDashboardData(): Promise<AutomationDashboardData> {
   const prisma = getPrismaClient();
@@ -34,8 +44,14 @@ export async function getAutomationDashboardData(): Promise<AutomationDashboardD
     prisma.discordGuildSettings.findMany({
       orderBy: { guildName: "asc" },
       include: {
-        channelMappings: { orderBy: [{ scopeKey: "asc" }, { purpose: "asc" }] },
-        roleMappings: { orderBy: { role: "asc" } },
+        channelMappings: {
+          where: { purpose: { notIn: [...retiredChannelPurposes] } },
+          orderBy: [{ scopeKey: "asc" }, { purpose: "asc" }],
+        },
+        roleMappings: {
+          where: { role: { notIn: [...retiredRoles] } },
+          orderBy: { role: "asc" },
+        },
       },
     }),
     prisma.league.findMany({
@@ -43,10 +59,14 @@ export async function getAutomationDashboardData(): Promise<AutomationDashboardD
       orderBy: { code: "asc" },
       select: { id: true, name: true, code: true },
     }),
-    prisma.automationJob.findMany({ orderBy: { name: "asc" } }),
+    prisma.automationJob.findMany({
+      where: { type: { not: AutomationJobType.AttendanceReminders } },
+      orderBy: { name: "asc" },
+    }),
     prisma.automationJobRun.findMany({
       orderBy: { startedAt: "desc" },
       take: 20,
+      where: { job: { type: { not: AutomationJobType.AttendanceReminders } } },
       include: { job: { select: { name: true } } },
     }),
     prisma.discordDelivery.count({ where: { status: "PENDING" } }),

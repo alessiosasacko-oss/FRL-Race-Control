@@ -518,7 +518,11 @@ test("me returns roles and permissions loaded from the database context", () => 
   const result = serializeMobileUser(mobileUserContext());
   assert.deepEqual(result.roles, [Role.Driver, Role.Steward]);
   assert.ok(result.permissions.includes("VIEW_RACE_CONTROL"));
-  assert.ok(result.permissions.includes("REVIEW_FIA_TICKET"));
+  assert.deepEqual(result.permissions.sort(), [
+    "VIEW_CHAMPIONSHIP",
+    "VIEW_MASTER_DATA",
+    "VIEW_RACE_CONTROL",
+  ]);
 });
 
 test("me returns the current database league and team assignment", () => {

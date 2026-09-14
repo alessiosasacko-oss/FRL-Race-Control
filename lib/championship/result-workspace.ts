@@ -39,15 +39,12 @@ export function unsavedResultWarning(leagueCode: string): string {
 export function resultPublishSummary(input: {
   driverIds: readonly string[];
   fastestDriverNames: readonly string[];
-  decisionIds: readonly number[];
 }): {
   driverCount: number;
   fastestDriverNames: string[];
-  fiaDecisionCount: number;
 } {
   return {
     driverCount: new Set(input.driverIds.filter(Boolean)).size,
     fastestDriverNames: [...new Set(input.fastestDriverNames)],
-    fiaDecisionCount: new Set(input.decisionIds).size,
   };
 }

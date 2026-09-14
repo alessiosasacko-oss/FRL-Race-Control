@@ -17,7 +17,6 @@ type AdjustmentFormProps = {
   drivers: Array<{ id: number; name: string; number: number }>;
   teams: Array<{ id: number; name: string }>;
   races: Array<{ id: number; name: string; round: number }>;
-  tickets: Array<{ id: number; title: string }>;
 };
 
 export default function AdjustmentForm({
@@ -26,7 +25,6 @@ export default function AdjustmentForm({
   drivers,
   teams,
   races,
-  tickets,
 }: AdjustmentFormProps) {
   const [target, setTarget] = useState(
     ChampionshipAdjustmentTarget.Driver,
@@ -113,17 +111,6 @@ export default function AdjustmentForm({
             {races.map((race) => (
               <option key={race.id} value={race.id}>
                 R{race.round} · {race.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="master-label">
-          Zugehöriges FIA-Ticket
-          <select name="fiaTicketId" className="form-control mt-2">
-            <option value="">Kein FIA-Ticket</option>
-            {tickets.map((ticket) => (
-              <option key={ticket.id} value={ticket.id}>
-                #{ticket.id} · {ticket.title}
               </option>
             ))}
           </select>

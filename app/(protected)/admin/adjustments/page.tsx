@@ -92,7 +92,6 @@ export default async function AdjustmentsPage({
               drivers={data.drivers}
               teams={data.teams}
               races={data.races}
-              tickets={data.tickets}
             />
           </section>
         ) : null}
@@ -141,9 +140,6 @@ export default async function AdjustmentsPage({
                   }).format(adjustment.createdAt)}
                   {adjustment.race
                     ? ` · ${adjustment.race.name}`
-                    : ""}
-                  {adjustment.fiaTicket
-                    ? ` · FIA #${adjustment.fiaTicket.id}`
                     : ""}
                 </p>
               </article>

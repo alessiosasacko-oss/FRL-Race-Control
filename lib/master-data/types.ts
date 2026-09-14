@@ -132,7 +132,6 @@ export type LeagueAdminItem = LeagueOption & {
   raceWeekday: number;
   raceStartMinute: number;
   raceTimezone: string;
-  defaultAttendanceDeadlineMinutes: number | null;
   displayOrder: number;
   seasons: SeasonOption[];
   futureSchedules: Array<{
@@ -146,7 +145,6 @@ export type LeagueAdminItem = LeagueOption & {
   counts: {
     drivers: number;
     teams: number;
-    tickets: number;
   };
 };
 
@@ -181,23 +179,18 @@ export type RaceItem = {
   doublePoints: boolean;
   mystery: boolean;
   trackRevealed: boolean;
-  attendanceDeadline: string | null;
-  attendanceDeadlineLocal: string;
   leagueSchedules: Array<{
     id: number;
     league: LeagueOption;
     scheduledAt: string;
     localStart: string;
     timezone: string;
-    attendanceDeadline: string | null;
-    attendanceDeadlineLocal: string;
   }>;
   season: {
     id: number;
     name: string;
     leagues: LeagueOption[];
   };
-  ticketCount: number;
 };
 
 export type DriverItem = {
@@ -236,7 +229,6 @@ export type DriverItem = {
 };
 
 export type DriverDetail = DriverItem & {
-  ticketCount: number;
   standingCount: number;
   standing: {
     position: number;

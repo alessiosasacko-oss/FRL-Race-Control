@@ -29,7 +29,6 @@ import {
   driverSchema,
   entityIdSchema,
   leagueUpdateSchema,
-  raceDeadlineOverrideSchema,
   raceSchema,
   seasonSchema,
   teamArchiveSchema,
@@ -38,7 +37,6 @@ import {
   teamSchema,
   teamOrganizationSchema,
 } from "./schemas";
-import { zonedLocalToUtc } from "./timezone";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import { calculateLeagueRaceSchedule } from "@/lib/races/scheduling";
 import { writeSystemAudit } from "@/lib/audit/system";
@@ -85,22 +83,18 @@ async function revalidateMasterData(): Promise<void> {
   revalidatePath("/admin/drivers");
   revalidatePath("/admin/teams");
   revalidatePath("/calendar");
-  revalidatePath("/attendance");
   revalidatePath("/championship");
   revalidatePath("/championship/team-principals");
   revalidatePath("/results/[id]", "page");
-  revalidatePath("/admin/attendance");
   revalidatePath("/admin/results");
   revalidatePath("/drivers");
   revalidatePath("/drivers/[id]", "page");
   revalidatePath("/teams");
   revalidatePath("/teams/[id]", "page");
-  revalidatePath("/fia");
-  revalidatePath("/fia/new");
   revalidatePath("/dashboard");
   revalidatePath("/notifications");
   await touchAppDataRevisionSafely(getPrismaClient(), [
-    "drivers", "teams", "seasons", "leagues", "calendar", "attendance", "results", "championship", "fia", "notifications",
+    "drivers", "teams", "seasons", "leagues", "calendar", "results", "championship", "notifications",
   ]);
 }
 
@@ -123,9 +117,6 @@ export async function updateLeagueAction(
     raceWeekday: formData.get("raceWeekday"),
     raceStartTime: formData.get("raceStartTime"),
     raceTimezone: formData.get("raceTimezone"),
-    defaultAttendanceDeadlineHours: formData.get(
-      "defaultAttendanceDeadlineHours",
-    ),
     displayOrder: formData.get("displayOrder"),
     updateFutureSchedules: formData.get("updateFutureSchedules"),
     confirmFutureScheduleUpdate: formData.get(
@@ -152,10 +143,6 @@ export async function updateLeagueAction(
     .split(":")
     .map(Number);
   const raceStartMinute = startHour * 60 + startMinute;
-  const defaultAttendanceDeadlineMinutes =
-    parsed.data.defaultAttendanceDeadlineHours === null
-      ? null
-      : parsed.data.defaultAttendanceDeadlineHours * 60;
 
   try {
     if (parsed.data.currentSeasonId) {
@@ -188,7 +175,6 @@ export async function updateLeagueAction(
           raceWeekday: parsed.data.raceWeekday,
           raceStartMinute,
           raceTimezone: parsed.data.raceTimezone,
-          defaultAttendanceDeadlineMinutes,
           displayOrder: parsed.data.displayOrder,
         },
       });
@@ -213,7 +199,6 @@ export async function updateLeagueAction(
               raceWeekday: parsed.data.raceWeekday,
               raceStartMinute,
               raceTimezone: parsed.data.raceTimezone,
-              defaultAttendanceDeadlineMinutes,
             },
           );
           await transaction.raceLeagueSchedule.update({
@@ -221,7 +206,6 @@ export async function updateLeagueAction(
             data: {
               scheduledAt: calculated.scheduledAt,
               timezone: calculated.timezone,
-              attendanceDeadline: calculated.attendanceDeadline,
             },
           });
           affectedRaceIds.add(schedule.race.id);
@@ -240,8 +224,6 @@ export async function updateLeagueAction(
               data: {
                 scheduledAt: firstSchedule.scheduledAt,
                 timezone: firstSchedule.timezone,
-                attendanceDeadline:
-                  firstSchedule.attendanceDeadline,
               },
             });
           }
@@ -259,15 +241,12 @@ export async function updateLeagueAction(
               raceWeekday: previous.raceWeekday,
               raceStartMinute: previous.raceStartMinute,
               raceTimezone: previous.raceTimezone,
-              defaultAttendanceDeadlineMinutes:
-                previous.defaultAttendanceDeadlineMinutes,
               displayOrder: previous.displayOrder,
             },
             next: {
               raceWeekday: parsed.data.raceWeekday,
               raceStartMinute,
               raceTimezone: parsed.data.raceTimezone,
-              defaultAttendanceDeadlineMinutes,
               displayOrder: parsed.data.displayOrder,
             },
             updatedScheduleCount,
@@ -548,7 +527,6 @@ export async function createRaceAction(
   let calculatedSchedules: Array<{
     league: (typeof season.participatingLeagues)[number];
     scheduledAt: Date;
-    attendanceDeadline: Date | null;
     timezone: string;
   }>;
   try {
@@ -591,7 +569,6 @@ export async function createRaceAction(
           round: parsed.data.round,
           weekendDate,
           scheduledAt: firstSchedule.scheduledAt,
-          attendanceDeadline: firstSchedule.attendanceDeadline,
           timezone: firstSchedule.timezone,
           status: parsed.data.status as PrismaRaceStatus,
           sessions: raceSessions(parsed.data.sprint),
@@ -603,7 +580,6 @@ export async function createRaceAction(
               leagueId: schedule.league.id,
               scheduledAt: schedule.scheduledAt,
               timezone: schedule.timezone,
-              attendanceDeadline: schedule.attendanceDeadline,
             })),
           },
         },
@@ -620,10 +596,6 @@ export async function createRaceAction(
       });
       const track = publicRaceTrack(race);
       for (const league of race.season.participatingLeagues) {
-        const leagueSchedule = calculatedSchedules.find(
-          (schedule) => schedule.league.id === league.id,
-        );
-        if (!leagueSchedule) continue;
         const recipients = await leagueUserIds(transaction, league.id);
         await createNotifications(
           transaction,
@@ -646,45 +618,6 @@ export async function createRaceAction(
             },
           },
         );
-
-        if (
-          leagueSchedule.attendanceDeadline &&
-          leagueSchedule.attendanceDeadline > new Date()
-        ) {
-          const drivers = await transaction.driver.findMany({
-            where: {
-              leagueId: league.id,
-              active: true,
-              userId: { not: null },
-              team: { seasonId: parsed.data.seasonId },
-            },
-            select: { userId: true },
-          });
-          await createNotifications(
-            transaction,
-            drivers.flatMap((driver) =>
-              driver.userId === null ? [] : [driver.userId],
-            ),
-            {
-              type: NotificationType.AttendanceOpen,
-              title: `Rennanmeldung für Runde ${race.round} geöffnet`,
-              message:
-                "Du kannst deine Teilnahme jetzt in FRL Race Control bestätigen.",
-              href: `/attendance?raceId=${race.id}&leagueId=${league.id}`,
-              relatedEntity: { type: "Race", id: race.id },
-              dedupeKey: `attendance-open:${race.id}:${league.id}`,
-            },
-            {
-              leagueId: league.id,
-              discordContext: {
-                league: league.name,
-                season: race.season.name,
-                race: track.name,
-                track: track.circuit ?? "Mystery Track",
-              },
-            },
-          );
-        }
       }
     });
   } catch {
@@ -746,7 +679,7 @@ export async function updateRaceAction(
         existing._count.resultSessions > 0)
     ) {
       return errorState(
-        "Rennen mit Anmeldungen oder Ergebnissen können nicht in eine andere Saison verschoben werden.",
+        "Rennen mit historischen Verknüpfungen oder Ergebnissen können nicht in eine andere Saison verschoben werden.",
       );
     }
     if (
@@ -784,45 +717,6 @@ export async function updateRaceAction(
     if (calculatedSchedules.length === 0) {
       return errorState("Für diese Saison sind keine Ligen verfügbar.");
     }
-    for (const schedule of calculatedSchedules) {
-      const rawDeadline = formData.get(
-        `attendanceDeadline-${schedule.league.id}`,
-      );
-      if (rawDeadline === null) {
-        if (
-          existing.weekendDate.toISOString().slice(0, 10) ===
-          parsed.data.weekendDate
-        ) {
-          schedule.attendanceDeadline =
-            existing.leagueSchedules.find(
-              (current) =>
-                current.leagueId === schedule.league.id,
-            )?.attendanceDeadline ?? schedule.attendanceDeadline;
-        }
-        continue;
-      }
-      const deadline = raceDeadlineOverrideSchema.safeParse({
-        leagueId: schedule.league.id,
-        localDeadline: rawDeadline,
-      });
-      if (!deadline.success) {
-        return errorState(
-          `Der Anmeldeschluss für ${schedule.league.code} ist ungültig.`,
-        );
-      }
-      try {
-        schedule.attendanceDeadline = deadline.data.localDeadline
-          ? zonedLocalToUtc(
-              deadline.data.localDeadline,
-              schedule.timezone,
-            )
-          : null;
-      } catch {
-        return errorState(
-          `Der Anmeldeschluss für ${schedule.league.code} existiert in der Zeitzone nicht.`,
-        );
-      }
-    }
     const firstSchedule = [...calculatedSchedules].sort(
       (left, right) =>
         left.scheduledAt.getTime() - right.scheduledAt.getTime(),
@@ -857,7 +751,6 @@ export async function updateRaceAction(
           round: parsed.data.round,
           weekendDate,
           scheduledAt: firstSchedule.scheduledAt,
-          attendanceDeadline: firstSchedule.attendanceDeadline,
           timezone: firstSchedule.timezone,
           status: parsed.data.status as PrismaRaceStatus,
           sessions: raceSessions(parsed.data.sprint),
@@ -877,14 +770,12 @@ export async function updateRaceAction(
           update: {
             scheduledAt: schedule.scheduledAt,
             timezone: schedule.timezone,
-            attendanceDeadline: schedule.attendanceDeadline,
           },
           create: {
             raceId: raceId.data,
             leagueId: schedule.league.id,
             scheduledAt: schedule.scheduledAt,
             timezone: schedule.timezone,
-            attendanceDeadline: schedule.attendanceDeadline,
           },
         });
       }
@@ -950,7 +841,7 @@ export async function deleteRaceAction(
   const prisma = getPrismaClient();
 
   try {
-    const [ticketCount, attendanceCount, resultCount] =
+    const [historicalCaseCount, historicalParticipationCount, resultCount] =
       await prisma.$transaction([
         prisma.fiaTicket.count({
           where: { raceId: raceId.data },
@@ -963,9 +854,9 @@ export async function deleteRaceAction(
         }),
       ]);
 
-    if (ticketCount > 0 || attendanceCount > 0 || resultCount > 0) {
+    if (historicalCaseCount > 0 || historicalParticipationCount > 0 || resultCount > 0) {
       return errorState(
-        "Rennen mit FIA-Tickets, Anmeldungen oder Ergebnissen können nicht gelöscht werden. Setze den Status stattdessen auf Abgesagt.",
+        "Rennen mit historischen Verknüpfungen oder Ergebnissen können nicht gelöscht werden. Setze den Status stattdessen auf Abgesagt.",
       );
     }
 

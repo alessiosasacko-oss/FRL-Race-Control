@@ -18,9 +18,7 @@ import {
   createNotifications,
   leagueUserIds,
 } from "@/lib/notifications/service";
-import { generateAttendanceNotifications } from "@/lib/notifications/scheduler";
 import { logger } from "@/lib/observability/logger";
-import { processEvidenceStorageCleanupQueue } from "@/lib/storage/evidence-cleanup";
 import { processPendingResultGraphics } from "@/lib/graphics/result-graphic-service";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import { cleanupMobileAuthRecords } from "@/lib/mobile-api/auth/cleanup";
@@ -32,7 +30,6 @@ type JobDefinition = {
 };
 
 const jobDefinitions: readonly JobDefinition[] = [
-  { type: AutomationJobType.AttendanceReminders, name: "Rennanmeldungs-Erinnerungen", intervalMinutes: 60 },
   { type: AutomationJobType.UpcomingRaceReminders, name: "Rennwochenend-Erinnerungen", intervalMinutes: 60 },
   { type: AutomationJobType.ChampionshipVerification, name: "Meisterschaftsprüfung", intervalMinutes: 360 },
   { type: AutomationJobType.NotificationCleanup, name: "Benachrichtigungs-Bereinigung", intervalMinutes: 1440 },
@@ -46,6 +43,10 @@ const jobDefinitions: readonly JobDefinition[] = [
 
 export async function ensureAutomationJobs(): Promise<void> {
   const prisma = getPrismaClient();
+  await prisma.automationJob.updateMany({
+    where: { type: PrismaJobType.ATTENDANCE_REMINDERS },
+    data: { enabled: false },
+  });
   for (const definition of jobDefinitions) {
     await prisma.automationJob.upsert({
       where: { type: definition.type as PrismaJobType },
@@ -154,13 +155,10 @@ async function cleanupNotifications() {
       where: { status: "PROCESSED", processedAt: { lt: eventCutoff } },
     }),
   ]);
-  const evidenceStorage = await processEvidenceStorageCleanupQueue();
   const mobileAuth = await cleanupMobileAuthRecords();
   return {
     deletedNotifications: notifications.count,
     deletedWebhookEvents: webhooks.count,
-    deletedEvidenceFiles: evidenceStorage.processed,
-    failedEvidenceFileDeletions: evidenceStorage.failed,
     deletedMobileAuthorizationCodes: mobileAuth.authorizationCodes,
     deletedMobileOAuthAttempts: mobileAuth.oauthAttempts,
     deletedMobileSessions: mobileAuth.sessions,
@@ -221,18 +219,17 @@ async function publishMysteryRaces() {
 
 async function refreshStatistics() {
   const prisma = getPrismaClient();
-  const [activeUsers, upcomingRaces, openTickets, pendingDeliveries] =
+  const [activeUsers, upcomingRaces, pendingDeliveries] =
     await prisma.$transaction([
       prisma.user.count({ where: { active: true } }),
       prisma.race.count({
         where: { status: "SCHEDULED", scheduledAt: { gte: new Date() } },
       }),
-      prisma.fiaTicket.count({ where: { status: { not: "RESOLVED" } } }),
       prisma.discordDelivery.count({
         where: { status: { in: ["PENDING", "FAILED"] } },
       }),
     ]);
-  return { activeUsers, upcomingRaces, openTickets, pendingDeliveries };
+  return { activeUsers, upcomingRaces, pendingDeliveries };
 }
 
 async function executeJob(
@@ -240,8 +237,7 @@ async function executeJob(
 ): Promise<Prisma.InputJsonValue> {
   switch (type) {
     case AutomationJobType.AttendanceReminders:
-      await generateAttendanceNotifications();
-      return { generated: true };
+      return { retired: true };
     case AutomationJobType.UpcomingRaceReminders:
       return upcomingRaceReminders();
     case AutomationJobType.ChampionshipVerification:
@@ -287,6 +283,7 @@ export async function runDueAutomationJobs(
   const jobs = await prisma.automationJob.findMany({
     where: {
       enabled: true,
+      type: { not: PrismaJobType.ATTENDANCE_REMINDERS },
       status: {
         in: [PrismaJobStatus.SCHEDULED, PrismaJobStatus.FAILED, PrismaJobStatus.COMPLETED],
       },

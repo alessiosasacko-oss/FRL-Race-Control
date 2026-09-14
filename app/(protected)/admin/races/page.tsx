@@ -59,9 +59,7 @@ export default async function RaceAdminPage() {
                       Liga-Termine
                     </p>
                   </div>
-                  <p className="text-xs text-slate-500">
-                    {race.ticketCount} FIA-Tickets
-                  </p>
+                  <p className="text-xs text-slate-500">{race.season.name}</p>
                 </div>
               </summary>
               <div className="mt-5 border-t border-slate-800 pt-5">

@@ -31,15 +31,15 @@ const roleContext = {
 };
 
 test("admin can add DRIVER when a driver profile exists", () => {
-  assert.equal(validateRoleChange({ ...roleContext, actorRoles: [Role.Admin], currentRoles: [Role.Steward], nextRoles: [Role.Steward, Role.Driver] }), null);
+  assert.equal(validateRoleChange({ ...roleContext, actorRoles: [Role.Admin], currentRoles: [Role.TeamPrincipal], nextRoles: [Role.TeamPrincipal, Role.Driver] }), null);
 });
 
-test("admin can add STEWARD independently from the sports assignment", () => {
-  assert.equal(validateRoleChange({ ...roleContext, actorRoles: [Role.Admin], nextRoles: [Role.Driver, Role.Steward] }), null);
+test("admin cannot add a retired system role", () => {
+  assert.match(validateRoleChange({ ...roleContext, actorRoles: [Role.Admin], nextRoles: [Role.Driver, Role.Steward] }) ?? "", /stillgelegte historische Rollen/i);
 });
 
 test("admin can add DRIVER without a driver profile", () => {
-  assert.equal(validateRoleChange({ ...roleContext, actorRoles: [Role.Admin], currentRoles: [Role.Steward], nextRoles: [Role.Steward, Role.Driver] }), null);
+  assert.equal(validateRoleChange({ ...roleContext, actorRoles: [Role.Admin], currentRoles: [Role.TeamPrincipal], nextRoles: [Role.TeamPrincipal, Role.Driver] }), null);
 });
 
 test("admin can add TEAM_PRINCIPAL without a team assignment", () => {
@@ -95,24 +95,15 @@ test("team detail groups all FRL leagues F1 through F6", () => {
   assert.match(source("lib/teams/queries.ts"), /\["F1", "F2", "F3", "F4", "F5", "F6"\]/);
 });
 
-test("team principal permission can manage own team attendance", () => {
-  assert.equal(hasPermission([Role.TeamPrincipal], Permission.ManageTeamAttendance), true);
-});
-
-test("effective permissions show role-derived steward actions", () => {
+test("a retired role retains only baseline read access", () => {
   const access = effectiveUserAccess({ roles: [Role.Steward], hasDriverProfile: false });
-  assert.equal(access.actions.find((item) => item.id === "vote")?.status, "ALLOWED");
-  assert.match(access.actions.find((item) => item.id === "vote")?.reason ?? "", /Steward/i);
+  assert.equal(access.navigation.find((item) => item.id === "championship")?.status, "ALLOWED");
+  assert.equal(access.actions.every((item) => item.status === "DENIED"), true);
 });
 
-test("driver role without a profile keeps attendance context restricted", () => {
-  const access = effectiveUserAccess({ roles: [Role.Driver], hasDriverProfile: false });
-  assert.equal(access.actions.find((item) => item.id === "own-attendance")?.status, "RESTRICTED");
-});
-
-test("team principal role without a team keeps team actions restricted", () => {
+test("team principal role without a team reports the missing context", () => {
   const access = effectiveUserAccess({ roles: [Role.TeamPrincipal], teamName: null });
-  assert.equal(access.actions.find((item) => item.id === "team-attendance")?.status, "RESTRICTED");
+  assert.ok(access.restrictions.includes("Kein Team-Kontext vorhanden."));
 });
 
 test("permission preview can never write", () => {
@@ -158,10 +149,6 @@ test("country selection persists a normalized ISO code", () => {
 
 test("result editor uses the central CountryFlag", () => {
   assert.match(source("components/championship/ResultsEditor.tsx"), /<CountryFlag/);
-});
-
-test("attendance roster uses the central CountryFlag", () => {
-  assert.match(source("components/championship/AttendanceRoster.tsx"), /<CountryFlag/);
 });
 
 test("team overview uses the central CountryFlag", () => {

@@ -1,11 +1,9 @@
 import {
-  Activity,
   Bell,
   Bot,
   Calendar,
   CalendarRange,
   ChartNoAxesCombined,
-  ClipboardCheck,
   Clock3,
   Cog,
   Flag,
@@ -15,7 +13,6 @@ import {
   Map,
   Palette,
   Settings2,
-  Shield,
   Trophy,
   UserCog,
   Users,
@@ -25,9 +22,8 @@ import { Permission } from "@/lib/auth/permissions";
 export const driverNavigationItems = [
   { name: "Dashboard", href: "/dashboard", icon: Home, permission: Permission.ViewRaceControl },
   { name: "Kalender", href: "/calendar", icon: Calendar, permission: Permission.ViewMasterData },
-  { name: "Rennanmeldung", href: "/attendance", icon: ClipboardCheck, permission: Permission.ViewChampionship },
   { name: "Meisterschaft", href: "/championship", icon: Trophy, permission: Permission.ViewChampionship },
-  { name: "FIA", href: "/fia", icon: Shield, permission: Permission.ViewRaceControl },
+  { name: "Ergebnisse", href: "/results", icon: ChartNoAxesCombined, permission: Permission.ViewChampionship },
   { name: "Benachrichtigungen", href: "/notifications", icon: Bell, permission: Permission.ViewRaceControl },
 ] as const;
 
@@ -49,7 +45,6 @@ export const administrationNavigationItems = [
   { name: "Ergebnisse", href: "/admin/results", icon: ChartNoAxesCombined, permission: Permission.ManageResults },
   { name: "Fahrer", href: "/admin/drivers", icon: UserCog, permission: Permission.ManageMasterData },
   { name: "Benutzer & Rollen", href: "/admin/users", icon: Users, permission: Permission.ManageUsers },
-  { name: "Anmeldungen", href: "/admin/attendance", icon: Activity, permission: Permission.ManageAttendance },
   { name: "Kommunikation", href: "/admin/announcements", icon: Megaphone, permission: Permission.ManageAdministration },
   { name: "Automationen", href: "/admin/automation", icon: Bot, permission: Permission.ManageAutomation },
   { name: "Design & Branding", href: "/admin/design", icon: Palette, permission: Permission.ManageBranding },
@@ -67,5 +62,5 @@ export const mobilePrimaryItems = [
   driverNavigationItems[0],
   driverNavigationItems[1],
   driverNavigationItems[2],
-  driverNavigationItems[4],
+  driverNavigationItems[3],
 ] as const;

@@ -14,8 +14,6 @@ const completeWeekend = {
     `1:${ResultSession.Race}`,
     `2:${ResultSession.Race}`,
   ]),
-  openTicketCount: 0,
-  unappliedPenaltyCount: 0,
   unmappedTeamIds: [] as number[],
 };
 
@@ -49,26 +47,6 @@ test("sprint weekends require sprint and race per league", () => {
   );
 });
 
-test("open FIA tickets block global finalization", () => {
-  assert.equal(
-    globalWeekendBlockReason({
-      ...completeWeekend,
-      openTicketCount: 1,
-    }),
-    "FIA_TICKETS_OPEN",
-  );
-});
-
-test("unapplied FIA result penalties block global finalization", () => {
-  assert.equal(
-    globalWeekendBlockReason({
-      ...completeWeekend,
-      unappliedPenaltyCount: 1,
-    }),
-    "FIA_PENALTIES_NOT_APPLIED",
-  );
-});
-
 test("teams without stable organizations block aggregation", () => {
   assert.equal(
     globalWeekendBlockReason({
@@ -79,7 +57,7 @@ test("teams without stable organizations block aggregation", () => {
   );
 });
 
-test("complete league results and FIA state finalize safely", () => {
+test("complete league results finalize safely", () => {
   assert.equal(globalWeekendBlockReason(completeWeekend), null);
 });
 

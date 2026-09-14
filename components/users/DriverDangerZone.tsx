@@ -145,7 +145,7 @@ function DriverAdministrationDangerZone({
       <DangerDialog
         dialogRef={anonymizeDialog}
         title={`${snapshot.driver.name} anonymisieren`}
-        description="Personenbezogene Daten werden entfernt. Ergebnisse, Punkte, FIA- und Teamhistorie bleiben bestehen."
+        description="Personenbezogene Daten werden entfernt. Ergebnisse, Punkte und historische Verknüpfungen bleiben bestehen."
         action={anonymizeAction}
         state={anonymizeState}
         pending={anonymizePending}
@@ -218,7 +218,7 @@ function UserAdministrationDangerZone({
         <label className="flex min-h-12 items-start gap-3 rounded-xl border border-slate-700 p-3 text-sm"><input type="checkbox" name="removeDriverRole" defaultChecked className="mt-0.5 size-5 accent-red-500" />DRIVER-Rolle ebenfalls entfernen (Standard)</label>
       </DangerDialog>
       <DangerDialog dialogRef={userDialog} title={`Benutzerkonto und Fahrer von ${confirmationName} löschen`} description="Accounts, Sessions, Rollen, Einstellungen und das unbenutzte Fahrerprofil werden transaktional und unwiderruflich gelöscht." action={userAction} state={userState} pending={userPending} confirmationName={confirmationName} submitLabel="Benutzer und Fahrer endgültig löschen" />
-      <DangerDialog dialogRef={anonymizeDialog} title={`${confirmationName} anonymisieren`} description="Persönliche Daten und Auth-Verknüpfungen werden entfernt. Ergebnisse, Punkte, FIA- und Teamhistorie bleiben bestehen." action={anonymizeAction} state={anonymizeState} pending={anonymizePending} confirmationName={confirmationName} submitLabel="Fahrerdaten anonymisieren" />
+      <DangerDialog dialogRef={anonymizeDialog} title={`${confirmationName} anonymisieren`} description="Persönliche Daten und Auth-Verknüpfungen werden entfernt. Ergebnisse, Punkte und historische Verknüpfungen bleiben bestehen." action={anonymizeAction} state={anonymizeState} pending={anonymizePending} confirmationName={confirmationName} submitLabel="Fahrerdaten anonymisieren" />
     </DangerZoneShell>
   );
 }
@@ -231,7 +231,7 @@ function DangerZoneShell({ children }: { children: React.ReactNode }) {
         <div>
           <p className="eyebrow text-red-300">Gefahrenzone</p>
           <h2 className="mt-2 text-xl font-black text-white">Fahrer deaktivieren oder endgültig entfernen</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Historische Sport-, FIA- und Verwaltungsdaten werden vor jeder endgültigen Löschung serverseitig erneut geprüft.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Historische Sport- und Verwaltungsdaten werden vor jeder endgültigen Löschung serverseitig erneut geprüft.</p>
         </div>
       </div>
       {children}
@@ -259,7 +259,7 @@ function DependencyOverview({ blocking, removable, includeUserData }: { blocking
       <h3 className="font-bold text-white">Abhängigkeitsprüfung</h3>
       {blocking.length ? (
         <><p className="mt-2 text-sm text-amber-200">Endgültige Löschung ist aktuell gesperrt:</p><ul className="mt-3 grid gap-2 text-sm text-slate-300 sm:grid-cols-2">{blocking.map((message) => <li key={message} className="break-words">• {message}</li>)}</ul></>
-      ) : <p className="mt-2 text-sm text-emerald-300">Keine sperrende Sport-, FIA- oder Verwaltungshistorie gefunden.</p>}
+      ) : <p className="mt-2 text-sm text-emerald-300">Keine sperrende Sport- oder Verwaltungshistorie gefunden.</p>}
       <p className="mt-4 text-xs leading-5 text-slate-500">Entfernbar: {removable.seasonAssignments} Saisonzuordnungen{includeUserData ? `, ${removable.accounts} Auth-Accounts, ${removable.sessions} Sessions und ${removable.notifications} Benachrichtigungen` : ""}. {removable.retainedSystemAudits} System-Audit-Einträge bleiben als minimales Löschprotokoll erhalten.</p>
     </div>
   );

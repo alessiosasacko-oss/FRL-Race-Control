@@ -47,25 +47,6 @@ export const mobileResultsQuerySchema = z
 
 export const mobileRaceIdSchema = positiveInteger;
 
-export const mobileAttendanceQuerySchema = z
-  .object({
-    seasonId: positiveInteger.optional(),
-    status: z
-      .enum(["SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"])
-      .optional(),
-    upcoming: z
-      .enum(["true", "false"])
-      .transform((value) => value === "true")
-      .optional(),
-  })
-  .strict();
-
-export const mobileAttendanceUpdateSchema = z
-  .object({
-    status: z.enum(["REGISTERED", "DECLINED"]),
-  })
-  .strict();
-
 export const mobileEmptyQuerySchema = z.object({}).strict();
 
 export function searchParamsObject(

@@ -2,6 +2,30 @@ import type {
   NotificationPriority,
   NotificationType,
 } from "@/domain";
+import { NotificationType as NotificationTypeValue } from "@/domain";
+
+export const activeNotificationTypes = [
+  NotificationTypeValue.System,
+  NotificationTypeValue.RaceReminder,
+  NotificationTypeValue.Championship,
+  NotificationTypeValue.Penalty,
+  NotificationTypeValue.QualifyingBan,
+  NotificationTypeValue.RaceBan,
+  NotificationTypeValue.RaceResult,
+  NotificationTypeValue.ChampionshipUpdated,
+  NotificationTypeValue.NewSeason,
+  NotificationTypeValue.NewRace,
+  NotificationTypeValue.AdminAnnouncement,
+] as const;
+
+export const retiredNotificationTypes = [
+  "ATTENDANCE",
+  "ATTENDANCE_OPEN",
+  "ATTENDANCE_CLOSING_SOON",
+  "ATTENDANCE_CLOSED",
+  "FIA_TICKET",
+  "FIA_DECISION",
+] as const;
 
 export type NotificationActionState = {
   status: "idle" | "success" | "error";

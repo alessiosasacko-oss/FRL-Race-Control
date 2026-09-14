@@ -30,7 +30,5 @@ export type ProfileData = {
     poles: number;
     fastestLaps: number;
     championships: number;
-    attendancePercentage: number;
-    penalties: number;
   };
 };

@@ -1,6 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
 import { processEmailOutbox } from "@/lib/email/outbox";
-import { generateAttendanceNotifications } from "@/lib/notifications/scheduler";
 
 export const runtime = "nodejs";
 
@@ -22,7 +21,6 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await generateAttendanceNotifications();
   const result = await processEmailOutbox();
   return Response.json(result);
 }

@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
-  CheckCircle2,
   Clock3,
   EyeOff,
   Flag,
@@ -173,10 +172,6 @@ function NextRaceHero({
               <Gauge size={18} />
               Race Weekend öffnen
             </Link>
-            <Link href="/attendance" className="wizard-primary-button w-full sm:w-auto">
-              <CheckCircle2 size={18} />
-              Zur Rennanmeldung
-            </Link>
             <Link
               href={resultHref(race.id, leagueId)}
               className="wizard-secondary-button w-full sm:w-auto"
@@ -261,11 +256,6 @@ function RaceTimelineItem({
             <span className="text-xs text-violet-300">
               <Sparkles className="mr-1 inline" size={12} />
               Doppelte Punkte
-            </span>
-          ) : null}
-          {race.ticketCount > 0 ? (
-            <span className="text-xs text-amber-300">
-              {race.ticketCount} FIA-Ticket(s)
             </span>
           ) : null}
         </div>

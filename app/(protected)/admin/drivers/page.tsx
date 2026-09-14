@@ -38,7 +38,7 @@ export default async function DriverAdminPage({ searchParams }: DriverAdminPageP
         </div>
         {notice === "deleted" ? (
           <>
-            <LiveMutationSignal scopes={["drivers", "teams", "attendance", "championship"]} clearQueryParameter="notice" />
+            <LiveMutationSignal scopes={["drivers", "teams", "championship"]} clearQueryParameter="notice" />
             <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-semibold text-emerald-200">
               Der Fahrer wurde endgültig gelöscht. Ein verknüpftes Benutzerkonto ist erhalten geblieben.
             </p>

@@ -3,7 +3,7 @@ import type {
   NotificationType,
   Role,
 } from "@/domain";
-import { NotificationType as NotificationTypeValues } from "@/domain";
+import { activeNotificationTypes, retiredNotificationTypes } from "@/lib/notifications/types";
 import { getPrismaClient } from "@/lib/db/prisma";
 import type { SettingsPageData } from "./types";
 
@@ -68,13 +68,13 @@ export async function getSettingsPageData(
       inAppEnabled: user.settings?.inAppEnabled ?? true,
       inAppCategories:
         user.settings
-          ? (user.settings.inAppCategories as NotificationType[])
-          : Object.values(NotificationTypeValues),
+          ? (user.settings.inAppCategories as NotificationType[]).filter((type) => !retiredNotificationTypes.includes(type as typeof retiredNotificationTypes[number]))
+          : [...activeNotificationTypes],
       emailEnabled: user.settings?.emailEnabled ?? false,
       emailCategories:
         user.settings
-          ? (user.settings.emailCategories as NotificationType[])
-          : Object.values(NotificationTypeValues),
+          ? (user.settings.emailCategories as NotificationType[]).filter((type) => !retiredNotificationTypes.includes(type as typeof retiredNotificationTypes[number]))
+          : [...activeNotificationTypes],
       quietHoursEnabled:
         user.settings?.quietHoursEnabled ?? false,
       quietHoursStart: minuteToTime(

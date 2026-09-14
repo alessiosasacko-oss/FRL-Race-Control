@@ -1,6 +1,5 @@
 "use server";
 
-import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import {
@@ -16,8 +15,6 @@ import {
   DiscordChannelPurpose,
   NotificationPriority,
   NotificationType,
-  PenaltyType,
-  RaceSession,
   ResultGapMode,
   ResultSession,
   ResultStatus,
@@ -34,7 +31,6 @@ import {
 } from "@/lib/notifications/service";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import {
-  aggregateFiaPenalties,
   calculateFinalClassification,
   driverBelongsToResultContext,
   fastestLapKeys,
@@ -53,22 +49,6 @@ import type { SportsActionState } from "./types";
 import { characterView, suitView } from "@/lib/characters/resolve";
 import { enqueuePublishedResultGraphics, processResultGraphics } from "@/lib/graphics/result-graphic-service";
 
-type ApplicableDecision = {
-  id: number;
-  penaltyType: PrismaPenaltyType;
-  penaltyValue: number | null;
-  reason: string;
-  updatedAt: Date;
-  penalties: Array<{
-    penaltyType: PrismaPenaltyType;
-    penaltyValue: number | null;
-  }>;
-  ticket: {
-    id: number;
-    drivers: Array<{ driverId: number }>;
-  };
-};
-
 function errorState(
   message: string,
   fieldErrors?: Record<string, string[]>,
@@ -86,30 +66,6 @@ function successState(
     completedAt: new Date().toISOString(),
     persisted,
   };
-}
-
-function resultRaceSession(session: ResultSession): RaceSession {
-  if (session === ResultSession.Qualifying) return RaceSession.Qualifying;
-  if (session === ResultSession.Sprint) return RaceSession.Sprint;
-  return RaceSession.Race;
-}
-
-function decisionVersion(decisions: readonly ApplicableDecision[]): string {
-  const value = decisions
-    .map((decision) => ({
-      id: decision.id,
-      penaltyType: decision.penaltyType,
-      penaltyValue: decision.penaltyValue,
-      penalties: decision.penalties,
-      updatedAt: decision.updatedAt.toISOString(),
-      drivers: decision.ticket.drivers
-        .map(({ driverId }) => driverId)
-        .sort((left, right) => left - right),
-    }))
-    .sort((left, right) => left.id - right.id);
-  return createHash("sha256")
-    .update(JSON.stringify(value))
-    .digest("hex");
 }
 
 function serializable(value: unknown): Prisma.InputJsonValue {
@@ -396,37 +352,6 @@ export async function saveResultsAction(
     );
   }
 
-  const decisions = await prisma.decision.findMany({
-    where: {
-      ticket: {
-        raceId: race.id,
-        leagueId: parsed.data.leagueId,
-        status: "RESOLVED",
-        session: resultRaceSession(parsed.data.session),
-      },
-    },
-    orderBy: { id: "asc" },
-    select: {
-      id: true,
-      affectedDriverId: true,
-      penaltyType: true,
-      penaltyValue: true,
-      reason: true,
-      updatedAt: true,
-      penalties: {
-        orderBy: { id: "asc" },
-        select: { penaltyType: true, penaltyValue: true },
-      },
-      ticket: {
-        select: {
-          id: true,
-          drivers: { select: { driverId: true } },
-        },
-      },
-    },
-  });
-  const currentPenaltyVersion = decisionVersion(decisions);
-
   const driverIds = new Set(
     parsed.data.results.flatMap((result) => [
       result.driverId,
@@ -505,55 +430,25 @@ export async function saveResultsAction(
       result,
     ]),
   );
-  const shouldSynchronize =
-    !existingSession || parsed.data.syncFiaPenalties;
   const calculations = parsed.data.results.map((result, index) => {
-    const currentFia = aggregateFiaPenalties(
-      decisions
-        .filter((decision) =>
-          decision.ticket.drivers.some(
-            ({ driverId }) => driverId === result.driverId,
-          ),
-        )
-        .flatMap((decision) =>
-          (decision.penalties.length > 0
-            ? decision.penalties
-            : [
-                {
-                  penaltyType: decision.penaltyType,
-                  penaltyValue: decision.penaltyValue,
-                },
-              ]
-          ).map((penalty) => ({
-            decisionId: decision.id,
-            penaltyType: penalty.penaltyType as PenaltyType,
-            penaltyValue: penalty.penaltyValue,
-          })),
-        ),
-    );
-    const storedFiaApplications =
+    const storedHistoricalApplications =
       existingResultByDriver
         .get(result.driverId)
         ?.penaltyApplications.filter(
           (application) =>
-            application.source === ResultPenaltySource.FIA &&
+            application.source !== ResultPenaltySource.MANUAL &&
             application.active,
         ) ?? [];
-    const storedFia = {
-      penaltyMilliseconds: storedFiaApplications.reduce(
+    const imported = {
+      penaltyMilliseconds: storedHistoricalApplications.reduce(
         (sum, application) =>
           sum + application.penaltyMilliseconds,
         0,
       ),
-      disqualified: storedFiaApplications.some(
+      disqualified: storedHistoricalApplications.some(
         (application) => application.disqualified,
       ),
     };
-    const imported =
-      shouldSynchronize ||
-      !existingResultByDriver.has(result.driverId)
-        ? currentFia
-        : storedFia;
     return {
       key: String(result.driverId),
       order: index,
@@ -604,12 +499,7 @@ export async function saveResultsAction(
     );
   }
   if (parsed.data.intent === "VALIDATE") {
-    return successState(
-      existingSession?.fiaPenaltyVersion &&
-        existingSession.fiaPenaltyVersion !== currentPenaltyVersion
-        ? "Ergebnis ist formal gültig. Die FIA-Strafen haben sich geändert und sollten vor der Veröffentlichung synchronisiert werden."
-        : "Ergebnis ist vollständig und kann veröffentlicht werden.",
-    );
+    return successState("Ergebnis ist vollständig und kann veröffentlicht werden.");
   }
 
   const publish = parsed.data.intent === "PUBLISH";
@@ -635,9 +525,7 @@ export async function saveResultsAction(
           publicationStatus: publish
             ? ResultPublicationStatus.PUBLISHED
             : ResultPublicationStatus.DRAFT,
-          fiaPenaltyVersion: shouldSynchronize
-            ? currentPenaltyVersion
-            : existingSession?.fiaPenaltyVersion,
+          fiaPenaltyVersion: existingSession?.fiaPenaltyVersion,
           draftPayload: Prisma.DbNull,
           revision: { increment: 1 },
           lockedAt: publish ? new Date() : null,
@@ -656,7 +544,7 @@ export async function saveResultsAction(
           publicationStatus: publish
             ? ResultPublicationStatus.PUBLISHED
             : ResultPublicationStatus.DRAFT,
-          fiaPenaltyVersion: currentPenaltyVersion,
+          fiaPenaltyVersion: null,
           draftPayload: Prisma.DbNull,
           lockedAt: publish ? new Date() : null,
           publishedAt: publish ? new Date() : null,
@@ -794,66 +682,6 @@ export async function saveResultsAction(
         });
         retainedResultIds.push(row.id);
 
-        if (
-          shouldSynchronize ||
-          !existingResultByDriver.has(result.driverId)
-        ) {
-          await transaction.resultPenaltyApplication.deleteMany({
-            where: {
-              resultId: row.id,
-              source: ResultPenaltySource.FIA,
-            },
-          });
-          const driverDecisions = decisions.filter((decision) =>
-            decision.affectedDriverId
-              ? decision.affectedDriverId === result.driverId
-              : decision.ticket.drivers.some(
-                  ({ driverId }) => driverId === result.driverId,
-                ),
-          );
-          if (driverDecisions.length > 0) {
-            await transaction.resultPenaltyApplication.createMany({
-              data: driverDecisions.map((decision) => {
-                const penalties =
-                  decision.penalties.length > 0
-                    ? decision.penalties
-                    : [
-                        {
-                          penaltyType: decision.penaltyType,
-                          penaltyValue: decision.penaltyValue,
-                        },
-                      ];
-                return {
-                  resultId: row.id,
-                  decisionId: decision.id,
-                  source: ResultPenaltySource.FIA,
-                  penaltyType: penalties[0].penaltyType,
-                  penaltyMilliseconds: penalties.reduce(
-                    (total, penalty) =>
-                      penalty.penaltyType ===
-                      PrismaPenaltyType.TIME_PENALTY
-                        ? total +
-                          Math.max(
-                            0,
-                            Math.round(
-                              (penalty.penaltyValue ?? 0) * 1000,
-                            ),
-                          )
-                        : total,
-                    0,
-                  ),
-                  disqualified: penalties.some(
-                    ({ penaltyType }) =>
-                      penaltyType ===
-                      PrismaPenaltyType.DISQUALIFICATION,
-                  ),
-                  reason: decision.reason.slice(0, 1000),
-                };
-              }),
-            });
-          }
-        }
-
         const previousManual =
           existingResultByDriver
             .get(result.driverId)
@@ -931,10 +759,6 @@ export async function saveResultsAction(
             gapMode: parsed.data.gapMode,
             qualifyingFormat: parsed.data.qualifyingFormat,
             resultCount: parsed.data.results.length,
-            fiaPenaltyVersion:
-              shouldSynchronize
-                ? currentPenaltyVersion
-                : existingSession?.fiaPenaltyVersion,
             revision: resultSession.revision,
           }),
         },

@@ -14,22 +14,25 @@ import {
 } from "@/lib/automation/types";
 import FormMessage from "@/components/ui/FormMessage";
 
-const purposeLabels: Record<DiscordChannelPurpose, string> = {
-  [DiscordChannelPurpose.AttendanceOpened]: "Rennanmeldung geöffnet",
-  [DiscordChannelPurpose.AttendanceClosingSoon]: "Rennanmeldung schließt bald",
-  [DiscordChannelPurpose.AttendanceClosed]: "Rennanmeldung geschlossen",
-  [DiscordChannelPurpose.RaceWeekend]: "Rennwochenende",
-  [DiscordChannelPurpose.SprintResults]: "Sprint-Ergebnisse",
-  [DiscordChannelPurpose.QualifyingResults]: "Qualifying-Ergebnisse",
-  [DiscordChannelPurpose.RaceResults]: "Renn-Ergebnisse",
-  [DiscordChannelPurpose.DriverStandings]: "Fahrerwertung",
-  [DiscordChannelPurpose.TeamStandings]: "Teamwertung",
-  [DiscordChannelPurpose.FiaDecision]: "FIA-Entscheidungen",
-  [DiscordChannelPurpose.PenaltyIssued]: "Strafen",
-  [DiscordChannelPurpose.SeasonStarted]: "Saisonstart",
-  [DiscordChannelPurpose.SeasonFinished]: "Saisonende",
-  [DiscordChannelPurpose.AdminAnnouncement]: "Admin-Mitteilungen",
-};
+const activeChannelPurposes = [
+  [DiscordChannelPurpose.RaceWeekend, "Rennwochenende"],
+  [DiscordChannelPurpose.SprintResults, "Sprint-Ergebnisse"],
+  [DiscordChannelPurpose.QualifyingResults, "Qualifying-Ergebnisse"],
+  [DiscordChannelPurpose.RaceResults, "Renn-Ergebnisse"],
+  [DiscordChannelPurpose.DriverStandings, "Fahrerwertung"],
+  [DiscordChannelPurpose.TeamStandings, "Teamwertung"],
+  [DiscordChannelPurpose.PenaltyIssued, "Strafen"],
+  [DiscordChannelPurpose.SeasonStarted, "Saisonstart"],
+  [DiscordChannelPurpose.SeasonFinished, "Saisonende"],
+  [DiscordChannelPurpose.AdminAnnouncement, "Admin-Mitteilungen"],
+] as const;
+
+const activeDiscordRoles = [
+  Role.Driver,
+  Role.TeamPrincipal,
+  Role.Admin,
+  Role.SuperAdmin,
+] as const;
 
 type Props = Pick<AutomationDashboardData, "guilds" | "leagues">;
 
@@ -55,7 +58,7 @@ export default function DiscordConfigForms({ guilds, leagues }: Props) {
         <div className="flex items-start gap-3"><span className="rounded-xl bg-blue-600/15 p-3 text-blue-400"><ShieldCheck size={21} /></span><div><h2 className="text-lg font-semibold text-white">Rollenzuordnung</h2><p className="mt-1 text-sm text-slate-400">Kanonische FRL-Rolle zu Discord-Rolle.</p></div></div>
         {defaultGuild ? <div className="mt-5 space-y-4">
           <input type="hidden" name="guildSettingsId" value={defaultGuild.id} />
-          <label className="master-label">FRL-Rolle<select name="role" className="form-control mt-2">{Object.values(Role).map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></label>
+          <label className="master-label">FRL-Rolle<select name="role" className="form-control mt-2">{activeDiscordRoles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></label>
           <label className="master-label">Discord-Rollen-ID<input name="discordRoleId" required className="form-control mt-2" /></label>
           <label className="master-label">Rollenname (optional)<input name="discordRoleName" className="form-control mt-2" /></label>
           <label className="flex min-h-11 items-center gap-3 text-sm text-slate-300"><input type="checkbox" name="enabled" defaultChecked className="size-5 accent-blue-600" />Synchronisierung aktiv</label>
@@ -65,10 +68,10 @@ export default function DiscordConfigForms({ guilds, leagues }: Props) {
 
       <details className="master-card min-w-0 xl:col-span-2">
         <summary className="flex min-h-11 cursor-pointer items-center gap-3 font-semibold text-white"><Hash className="text-blue-400" size={20} />Erweiterte Kanalzuordnung</summary>
-        <p className="mt-2 text-sm text-slate-400">Sonderzwecke wie FIA, Rennanmeldung, Strafen und Admin-Mitteilungen einzeln verwalten. Ergebnis- und Tabellenkanäle werden bevorzugt über die Liga-Matrix gepflegt.</p>
+        <p className="mt-2 text-sm text-slate-400">Rennwochenenden, Strafen und Admin-Mitteilungen einzeln verwalten. Ergebnis- und Tabellenkanäle werden bevorzugt über die Liga-Matrix gepflegt.</p>
         {defaultGuild ? <form action={channelAction} className="mt-5 grid min-w-0 gap-4 border-t border-slate-800 pt-5 md:grid-cols-2 xl:grid-cols-3">
           <input type="hidden" name="guildSettingsId" value={defaultGuild.id} />
-          <label className="master-label">Ereignis<select name="purpose" className="form-control mt-2">{Object.values(DiscordChannelPurpose).map((purpose) => <option key={purpose} value={purpose}>{purposeLabels[purpose]}</option>)}</select></label>
+          <label className="master-label">Ereignis<select name="purpose" className="form-control mt-2">{activeChannelPurposes.map(([purpose, label]) => <option key={purpose} value={purpose}>{label}</option>)}</select></label>
           <label className="master-label">Liga<select name="leagueId" className="form-control mt-2"><option value="">Global</option>{leagues.map((league) => <option key={league.id} value={league.id}>{league.code} · {league.name}</option>)}</select></label>
           <label className="master-label">Kanal-ID<input name="channelId" required className="form-control mt-2" /></label>
           <label className="master-label">Kanalname (optional)<input name="channelName" className="form-control mt-2" /></label>

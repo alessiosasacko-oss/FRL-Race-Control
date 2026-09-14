@@ -24,9 +24,7 @@ const navigationDefinitions: Array<{
 }> = [
   { id: "dashboard", label: "Dashboard", permission: Permission.ViewRaceControl },
   { id: "calendar", label: "Kalender", permission: Permission.ViewMasterData },
-  { id: "attendance", label: "Rennanmeldung", permission: Permission.ViewChampionship },
   { id: "championship", label: "Meisterschaft", permission: Permission.ViewChampionship },
-  { id: "fia", label: "FIA", permission: Permission.ViewRaceControl },
   { id: "drivers", label: "Fahrer", permission: Permission.ViewMasterData },
   { id: "teams", label: "Teams", permission: Permission.ViewMasterData },
   { id: "results", label: "Ergebnisse", permission: Permission.ViewChampionship },
@@ -40,14 +38,6 @@ const actionDefinitions: Array<{
   permission: Permission;
   restrictedReason?: (context: UserAccessContext) => string | null;
 }> = [
-  { id: "own-attendance", label: "Sich selbst anmelden", permission: Permission.ManageOwnAttendance, restrictedReason: (context) => context.hasDriverProfile ? null : "Nur mit Fahrerprofil erlaubt" },
-  { id: "change-own-attendance", label: "Eigene Anmeldung ändern", permission: Permission.ManageOwnAttendance, restrictedReason: (context) => context.hasDriverProfile ? null : "Nur mit Fahrerprofil erlaubt" },
-  { id: "team-attendance", label: "Teamfahrer anmelden", permission: Permission.ManageTeamAttendance, restrictedReason: (context) => context.teamName ? `Nur für das eigene Team ${context.teamName}` : "Nur für ein zugewiesenes Team" },
-  { id: "create-ticket", label: "FIA-Ticket erstellen", permission: Permission.SubmitFiaTicket },
-  { id: "read-fia-chat", label: "FIA-Chat lesen", permission: Permission.ReviewFiaTicket, restrictedReason: () => "Ohne Stewardrecht nur für eigene FIA-Tickets" },
-  { id: "write-steward-chat", label: "Steward-Chat schreiben", permission: Permission.ReviewFiaTicket },
-  { id: "vote", label: "Abstimmen", permission: Permission.ReviewFiaTicket },
-  { id: "close-ticket", label: "Ticket abschließen", permission: Permission.DecideFiaTicket },
   { id: "edit-results", label: "Ergebnisse bearbeiten", permission: Permission.ManageResults },
   { id: "publish-results", label: "Ergebnisse veröffentlichen", permission: Permission.ManageResults },
   { id: "manage-drivers", label: "Fahrer verwalten", permission: Permission.ManageMasterData },
@@ -63,7 +53,12 @@ function permissionReason(
   const role = roles.find((candidate) =>
     hasPermission([candidate], permission),
   );
-  return role ? `Erlaubt durch Rolle ${roleLabels[role]}` : "Keine zugewiesene Rolle gewährt diese Berechtigung";
+  const roleName = role === Role.FiaPresident || role === Role.Steward
+    ? "Historische Rolle"
+    : role
+      ? roleLabels[role]
+      : null;
+  return roleName ? `Erlaubt durch Rolle ${roleName}` : "Keine zugewiesene Rolle gewährt diese Berechtigung";
 }
 
 export function effectiveUserAccess(context: UserAccessContext): {

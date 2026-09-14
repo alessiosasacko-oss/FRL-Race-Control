@@ -3,16 +3,12 @@ import { ResultSession } from "@/domain";
 export type GlobalWeekendBlockReason =
   | "NO_ACTIVE_LEAGUES"
   | "RESULTS_INCOMPLETE"
-  | "FIA_TICKETS_OPEN"
-  | "FIA_PENALTIES_NOT_APPLIED"
   | "TEAM_ORGANIZATION_MISSING";
 
 export function globalWeekendBlockReason(input: {
   activeLeagueIds: readonly number[];
   requiredSessions: readonly ResultSession[];
   publishedSessionKeys: ReadonlySet<string>;
-  openTicketCount: number;
-  unappliedPenaltyCount: number;
   unmappedTeamIds: readonly number[];
 }): GlobalWeekendBlockReason | null {
   if (input.activeLeagueIds.length === 0) return "NO_ACTIVE_LEAGUES";
@@ -22,10 +18,6 @@ export function globalWeekendBlockReason(input: {
     ),
   );
   if (!complete) return "RESULTS_INCOMPLETE";
-  if (input.openTicketCount > 0) return "FIA_TICKETS_OPEN";
-  if (input.unappliedPenaltyCount > 0) {
-    return "FIA_PENALTIES_NOT_APPLIED";
-  }
   if (input.unmappedTeamIds.length > 0) {
     return "TEAM_ORGANIZATION_MISSING";
   }
