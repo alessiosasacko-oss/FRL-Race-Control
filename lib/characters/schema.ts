@@ -2,15 +2,17 @@ import { z } from "zod";
 
 export const bodyShapes = ["SLIM", "REGULAR", "ATHLETIC", "STRONG"] as const;
 export const faceShapes = ["OVAL", "ROUND", "ANGULAR", "NARROW", "WIDE"] as const;
+export const jawStyles = ["SOFT", "DEFINED", "SQUARE", "TAPERED"] as const;
+export const cheekStyles = ["BALANCED", "LEAN", "SCULPTED", "FULL"] as const;
 export const skinTones = ["TONE_1", "TONE_2", "TONE_3", "TONE_4", "TONE_5", "TONE_6", "TONE_7", "TONE_8"] as const;
 export const eyeShapes = ["ALMOND", "ROUND", "NARROW", "DEEP"] as const;
 export const eyeColors = ["BROWN", "DARK_BROWN", "BLUE", "GREEN", "GRAY", "HAZEL"] as const;
 export const eyebrowStyles = ["STRAIGHT", "SOFT", "DEFINED", "BOLD"] as const;
 export const noseStyles = ["STRAIGHT", "SOFT", "WIDE", "NARROW"] as const;
 export const mouthStyles = ["NEUTRAL", "SMILE", "FOCUSED", "CONFIDENT"] as const;
-export const hairStyles = ["SHORT", "MEDIUM", "LONG", "CURLY", "STRAIGHT", "UNDERCUT", "SIDE_PART", "SLICKED", "BALD"] as const;
+export const hairStyles = ["BUZZ", "FADE", "SHORT_FADE", "SHORT", "TEXTURED_CROP", "SIDE_PART", "CURLY_SHORT", "CURLY", "WAVY", "MEDIUM", "LONG", "STRAIGHT", "UNDERCUT", "SLICKED", "AFRO", "BALD"] as const;
 export const hairColors = ["BLACK", "DARK_BROWN", "BROWN", "LIGHT_BROWN", "BLOND", "RED", "GRAY", "WHITE"] as const;
-export const beardStyles = ["NONE", "LIGHT", "STUBBLE", "FULL", "MOUSTACHE", "GOATEE"] as const;
+export const beardStyles = ["NONE", "LIGHT", "STUBBLE", "HEAVY_STUBBLE", "SHORT_FULL", "FULL", "LONG_FULL", "MOUSTACHE", "GOATEE"] as const;
 export const eyewearStyles = ["NONE", "GLASSES", "SUNGLASSES"] as const;
 export const faceDetails = ["NONE", "FRECKLES", "CHEEK_MARK", "BROW_MARK"] as const;
 export const normalPoses = ["NEUTRAL", "ARMS_CROSSED", "HANDS_ON_HIPS", "HELM_UNDER_ARM", "THUMBS_UP"] as const;
@@ -27,6 +29,8 @@ export const driverCharacterConfigurationSchema = z.object({
   version: z.literal(1),
   bodyShape: z.enum(bodyShapes),
   faceShape: z.enum(faceShapes),
+  jawStyle: z.enum(jawStyles).default("DEFINED"),
+  cheekStyle: z.enum(cheekStyles).default("BALANCED"),
   skinTone: z.enum(skinTones),
   eyeShape: z.enum(eyeShapes),
   eyeColor: z.enum(eyeColors),
@@ -110,6 +114,8 @@ export const defaultDriverCharacter: DriverCharacterConfiguration = {
   version: 1,
   bodyShape: "ATHLETIC",
   faceShape: "OVAL",
+  jawStyle: "DEFINED",
+  cheekStyle: "BALANCED",
   skinTone: "TONE_3",
   eyeShape: "ALMOND",
   eyeColor: "BROWN",

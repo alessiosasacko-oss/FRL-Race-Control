@@ -73,6 +73,7 @@ import {
 } from "@/lib/championship/types";
 import ActionMessage from "./ActionMessage";
 import ResultGraphicPreview from "./ResultGraphicPreview";
+import ResultsContextHeader, { ResultsSaveContext } from "./ResultsContextHeader";
 
 type ResultsEditorProps = {
   data: ResultAdminData;
@@ -826,50 +827,16 @@ export default function ResultsEditor({
     : session === ResultSession.Race
       ? "Rennen veröffentlichen"
       : "Sprint veröffentlichen";
+  const contextualState = state.status === "success" && state.persisted
+    ? {
+        ...state,
+        message: `${data.selected.race.season.league.code} • ${data.selected.race.revealMystery ? data.selected.race.circuit : data.selected.race.name} • ${resultSessionLabels[session]} ${state.message.includes("veröffentlicht") ? "erfolgreich veröffentlicht." : "erfolgreich gespeichert."}`,
+      }
+    : state;
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-[4.5rem] z-40 overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--page-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-background-elevated)_95%,transparent)] shadow-[var(--shadow-card)] backdrop-blur lg:top-3">
-        <div className="grid gap-4 p-4 lg:grid-cols-[110px_1fr_auto] lg:items-center">
-          <div className="grid min-h-20 place-items-center rounded-xl border border-blue-400/35 bg-blue-600 text-3xl font-black tracking-tight text-white shadow-lg shadow-blue-950/40">
-            {data.selected.race.season.league.code}
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={`rounded-full border px-2.5 py-1 text-[0.68rem] font-bold uppercase tracking-wider ${
-                  published
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-                    : "border-amber-500/30 bg-amber-500/10 text-amber-200"
-                }`}
-              >
-                {published ? "Veröffentlicht" : "Entwurf"}
-              </span>
-              <span
-                className={`rounded-full px-2.5 py-1 text-[0.68rem] font-semibold ${
-                  dirty
-                    ? "bg-amber-500/15 text-amber-200"
-                    : pending
-                      ? "bg-blue-500/15 text-blue-200"
-                      : "bg-slate-800 text-slate-300"
-                }`}
-              >
-                {pending
-                  ? "Wird gespeichert …"
-                  : dirty
-                    ? "Ungespeicherte Änderungen"
-                    : `Zuletzt gespeichert: ${lastSavedLabel}`}
-              </span>
-            </div>
-            <h2 className="mt-2 truncate text-xl font-black uppercase tracking-tight text-white sm:text-2xl">
-              {data.selected.race.name}
-            </h2>
-            <p className="mt-1 text-sm text-slate-300">
-              Runde {data.selected.race.round} ·{" "}
-              {resultSessionLabels[session]} · {raceDate}
-            </p>
-          </div>
-          <div className="hidden flex-wrap justify-end gap-2 lg:flex">
+      <ResultsContextHeader race={data.selected.race} session={session} raceDate={raceDate} published={published} dirty={dirty} pending={pending} lastSavedLabel={lastSavedLabel} actions={<>
             <button
               form="result-editor-form"
               name="intent"
@@ -898,17 +865,7 @@ export default function ResultsEditor({
             >
               {publishLabel}
             </button>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 border-t border-slate-800 lg:hidden">
-          <span className="px-4 py-2 text-xs text-slate-400">
-            {rows.length} Fahrerzeilen
-          </span>
-          <span className="px-4 py-2 text-right text-xs text-slate-400">
-            {dirty ? "Nicht gespeichert" : lastSavedLabel}
-          </span>
-        </div>
-      </div>
+          </>} />
 
       {session === ResultSession.Qualifying ? (
         <section className="rounded-2xl border border-blue-500/30 bg-blue-500/5 p-4 sm:p-5">
@@ -1184,7 +1141,12 @@ export default function ResultsEditor({
           </label>
         ) : null}
 
-        <ActionMessage state={state} />
+        <ResultsSaveContext race={data.selected.race} session={session}>
+          <button name="intent" value="DRAFT" disabled={draftDisabled} className="wizard-secondary-button min-h-11 justify-center"><Save size={17} /> Entwurf speichern</button>
+          <button name="intent" value="VALIDATE" disabled={validationDisabled} className="wizard-secondary-button min-h-11 justify-center"><ShieldCheck size={17} /> Validieren</button>
+          <button type="button" disabled={publishDisabled} onClick={() => setPublishConfirmationOpen(true)} className="wizard-primary-button min-h-11 justify-center">{publishLabel}</button>
+        </ResultsSaveContext>
+        <ActionMessage state={contextualState} />
         <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-3 gap-2 rounded-2xl border border-[color-mix(in_srgb,var(--page-accent)_25%,transparent)] bg-[color-mix(in_srgb,var(--color-background-elevated)_95%,transparent)] p-3 shadow-[var(--shadow-card)] backdrop-blur lg:hidden">
           <button
             name="intent"
@@ -1262,6 +1224,10 @@ export default function ResultsEditor({
               <PublishFact
                 label="Rennen"
                 value={`Runde ${data.selected.race.round} · ${data.selected.race.name}`}
+              />
+              <PublishFact
+                label="Strecke"
+                value={data.selected.race.revealMystery ? data.selected.race.circuit : "Mystery Track – geschützt"}
               />
               <PublishFact
                 label="Session"

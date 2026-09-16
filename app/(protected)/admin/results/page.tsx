@@ -2,7 +2,8 @@ import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
 import ResultsEditor from "@/components/championship/ResultsEditor";
 import PageHeader from "@/components/ui/PageHeader";
-import { Flag, SlidersHorizontal } from "lucide-react";
+import CountryFlag from "@/components/ui/CountryFlag";
+import { Flag, LockKeyhole, SlidersHorizontal } from "lucide-react";
 import {
   ResultSession,
   resultSessionLabels,
@@ -57,6 +58,9 @@ export default async function ResultsAdminPage({
       ? filterOptionsResult.value
       : { leagues: [], seasons: [] };
   const selected = data.selected;
+  const sessionOptions = selected
+    ? [ResultSession.Qualifying, ...(selected.race.sprint ? [ResultSession.Sprint] : []), ResultSession.Race]
+    : [];
 
   return (
     <AppLayout>
@@ -111,7 +115,7 @@ export default async function ResultsAdminPage({
             >
               {data.races.map((race) => (
                 <option key={race.id} value={race.id}>
-                  R{race.round} · {race.name}
+                  {race.countryCode ? `${race.countryCode} · ` : ""}ROUND {String(race.round).padStart(2, "0")} · {race.name}{race.circuit ? ` · ${race.circuit}` : ""} · {new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: race.timezone }).format(new Date(race.scheduledAt))}
                 </option>
               ))}
             </select>
@@ -127,7 +131,7 @@ export default async function ResultsAdminPage({
             >
               {filterOptions.leagues.map((league) => (
                 <option key={league.id} value={league.id}>
-                  {league.code}
+                  FRL {league.code} · {league.name}
                 </option>
               ))}
             </select>
@@ -157,6 +161,17 @@ export default async function ResultsAdminPage({
           </button>
           </form>
         </details>
+
+        {selected ? (
+          <section className="grid min-w-0 gap-3 rounded-2xl border border-blue-500/25 bg-[linear-gradient(135deg,rgba(37,99,235,.12),rgba(2,6,23,.72))] p-4 lg:grid-cols-[8rem_minmax(0,1fr)_minmax(18rem,.7fr)] lg:items-center">
+            <div className="grid min-h-20 place-items-center rounded-xl border border-blue-300/40 bg-blue-600 text-center shadow-lg shadow-blue-950/30"><span><span className="block text-[.62rem] font-black uppercase tracking-[.2em] text-blue-100/70">Aktive Liga</span><span className="mt-1 block text-2xl font-black text-white">FRL {selected.race.season.league.code}</span></span></div>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-14 shrink-0 place-items-center rounded-xl border border-white/10 bg-slate-950/55">{selected.race.revealMystery ? <CountryFlag countryCode={selected.race.countryCode} size="lg" /> : <LockKeyhole className="text-amber-300" size={25} />}</span>
+              <div className="min-w-0"><p className="text-xs font-bold uppercase tracking-[.16em] text-blue-300">Round {String(selected.race.round).padStart(2, "0")}</p><h2 className="mt-1 break-words text-lg font-black uppercase text-white">{selected.race.name}</h2><p className="mt-1 text-sm text-slate-400">{selected.race.revealMystery ? selected.race.circuit : "Strecke und Land bis zum Reveal geschützt"}</p></div>
+            </div>
+            <div><p className="mb-2 text-[.65rem] font-black uppercase tracking-[.18em] text-slate-500">Session wählen</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">{sessionOptions.map((option) => <Link key={option} href={`/admin/results?seasonId=${selected.race.season.id}&raceId=${selected.race.id}&leagueId=${selected.race.season.league.id}&session=${option}`} aria-current={session === option ? "page" : undefined} className={`grid min-h-11 place-items-center rounded-xl border px-3 text-center text-xs font-black uppercase tracking-wider transition ${session === option ? "border-blue-400 bg-blue-500/20 text-white" : "border-white/10 bg-slate-950/45 text-slate-400 hover:border-blue-400/50 hover:text-white"}`}>{resultSessionLabels[option]}</Link>)}</div></div>
+          </section>
+        ) : null}
 
         {selected && data.weekendLeagueResults.length > 0 ? (
           <section className="rounded-2xl border border-slate-800 bg-[#101720] p-4 sm:p-5">
@@ -195,7 +210,7 @@ export default async function ResultsAdminPage({
                     }`}
                   >
                     <span className="text-lg font-black text-white">
-                      {league.code}
+                      FRL {league.code}
                     </span>
                     <span className="mt-1 block text-xs text-slate-400">
                       {label}

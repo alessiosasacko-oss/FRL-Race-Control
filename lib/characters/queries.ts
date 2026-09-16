@@ -60,7 +60,7 @@ export async function getCharacterEditorData(userId: number) {
   const organization = user.driver?.seasonAssignments[0]?.organization ?? null;
   const templates = organization?.suitTemplates.map((template) => suitView(template, organization)) ?? [];
   const character = characterView(user.driverCharacter);
-  const selectedSuit = templates.find((template) => template.id === character.suitVariantId) ?? suitView(null, organization);
+  const selectedSuit = templates[0] ?? suitView(null, organization);
   return { displayName: user.displayName, driver: user.driver ? { name: user.driver.name, number: user.driver.number, flag: user.driver.flag } : null, organization: organization ? { id: organization.id, name: organization.name, color: organization.color, logoUrl: organization.logoUrl } : null, character, selectedSuit, templates };
 }
 

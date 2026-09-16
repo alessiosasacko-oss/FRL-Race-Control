@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   backgrounds, beardStyles, bodyShapes, defaultDriverCharacter, driverCharacterConfigurationSchema,
-  driverCharacterSnapshotSchema, eyeColors, eyeShapes, eyebrowStyles, eyewearStyles, faceDetails,
+  cheekStyles, driverCharacterSnapshotSchema, eyeColors, eyeShapes, eyebrowStyles, eyewearStyles, faceDetails,
   faceShapes, hairColors, hairStyles, helmetModes, helmetPatterns, helmetStyles, mouthStyles,
-  normalPoses, noseStyles, parseCharacterConfiguration, parseSuitConfiguration, saveDriverCharacterSchema,
+  jawStyles, normalPoses, noseStyles, parseCharacterConfiguration, parseSuitConfiguration, saveDriverCharacterSchema,
   skinTones, suitPatterns, teamSuitConfigurationSchema, teamSuitTemplateInputSchema, winnerPoses,
   neutralFrlSuit,
 } from "./schema";
@@ -17,6 +17,7 @@ const characterSelect = source("components/characters/CharacterSelect.tsx");
 const globals = source("app/globals.css");
 const dashboard = source("components/dashboard/PersonalDashboard.tsx");
 const actions = source("lib/characters/actions.ts");
+const queries = source("lib/characters/queries.ts");
 const migration = source("prisma/migrations/20260802213000_driver_character_system/migration.sql");
 
 test("1. default character validates", () => assert.equal(driverCharacterConfigurationSchema.safeParse(defaultDriverCharacter).success, true));
@@ -47,7 +48,7 @@ test("25. invalid stored character falls back safely", () => assert.deepEqual(pa
 test("26. invalid stored suit falls back safely", () => assert.deepEqual(parseSuitConfiguration({ broken: true }), neutralFrlSuit));
 test("27. snapshots preserve character and suit", () => assert.equal(driverCharacterSnapshotSchema.safeParse({ version: 1, characterVersion: 2, configuration: defaultDriverCharacter, normalPose: "NEUTRAL", winnerPose: "TROPHY", driverNumber: 16, flag: "🇮🇹", teamSuit: neutralFrlSuit, suitTemplateId: null }).success, true));
 test("28. suit templates require an organization", () => assert.equal(teamSuitTemplateInputSchema.safeParse({ name: "A", configuration: neutralFrlSuit, active: true, displayOrder: 0 }).success, false));
-test("29. renderer is a local layered SVG with all required variants", () => { assert.match(renderer, /<svg/); assert.match(renderer, /data-layer="body"/); assert.match(renderer, /"fullBody" \| "portrait" \| "tableThumbnail" \| "winner" \| "dashboardHero"/); assert.doesNotMatch(renderer, /href=["']https?:\/\//); });
+test("29. renderer is a local layered SVG with all required variants", () => { assert.match(renderer, /<svg/); assert.match(renderer, /data-layer="body"/); ["head", "portrait", "halfBody", "fullBody", "tableThumbnail", "winner", "dashboardHero"].forEach((variant) => assert.match(renderer, new RegExp(`\\| \\\"${variant}\\\"|variant === \\\"${variant}\\\"`))); assert.doesNotMatch(renderer, /href=["']https?:\/\//); });
 test("30. editor and actions are mobile-safe and ownership-protected", () => { assert.match(editor, /grid min-w-0/); assert.match(editor, /min-h-11/); assert.match(editor, /lg:grid-cols/); assert.match(actions, /requireAuthenticatedUser/); assert.match(actions, /organizationId/); assert.match(migration, /"characterSnapshot" JSONB/); });
 test("31. editor controls use the defined character select instead of the missing form-input class", () => { assert.match(editor, /CharacterSelect/); assert.doesNotMatch(editor, /className="form-input/); });
 test("32. character selects preserve native keyboard and mobile behavior", () => { assert.match(characterSelect, /<select/); assert.doesNotMatch(characterSelect, /role="listbox"/); assert.match(characterSelect, /htmlFor=\{id\}/); });
@@ -57,3 +58,32 @@ test("35. renderer adds adult material depth without changing stored configurati
 test("36. realistic renderer retains every configurable detail", () => ["faceShape", "eyeShape", "noseStyle", "mouthStyle", "hairStyle", "beardStyle", "eyewearStyle", "gloves", "shoes", "helmet"].forEach((field) => assert.match(renderer, new RegExp(`configuration\\.${field}`))));
 test("37. dashboard hero and Next Race remain outside the personal widget grid", () => assert.match(dashboard, /<DriverHero data=\{data\} \/>[^]*<NextRaceWidget[^]*<DndContext/));
 test("38. existing version-one character data remains valid without a migration", () => assert.equal(parseCharacterConfiguration(defaultDriverCharacter).version, 1));
+test("39. legacy version-one configurations receive professional face defaults", () => {
+  const legacy = { ...defaultDriverCharacter } as Partial<typeof defaultDriverCharacter>;
+  delete legacy.jawStyle;
+  delete legacy.cheekStyle;
+  const parsed = driverCharacterConfigurationSchema.parse(legacy);
+  assert.equal(parsed.jawStyle, "DEFINED");
+  assert.equal(parsed.cheekStyle, "BALANCED");
+});
+test("40. jaw and cheek variants remain schema-backed", () => {
+  jawStyles.forEach((jawStyle) => assert.equal(driverCharacterConfigurationSchema.safeParse({ ...defaultDriverCharacter, jawStyle }).success, true));
+  cheekStyles.forEach((cheekStyle) => assert.equal(driverCharacterConfigurationSchema.safeParse({ ...defaultDriverCharacter, cheekStyle }).success, true));
+});
+test("41. editor uses visual option cards, swatches and three preview modes", () => {
+  assert.match(editor, /CharacterPreviewGrid/);
+  assert.match(editor, /SwatchGrid/);
+  assert.match(editor, /"head", "halfBody", "fullBody"/);
+  assert.match(editor, /Ungespeicherte Änderungen/);
+});
+test("42. team identity stays automatic and is not persisted as personal character data", () => {
+  assert.match(editor, /suitVariantId: null/);
+  assert.doesNotMatch(editor, /label="Teamanzug"/);
+  assert.match(actions, /suitVariantId: null/);
+  assert.match(queries, /templates\[0\]/);
+});
+test("43. adult renderer contains explicit skin, face, hair, beard, suit, glove and lighting layers", () => {
+  ["skin", "face", "hair", "beard", "body", "gloves"].forEach((layer) => assert.match(renderer, new RegExp(`data-layer=\\"${layer}\\"`)));
+  assert.match(renderer, /feDropShadow/);
+  assert.match(renderer, /fabric/);
+});

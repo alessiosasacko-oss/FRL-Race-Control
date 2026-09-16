@@ -26,6 +26,13 @@ const pageSource = readFileSync(
   ),
   "utf8",
 );
+const contextSource = readFileSync(
+  new URL(
+    "../../components/championship/ResultsContextHeader.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 test("a missing result session is not started", () => {
   assert.equal(
@@ -160,4 +167,33 @@ test("publication confirmation names league and race", () => {
 test("the overview groups league states by race weekend", () => {
   assert.match(pageSource, /Gemeinsames Rennwochenende/);
   assert.match(pageSource, /weekendLeagueResults/);
+});
+
+test("the sticky result context makes league, round, track and session explicit", () => {
+  assert.match(contextSource, /sticky top-/);
+  assert.match(contextSource, /FRL \{race\.season\.league\.code\}/);
+  assert.match(contextSource, /ROUND \{round\}/);
+  assert.match(contextSource, /race\.circuit/);
+  assert.match(contextSource, /resultSessionLabels\[session\]/);
+});
+
+test("result context uses the shared country flag and protects mystery metadata", () => {
+  assert.match(contextSource, /CountryFlag/);
+  assert.match(contextSource, /race\.revealMystery/);
+  assert.match(contextSource, /Strecke bis zum Reveal geschützt/);
+  assert.match(contextSource, /Geschütztes Mystery Race/);
+});
+
+test("save area repeats the complete result context", () => {
+  assert.match(contextSource, /Du speicherst/);
+  assert.match(editorSource, /ResultsSaveContext/);
+  assert.match(editorSource, /erfolgreich gespeichert/);
+  assert.match(editorSource, /erfolgreich veröffentlicht/);
+});
+
+test("admin selectors expose professional league, race and session labels", () => {
+  assert.match(pageSource, /FRL \{league\.code\}/);
+  assert.match(pageSource, /ROUND \{String\(race\.round\)\.padStart/);
+  assert.match(pageSource, /Session wählen/);
+  assert.match(pageSource, /CountryFlag/);
 });

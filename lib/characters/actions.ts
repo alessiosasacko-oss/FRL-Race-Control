@@ -20,20 +20,11 @@ export async function saveDriverCharacterAction(input: unknown): Promise<Charact
   const parsed = saveDriverCharacterSchema.safeParse(input);
   if (!parsed.success) return { status: "error", message: "Bitte prüfe die Charakterauswahl." };
   const prisma = getPrismaClient();
-  const driver = await prisma.driver.findUnique({
-    where: { userId: user.id },
-    select: { seasonAssignments: { where: { active: true, season: { active: true, archivedAt: null } }, take: 1, orderBy: { seasonId: "desc" }, select: { organizationId: true } } },
-  });
-  const organizationId = driver?.seasonAssignments[0]?.organizationId ?? null;
-  if (parsed.data.suitVariantId) {
-    const suit = await prisma.teamSuitTemplate.findFirst({ where: { id: parsed.data.suitVariantId, organizationId: organizationId ?? -1, active: true, archivedAt: null }, select: { id: true } });
-    if (!suit) return { status: "error", message: "Diese Rennanzug-Variante gehört nicht zu deinem aktuellen Team." };
-  }
   try {
     await prisma.driverCharacter.upsert({
       where: { userId: user.id },
-      create: { userId: user.id, configuration: parsed.data.configuration as Prisma.InputJsonValue, normalPose: parsed.data.normalPose, winnerPose: parsed.data.winnerPose, suitVariantId: parsed.data.suitVariantId },
-      update: { configuration: parsed.data.configuration as Prisma.InputJsonValue, normalPose: parsed.data.normalPose, winnerPose: parsed.data.winnerPose, suitVariantId: parsed.data.suitVariantId, version: { increment: 1 } },
+      create: { userId: user.id, configuration: parsed.data.configuration as Prisma.InputJsonValue, normalPose: parsed.data.normalPose, winnerPose: parsed.data.winnerPose, suitVariantId: null },
+      update: { configuration: parsed.data.configuration as Prisma.InputJsonValue, normalPose: parsed.data.normalPose, winnerPose: parsed.data.winnerPose, suitVariantId: null, version: { increment: 1 } },
     });
     await touchAppDataRevisionSafely(prisma, ["users", "drivers", "championship", "results"]);
     refreshCharacters();

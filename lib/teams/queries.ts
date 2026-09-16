@@ -1,5 +1,6 @@
 import "server-only";
 import { DriverLineupStatus } from "@/domain";
+import { characterView, suitView } from "@/lib/characters/resolve";
 import { getPrismaClient } from "@/lib/db/prisma";
 
 const leagueCodes = ["F1", "F2", "F3", "F4", "F5", "F6"] as const;
@@ -46,6 +47,11 @@ export async function getGlobalTeamOverview(input: {
         take: 1,
         include: { principal: { select: { displayName: true } } },
       },
+      suitTemplates: {
+        where: { active: true, archivedAt: null },
+        orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+        select: { id: true, organizationId: true, name: true, configuration: true },
+      },
       driverAssignments: {
         where: { seasonId: season.id },
         orderBy: { driver: { number: "asc" } },
@@ -57,6 +63,13 @@ export async function getGlobalTeamOverview(input: {
               number: true,
               countryCode: true,
               active: true,
+              user: {
+                select: {
+                  driverCharacter: {
+                    select: { id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true },
+                  },
+                },
+              },
             },
           },
         },
@@ -95,14 +108,23 @@ export async function getGlobalTeamOverview(input: {
       leagues: leagues.map((league) => {
         const drivers = organization.driverAssignments
           .filter((assignment) => assignment.leagueId === league.id)
-          .map((assignment) => ({
-            id: assignment.driver.id,
-            name: assignment.driver.name,
-            number: assignment.driver.number,
-            countryCode: assignment.driver.countryCode,
-            active: assignment.active && assignment.driver.active,
-            lineupStatus: assignment.lineupStatus,
-          }));
+          .map((assignment) => {
+            const character = characterView(assignment.driver.user?.driverCharacter);
+            const teamSuit = suitView(
+              organization.suitTemplates.find((template) => template.id === character.suitVariantId) ?? organization.suitTemplates[0] ?? null,
+              organization,
+            );
+            return {
+              id: assignment.driver.id,
+              name: assignment.driver.name,
+              number: assignment.driver.number,
+              countryCode: assignment.driver.countryCode,
+              active: assignment.active && assignment.driver.active,
+              lineupStatus: assignment.lineupStatus,
+              character,
+              teamSuit,
+            };
+          });
         return {
           ...league,
           primaryDrivers: drivers.filter((driver) => driver.lineupStatus === DriverLineupStatus.Primary && driver.active),
