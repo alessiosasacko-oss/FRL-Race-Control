@@ -1,6 +1,7 @@
 import { countryName } from "@/lib/countries";
 import {
   MYSTERY_TRACK_REVEAL_LEAD_MS,
+  publicRacePresentation,
   publicRaceTrack,
 } from "@/lib/races/visibility";
 import {
@@ -80,6 +81,11 @@ type CalendarRaceInput = {
   sessions: readonly string[];
   sprint: boolean;
   mystery: boolean;
+  visual: {
+    desktopHeroAsset: string | null;
+    mobileHeroAsset: string | null;
+    heroAltText: string | null;
+  } | null;
   track: {
     id: number;
     name: string;
@@ -91,7 +97,12 @@ type CalendarRaceInput = {
     longestStraightM: number | null;
     poleSide: string | null;
     pitLaneLossSeconds: number | null;
-    visual: { layoutAsset: string | null } | null;
+    visual: {
+      layoutAsset: string | null;
+      desktopHeroAsset: string | null;
+      mobileHeroAsset: string | null;
+      heroAltText: string | null;
+    } | null;
   } | null;
   resultSessions: ReadonlyArray<{ session: string; publicationStatus?: string }>;
 };
@@ -114,6 +125,7 @@ export function serializeCalendarRace(
 ): MobileCalendarRace {
   const now = options.now ?? new Date();
   const publicTrack = publicRaceTrack(race, now);
+  const presentation = publicRacePresentation(race, now);
   const revealedTrack = publicTrack.revealed ? race.track : null;
   const countryCode = publicTrack.countryCode;
 
@@ -141,6 +153,7 @@ export function serializeCalendarRace(
         session.publicationStatus === undefined ||
         session.publicationStatus === "PUBLISHED",
     ),
+    hero: presentation.hero,
     track: revealedTrack
       ? {
           id: revealedTrack.id,

@@ -36,7 +36,7 @@ const publicTrackSelect = {
   longestStraightM: true,
   poleSide: true,
   pitLaneLossSeconds: true,
-  visual: { select: { layoutAsset: true } },
+  visual: { select: { layoutAsset: true, desktopHeroAsset: true, mobileHeroAsset: true, heroAltText: true } },
 } as const;
 
 const publicRaceSelect = {
@@ -52,6 +52,7 @@ const publicRaceSelect = {
   sessions: true,
   sprint: true,
   mystery: true,
+  visual: { select: { desktopHeroAsset: true, mobileHeroAsset: true, heroAltText: true } },
   track: { select: publicTrackSelect },
   season: { select: { id: true, name: true } },
   resultSessions: {

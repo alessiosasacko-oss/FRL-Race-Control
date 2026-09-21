@@ -1,8 +1,11 @@
 import PersonalDashboard from "@/components/dashboard/PersonalDashboard";
+import DriverHero from "@/components/dashboard/DriverHero";
+import NextRaceWidget from "@/components/dashboard/NextRaceWidget";
 import AppLayout from "@/components/layout/AppLayout";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPersonalDashboardLayout } from "@/lib/dashboard/layout-queries";
 import { getDashboardData } from "@/lib/dashboard/queries";
+import type { DashboardWidgetData } from "@/lib/dashboard/types";
 
 export default async function DashboardPage() {
   const user = await requireAuthenticatedUser();
@@ -16,12 +19,26 @@ export default async function DashboardPage() {
     dataPromise,
     layoutPromise,
   ]);
+  const widgetData = {
+    nextRace: data.nextRace,
+    championship: data.championship,
+    seasonProgress: data.seasonProgress,
+    latestResult: data.latestResult,
+    notifications: data.notifications,
+    unreadNotificationCount: data.unreadNotificationCount,
+  } satisfies DashboardWidgetData;
 
   return (
     <AppLayout>
       <PersonalDashboard
         key={layout.updatedAt}
-        data={data}
+        data={widgetData}
+        pinnedContent={
+          <>
+            <DriverHero data={data} />
+            <NextRaceWidget race={data.nextRace} league={data.identity.driver?.league.code ?? null} />
+          </>
+        }
         initialLayout={layout}
         availableWidgetIds={availableWidgetIds}
       />

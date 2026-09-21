@@ -16,6 +16,7 @@ const actions = source("lib/tracks/actions.ts");
 const storage = source("lib/storage/branding-storage.ts");
 const prisma = source("prisma/schema.prisma");
 const migration = source("prisma/migrations/20260731210000_add_sm_straight_mode/migration.sql");
+const heroMigration = source("prisma/migrations/20260921120000_add_race_hero_images/migration.sql");
 
 function validTrackInput() {
   return {
@@ -32,6 +33,9 @@ function validTrackInput() {
     active: "on",
     layoutAsset: "",
     layoutMimeType: "",
+    desktopHeroAsset: "",
+    mobileHeroAsset: "",
+    heroAltText: "",
     primaryColor: "#3B82F6",
     secondaryColor: "#22D3EE",
     overlayStrength: "65",
@@ -77,17 +81,24 @@ test("overtake points are absent from active form, page and query", () => {
   for (const activeSource of [form, page, queries, visual]) assert.doesNotMatch(activeSource, /overtakePoints|Overtake Points/);
 });
 
-test("the track form offers exactly one media file input", () => {
+test("the track form offers layout plus responsive hero uploads", () => {
   assert.equal(form.match(/type="file"/g)?.length, 1);
   assert.match(form, /Streckenlayout hochladen/);
+  assert.match(form, /<RaceHeroFields/);
 });
 
-test("hero image upload is not available", () => {
-  assert.doesNotMatch(form, /heroAsset|Hero-Bild/);
+test("track heroes use clearly named desktop and mobile fields", () => {
+  assert.match(form, /RaceHeroFields/);
+  assert.match(source("components/admin/RaceHeroFields.tsx"), /Desktop \/ PC Hero/);
+  assert.match(source("components/admin/RaceHeroFields.tsx"), /Mobile \/ Handy Hero/);
 });
 
-test("mobile hero upload is not available", () => {
-  assert.doesNotMatch(form, /mobileHeroAsset|Mobiles Hero/);
+test("hero images have preview, validation guidance and alt text", () => {
+  const heroFields = source("components/admin/RaceHeroFields.tsx");
+  assert.match(heroFields, /Vorschau/);
+  assert.match(heroFields, /1920 × 1080/);
+  assert.match(heroFields, /1080 × 1350/);
+  assert.match(heroFields, /heroAltText/);
 });
 
 test("SVG layout sanitizer rejects active and external content", () => {
@@ -127,10 +138,12 @@ test("desktop race weekend keeps the layout and facts grid", () => {
   assert.match(page, /<DesktopTrackFacts/);
 });
 
-test("legacy hero assets remain mapped and are never deleted by track updates", () => {
-  assert.match(prisma, /legacyHeroAsset\s+String\?\s+@map\("heroAsset"\)/);
-  assert.match(prisma, /legacyMobileHeroAsset\s+String\?\s+@map\("mobileHeroAsset"\)/);
-  assert.doesNotMatch(actions, /legacyHeroAsset|legacyMobileHeroAsset|storage\.remove/);
+test("existing track hero columns become responsive defaults without data loss", () => {
+  assert.match(prisma, /desktopHeroAsset\s+String\?\s+@map\("heroAsset"\)/);
+  assert.match(prisma, /mobileHeroAsset\s+String\?\s+@map\("mobileHeroAsset"\)/);
+  assert.doesNotMatch(actions, /storage\.remove/);
   assert.match(migration, /intentionally not copied/);
   assert.doesNotMatch(migration, /DROP COLUMN|DELETE FROM/);
+  assert.doesNotMatch(heroMigration, /DROP COLUMN|DELETE FROM/);
+  assert.match(heroMigration, /CREATE TABLE "RaceVisual"/);
 });

@@ -2,7 +2,7 @@ import "server-only";
 import { characterView, suitView } from "@/lib/characters/resolve";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { getRecentNotifications, getUnreadNotificationCount } from "@/lib/notifications/queries";
-import { publicRaceTrack } from "@/lib/races/visibility";
+import { publicRacePresentation } from "@/lib/races/visibility";
 import type { DashboardData } from "./types";
 
 async function optionalDashboardData<T>(label: string, load: () => PromiseLike<T>, fallback: T): Promise<T> {
@@ -20,12 +20,15 @@ export async function getDashboardData(userId: number): Promise<DashboardData> {
     where: { id: userId },
     select: {
       displayName: true, avatarUrl: true,
-      driverCharacter: { select: { id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true } },
+      driverCharacter: { select: {
+        id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true,
+        suitVariant: { select: { id: true, organizationId: true, name: true, configuration: true } },
+      } },
       driver: { select: {
         id: true, name: true, number: true, flag: true,
         league: { select: { id: true, code: true, name: true, currentSeasonId: true } },
         team: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true, seasonId: true, season: { select: { id: true, name: true } }, organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true } } } },
-        seasonAssignments: { where: { active: true, season: { active: true, archivedAt: null } }, orderBy: { seasonId: "desc" }, take: 1, select: { lineupStatus: true, organization: { select: { id: true, name: true, shortName: true, color: true, secondaryColor: true, contrastColor: true, logoUrl: true, suitTemplates: { where: { active: true, archivedAt: null }, orderBy: [{ displayOrder: "asc" }, { name: "asc" }], select: { id: true, organizationId: true, name: true, configuration: true } } } } } },
+        seasonAssignments: { where: { active: true, season: { active: true, archivedAt: null } }, orderBy: { seasonId: "desc" }, take: 1, select: { lineupStatus: true, organization: { select: { id: true, name: true, shortName: true, color: true, secondaryColor: true, contrastColor: true, logoUrl: true } } } },
       } },
     },
   });
@@ -39,8 +42,15 @@ export async function getDashboardData(userId: number): Promise<DashboardData> {
     seasonId = league?.currentSeasonId ?? null;
   }
 
-  const nextSchedule = leagueId ? await optionalDashboardData("next race", () => prisma.raceLeagueSchedule.findFirst({ where: { leagueId, scheduledAt: { gte: new Date() }, race: { seasonId: seasonId ?? undefined, status: { not: "CANCELLED" } } }, orderBy: { scheduledAt: "asc" }, include: { race: { include: { season: { select: { id: true, name: true } } } } } }), null) : null;
-  const fallbackRace = nextSchedule ? null : await optionalDashboardData("next race fallback", () => prisma.race.findFirst({ where: { seasonId: seasonId ?? undefined, scheduledAt: { gte: new Date() }, status: { not: "CANCELLED" } }, orderBy: { scheduledAt: "asc" }, include: { season: { select: { id: true, name: true } } } }), null);
+  const nextRaceSelect = {
+    id: true, seasonId: true, name: true, circuit: true, countryCode: true,
+    round: true, scheduledAt: true, timezone: true, sprint: true, mystery: true,
+    season: { select: { id: true, name: true } },
+    visual: { select: { desktopHeroAsset: true, mobileHeroAsset: true, heroAltText: true } },
+    track: { select: { visual: { select: { desktopHeroAsset: true, mobileHeroAsset: true, heroAltText: true } } } },
+  } as const;
+  const nextSchedule = leagueId ? await optionalDashboardData("next race", () => prisma.raceLeagueSchedule.findFirst({ where: { leagueId, scheduledAt: { gte: new Date() }, race: { seasonId: seasonId ?? undefined, status: { not: "CANCELLED" } } }, orderBy: { scheduledAt: "asc" }, select: { scheduledAt: true, timezone: true, race: { select: nextRaceSelect } } }), null) : null;
+  const fallbackRace = nextSchedule ? null : await optionalDashboardData("next race fallback", () => prisma.race.findFirst({ where: { seasonId: seasonId ?? undefined, scheduledAt: { gte: new Date() }, status: { not: "CANCELLED" } }, orderBy: { scheduledAt: "asc" }, select: nextRaceSelect }), null);
   const nextRace = nextSchedule?.race ?? fallbackRace;
   if (!seasonId && nextRace) seasonId = nextRace.seasonId;
   const driverId = user.driver?.id;
@@ -59,12 +69,15 @@ export async function getDashboardData(userId: number): Promise<DashboardData> {
 
   const character = characterView(user.driverCharacter);
   const organization = user.driver?.seasonAssignments[0]?.organization ?? null;
-  const selectedSuit = organization?.suitTemplates.find((template) => template.id === character.suitVariantId) ?? null;
-  const publicTrack = nextRace ? publicRaceTrack(nextRace) : null;
+  const characterSuit = user.driverCharacter?.suitVariant ?? null;
+  const selectedSuit = characterSuit?.organizationId === organization?.id
+    ? characterSuit
+    : null;
+  const publicTrack = nextRace ? publicRacePresentation(nextRace) : null;
   const winner = latestResult?.results[0] ?? null;
   const data: DashboardData = {
     identity: { displayName: user.displayName, avatarUrl: user.avatarUrl, character, teamSuit: suitView(selectedSuit, organization), driver: user.driver ? { id: user.driver.id, name: user.driver.name, number: user.driver.number, flag: user.driver.flag, lineupStatus: user.driver.seasonAssignments[0]?.lineupStatus ?? "PRIMARY", team: user.driver.team ? { id: user.driver.team.organization?.id ?? user.driver.team.id, name: user.driver.team.organization?.name ?? user.driver.team.name, shortName: user.driver.team.organization?.shortName ?? user.driver.team.shortName, color: user.driver.team.organization?.color ?? user.driver.team.color, logoUrl: user.driver.team.organization?.logoUrl ?? user.driver.team.logoUrl } : null, league: { id: user.driver.league.id, code: user.driver.league.code, name: user.driver.league.name } } : null, season: seasonProgress ? { id: seasonProgress.id, name: seasonProgress.name } : user.driver?.team?.season ?? null },
-    nextRace: nextRace ? { id: nextRace.id, name: publicTrack?.name ?? "Mystery Track", circuit: publicTrack?.circuit ?? "Mystery Track", round: nextRace.round, scheduledAt: (nextSchedule?.scheduledAt ?? nextRace.scheduledAt).toISOString(), timezone: nextSchedule?.timezone ?? nextRace.timezone, sprint: nextRace.sprint, mystery: nextRace.mystery } : null,
+    nextRace: nextRace ? { id: nextRace.id, name: publicTrack?.name ?? "Mystery Track", circuit: publicTrack?.circuit ?? "Mystery Track", countryCode: publicTrack?.countryCode ?? null, round: nextRace.round, scheduledAt: (nextSchedule?.scheduledAt ?? nextRace.scheduledAt).toISOString(), timezone: nextSchedule?.timezone ?? nextRace.timezone, sprint: nextRace.sprint, mystery: nextRace.mystery, revealed: publicTrack?.revealed ?? false, hero: publicTrack?.hero ?? null } : null,
     championship: { driver: driverStanding ? { position: driverStanding.position, points: driverStanding.points, gapToLeader: Math.max(0, (championship?.driverStandings[0]?.points ?? driverStanding.points) - driverStanding.points), lastRacePoints: (lastResult?.racePoints ?? 0) + (lastResult?.bonusPoints ?? 0), wins: driverStanding.wins, podiums: driverStanding.podiums } : null, team: teamStanding ? { position: teamStanding.position, points: teamStanding.points, gapToLeader: Math.max(0, (championship?.teamStandings[0]?.points ?? teamStanding.points) - teamStanding.points) } : null, topDrivers: championship?.driverStandings.map((standing) => ({ position: standing.position, name: standing.driver.name, flag: standing.driver.flag, points: standing.points })) ?? [], topTeams: championship?.teamStandings.map((standing) => ({ position: standing.position, name: standing.team.organization?.name ?? standing.team.name, color: standing.team.organization?.color ?? standing.team.color, logoUrl: standing.team.organization?.logoUrl ?? standing.team.logoUrl, points: standing.points })) ?? [] },
     seasonProgress: seasonProgress ? { completed: seasonProgress.races.filter((race) => race.status === "COMPLETED").length, total: seasonProgress.races.length } : null,
     latestResult: latestResult ? { raceId: latestResult.race.id, raceName: latestResult.race.name, position: winner?.finalPosition ?? winner?.position ?? null, points: (winner?.racePoints ?? 0) + (winner?.bonusPoints ?? 0), publishedAt: latestResult.publishedAt?.toISOString() ?? null } : null,

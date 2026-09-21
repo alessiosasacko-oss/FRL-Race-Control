@@ -19,7 +19,11 @@ export default async function ResultsPage() {
     select: {
       id: true, session: true, leagueId: true, publishedAt: true,
       league: { select: { code: true, name: true } },
-      race: { include: { season: { select: { name: true } } } },
+      race: { select: {
+        id: true, name: true, circuit: true, countryCode: true, round: true,
+        scheduledAt: true, timezone: true, mystery: true,
+        season: { select: { name: true } },
+      } },
       results: { orderBy: [{ finalPosition: { sort: "asc", nulls: "last" } }, { position: "asc" }], take: 1, select: { driver: { select: { name: true, flag: true } } } },
     },
   });

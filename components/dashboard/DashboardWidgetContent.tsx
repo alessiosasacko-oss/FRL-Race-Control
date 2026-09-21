@@ -8,7 +8,7 @@ import {
   Trophy,
 } from "lucide-react";
 import MetricBlock from "@/components/ui/MetricBlock";
-import type { DashboardData } from "@/lib/dashboard/types";
+import type { DashboardWidgetData } from "@/lib/dashboard/types";
 import type {
   DashboardWidgetItem,
   DashboardWidgetSize,
@@ -30,7 +30,7 @@ export default function DashboardWidgetContent({
   data,
 }: {
   item: DashboardWidgetItem;
-  data: DashboardData;
+  data: DashboardWidgetData;
 }) {
   switch (item.id) {
     case "quick-actions":

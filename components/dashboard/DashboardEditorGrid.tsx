@@ -24,7 +24,7 @@ import {
   type DashboardWidgetItem,
   type DashboardWidgetSize,
 } from "@/lib/dashboard/layout";
-import type { DashboardData } from "@/lib/dashboard/types";
+import type { DashboardWidgetData } from "@/lib/dashboard/types";
 import DashboardWidgetContent, { dashboardWidgetSizeClasses } from "./DashboardWidgetContent";
 
 const sizeLabels: Record<DashboardWidgetSize, string> = {
@@ -43,7 +43,7 @@ export default function DashboardEditorGrid({
   onSize,
 }: {
   items: DashboardWidgetItem[];
-  data: DashboardData;
+  data: DashboardWidgetData;
   onReorder: (activeId: DashboardWidgetId, overId: DashboardWidgetId) => void;
   onMove: (id: DashboardWidgetId, direction: -1 | 1) => void;
   onHide: (id: DashboardWidgetId) => void;
@@ -84,7 +84,7 @@ function SortableWidget({
   item: DashboardWidgetItem;
   index: number;
   count: number;
-  data: DashboardData;
+  data: DashboardWidgetData;
   onMove: (id: DashboardWidgetId, direction: -1 | 1) => void;
   onHide: (id: DashboardWidgetId) => void;
   onSize: (id: DashboardWidgetId, size: DashboardWidgetSize) => void;

@@ -16,12 +16,12 @@ export default function SectionHeader({
   action,
 }: SectionHeaderProps) {
   return (
-    <header className="mb-5 flex flex-col gap-3 border-l border-[var(--page-accent,var(--color-primary))] pl-4 sm:flex-row sm:items-end sm:justify-between">
+    <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         {eyebrow ? <p className="eyebrow mb-1.5">{eyebrow}</p> : null}
         <div className="flex items-center gap-2.5">
           {Icon ? <Icon className="text-blue-400" size={20} /> : null}
-          <h2 className="text-xl font-black uppercase tracking-[-0.02em] text-white sm:text-2xl">
+          <h2 className="text-xl font-black tracking-[-0.02em] text-white sm:text-2xl">
             {title}
           </h2>
         </div>

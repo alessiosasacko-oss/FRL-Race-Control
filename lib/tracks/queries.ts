@@ -1,11 +1,14 @@
 import "server-only";
 
 import { getPrismaClient } from "@/lib/db/prisma";
-import { publicRaceTrack } from "@/lib/races/visibility";
+import { publicRacePresentation } from "@/lib/races/visibility";
 
 const activeVisualSelect = {
   layoutAsset: true,
   layoutMimeType: true,
+  desktopHeroAsset: true,
+  mobileHeroAsset: true,
+  heroAltText: true,
   primaryColor: true,
   secondaryColor: true,
   overlayStrength: true,
@@ -105,6 +108,13 @@ export async function getRaceWeekendPageData(raceId: number, userId?: number) {
             session: true,
           },
         },
+        visual: {
+          select: {
+            desktopHeroAsset: true,
+            mobileHeroAsset: true,
+            heroAltText: true,
+          },
+        },
       },
     }),
     userId
@@ -115,13 +125,14 @@ export async function getRaceWeekendPageData(raceId: number, userId?: number) {
       : Promise.resolve(null),
   ]);
   if (!race) return null;
-  const publicTrack = publicRaceTrack(race);
+  const publicTrack = publicRacePresentation(race);
   return {
     id: race.id,
     name: publicTrack.name,
     circuit: publicTrack.circuit,
     countryCode: publicTrack.countryCode,
     trackRevealed: publicTrack.revealed,
+    hero: publicTrack.hero,
     round: race.round,
     scheduledAt: race.scheduledAt.toISOString(),
     weekendDate: race.weekendDate.toISOString(),

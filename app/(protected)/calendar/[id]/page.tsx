@@ -15,6 +15,7 @@ import {
 import AppLayout from "@/components/layout/AppLayout";
 import Countdown from "@/components/dashboard/Countdown";
 import TrackVisual from "@/components/tracks/TrackVisual";
+import RaceHeroMedia from "@/components/races/RaceHeroMedia";
 import CountryFlag from "@/components/ui/CountryFlag";
 import EmptyState from "@/components/ui/EmptyState";
 import MetricBlock from "@/components/ui/MetricBlock";
@@ -51,7 +52,9 @@ export default async function RaceWeekendPage({
         />
 
         <section className="race-hero relative isolate overflow-hidden rounded-[1.75rem] border p-5 sm:p-8 lg:p-10">
-          <div className="grid gap-6 lg:min-h-72 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-end lg:gap-8">
+          {race.hero ? <RaceHeroMedia hero={race.hero} priority /> : null}
+          <div aria-hidden="true" className={`absolute inset-0 z-[1] ${race.hero ? "bg-[linear-gradient(90deg,rgba(2,6,23,.95),rgba(2,6,23,.72)_58%,rgba(2,6,23,.35)),linear-gradient(0deg,rgba(2,6,23,.7),transparent_60%)]" : "hero-grid"}`} />
+          <div className="relative z-10 grid gap-6 lg:min-h-72 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-end lg:gap-8">
             <div>
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full border border-[color-mix(in_srgb,var(--page-accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--page-accent)_14%,transparent)] px-3 py-1 text-xs font-black uppercase tracking-wider">

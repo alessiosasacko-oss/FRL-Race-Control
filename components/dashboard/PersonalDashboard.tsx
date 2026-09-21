@@ -10,10 +10,8 @@ import {
   ShieldAlert,
   X,
 } from "lucide-react";
-import NextRaceWidget from "@/components/dashboard/NextRaceWidget";
-import DriverHero from "@/components/dashboard/DriverHero";
 import DashboardWidgetContent, { dashboardWidgetSizeClasses } from "@/components/dashboard/DashboardWidgetContent";
-import type { DashboardData } from "@/lib/dashboard/types";
+import type { DashboardWidgetData } from "@/lib/dashboard/types";
 import {
   APP_FORM_CLEAN_EVENT,
   APP_FORM_DIRTY_EVENT,
@@ -47,10 +45,12 @@ const sizeLabels: Record<DashboardWidgetSize, string> = {
 
 export default function PersonalDashboard({
   data,
+  pinnedContent,
   initialLayout,
   availableWidgetIds,
 }: {
-  data: DashboardData;
+  data: DashboardWidgetData;
+  pinnedContent: React.ReactNode;
   initialLayout: DashboardLayout;
   availableWidgetIds: DashboardWidgetId[];
 }) {
@@ -216,11 +216,9 @@ export default function PersonalDashboard({
         )}
       </div>
 
-      <DriverHero data={data} />
-
       <div className="space-y-2">
         {editing ? <p className="text-xs font-semibold text-cyan-300">Fahrer-Hero und Next Race sind fest angeheftet.</p> : null}
-        <NextRaceWidget race={data.nextRace} league={data.identity.driver?.league.code ?? null} />
+        {pinnedContent}
       </div>
 
       {editing ? (

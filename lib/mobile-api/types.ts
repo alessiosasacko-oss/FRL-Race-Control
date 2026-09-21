@@ -94,6 +94,7 @@ export type MobileCalendarRace = {
   sessions: string[];
   status: string;
   resultPublished: boolean;
+  hero: { desktopUrl: string; mobileUrl: string; alt: string } | null;
   track: MobileTrack | null;
 };
 

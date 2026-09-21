@@ -19,7 +19,7 @@ function errorState(message: string, fieldErrors?: Record<string, string[]>): Tr
 
 function splitTrack(input: ReturnType<typeof trackSchema.parse>) {
   const {
-    layoutAsset, layoutMimeType,
+    layoutAsset, layoutMimeType, desktopHeroAsset, mobileHeroAsset, heroAltText,
     primaryColor, secondaryColor, overlayStrength,
     lightBannerText, useThemeLayoutColor, layoutColor, lineWidth,
     showStartFinish, showSectors, showCornerNumbers,
@@ -30,6 +30,9 @@ function splitTrack(input: ReturnType<typeof trackSchema.parse>) {
     visual: {
       layoutAsset: layoutAsset || null,
       layoutMimeType: layoutMimeType ?? null,
+      desktopHeroAsset: desktopHeroAsset || null,
+      mobileHeroAsset: mobileHeroAsset || null,
+      heroAltText,
       primaryColor,
       secondaryColor,
       overlayStrength,
@@ -48,6 +51,7 @@ async function revalidateTracks(): Promise<void> {
   revalidatePath("/admin/tracks");
   revalidatePath("/admin/races");
   revalidatePath("/calendar");
+  revalidatePath("/dashboard");
   await touchAppDataRevisionSafely(getPrismaClient(), ["calendar"]);
 }
 

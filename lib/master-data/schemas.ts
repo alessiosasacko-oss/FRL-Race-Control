@@ -6,6 +6,7 @@ import {
   hexColorSchema,
   raceStatusSchema,
 } from "@/domain";
+import { assetReferenceSchema } from "@/lib/design/theme";
 
 const optionalId = z.preprocess(
   (value) => (value === "" || value === null ? null : value),
@@ -103,6 +104,12 @@ export const raceSchema = z
     sprint: checkbox,
     doublePoints: checkbox,
     mystery: checkbox,
+    desktopHeroAsset: z.preprocess((value) => value ?? "", assetReferenceSchema),
+    mobileHeroAsset: z.preprocess((value) => value ?? "", assetReferenceSchema),
+    heroAltText: z.preprocess(
+      (value) => value === "" || value === undefined ? null : value,
+      z.string().trim().max(300).nullable(),
+    ),
   })
   .superRefine((race, context) => {
     if (!race.mystery && !race.circuit) {

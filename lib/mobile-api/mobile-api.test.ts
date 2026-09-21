@@ -43,6 +43,7 @@ function calendarRace(overrides: {
     sessions: ["QUALIFYING", "RACE"],
     sprint: false,
     mystery: overrides.mystery ?? false,
+    visual: null,
     track: {
       id: 7,
       name: "Spa-Francorchamps",
@@ -54,7 +55,12 @@ function calendarRace(overrides: {
       longestStraightM: 1024,
       poleSide: "LEFT",
       pitLaneLossSeconds: 22.5,
-      visual: { layoutAsset: "https://cdn.example.test/spa.svg" },
+      visual: {
+        layoutAsset: "https://cdn.example.test/spa.svg",
+        desktopHeroAsset: "https://cdn.example.test/spa-desktop.webp",
+        mobileHeroAsset: "https://cdn.example.test/spa-mobile.webp",
+        heroAltText: "Spa-Francorchamps",
+      },
     },
     resultSessions: [
       {
@@ -248,6 +254,7 @@ test("a mystery race hides every track detail before reveal", () => {
   assert.equal(race.country, null);
   assert.equal(race.countryCode, null);
   assert.equal(race.track, null);
+  assert.equal(race.hero, null);
 });
 
 test("a mystery race reveals the public track after reveal", () => {
@@ -262,6 +269,7 @@ test("a mystery race reveals the public track after reveal", () => {
   );
   assert.equal(race.circuit, "Circuit de Spa-Francorchamps");
   assert.equal(race.track?.layoutUrl, "https://cdn.example.test/spa.svg");
+  assert.equal(race.hero?.desktopUrl, "https://cdn.example.test/spa-desktop.webp");
 });
 
 test("result overview exposes only published sessions", () => {

@@ -10,9 +10,11 @@ import {
   RaceStatus as PrismaRaceStatus,
 } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { Permission } from "@/lib/auth/permissions";
+import { requirePermission } from "@/lib/auth/session";
 import { listQuerySchema } from "./schemas";
 import { formatLocalDateTimeInput } from "./timezone";
-import { publicRaceTrack } from "@/lib/races/visibility";
+import { publicRacePresentation, resolveRaceHero } from "@/lib/races/visibility";
 import { getTeamDependencySnapshot } from "./team-dependencies";
 import { characterView, suitView } from "@/lib/characters/resolve";
 import type {
@@ -355,8 +357,15 @@ function activeWhere(
   return undefined;
 }
 
-export async function getRaceItems(
+const raceHeroVisualSelect = {
+  desktopHeroAsset: true,
+  mobileHeroAsset: true,
+  heroAltText: true,
+} as const;
+
+async function loadRaceItems(
   query: MasterDataListQuery,
+  revealMystery: boolean,
 ): Promise<RaceItem[]> {
   const prisma = getPrismaClient();
   const where: Prisma.RaceWhereInput = {
@@ -422,11 +431,26 @@ export async function getRaceItems(
           league: { select: { id: true, code: true, name: true } },
         },
       },
+      visual: { select: raceHeroVisualSelect },
+      track: {
+        select: {
+          visual: { select: raceHeroVisualSelect },
+        },
+      },
     },
   });
 
   return races.map((race) => {
-    const track = publicRaceTrack(race);
+    const publicPresentation = publicRacePresentation(race);
+    const presentation = revealMystery
+      ? {
+          name: race.name,
+          circuit: race.circuit,
+          countryCode: race.countryCode,
+          revealed: true,
+          hero: resolveRaceHero(race),
+        }
+      : publicPresentation;
     const displaySchedule =
       race.leagueSchedules.find(
         (schedule) => schedule.leagueId === query.leagueId,
@@ -437,9 +461,9 @@ export async function getRaceItems(
       id: race.id,
       seasonId: race.seasonId,
       trackId: race.trackId,
-      name: track.name,
-      circuit: track.circuit,
-      countryCode: track.countryCode,
+      name: presentation.name,
+      circuit: presentation.circuit,
+      countryCode: presentation.countryCode,
       round: race.round,
       weekendDate: race.weekendDate.toISOString().slice(0, 10),
       scheduledAt: displayStart.toISOString(),
@@ -453,7 +477,9 @@ export async function getRaceItems(
       sprint: race.sprint,
       doublePoints: race.doublePoints,
       mystery: race.mystery,
-      trackRevealed: track.revealed,
+      trackRevealed: presentation.revealed,
+      hero: presentation.hero,
+      visual: revealMystery ? race.visual : null,
       leagueSchedules: race.leagueSchedules.map((schedule) => ({
         id: schedule.id,
         league: schedule.league,
@@ -871,4 +897,13 @@ export async function getTeamOrganizationItems(
       canPermanentlyDelete: snapshot?.canPermanentlyDelete ?? false,
     };
   });
+}
+
+export async function getRaceItems(query: MasterDataListQuery): Promise<RaceItem[]> {
+  return loadRaceItems(query, false);
+}
+
+export async function getRaceAdminItems(query: MasterDataListQuery): Promise<RaceItem[]> {
+  await requirePermission(Permission.ManageMasterData);
+  return loadRaceItems(query, true);
 }

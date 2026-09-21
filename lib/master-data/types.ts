@@ -179,6 +179,12 @@ export type RaceItem = {
   doublePoints: boolean;
   mystery: boolean;
   trackRevealed: boolean;
+  hero: { desktopUrl: string; mobileUrl: string; alt: string } | null;
+  visual: {
+    desktopHeroAsset: string | null;
+    mobileHeroAsset: string | null;
+    heroAltText: string | null;
+  } | null;
   leagueSchedules: Array<{
     id: number;
     league: LeagueOption;

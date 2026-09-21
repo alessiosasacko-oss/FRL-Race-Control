@@ -1,10 +1,12 @@
 import AppLayout from "@/components/layout/AppLayout";
+import { CalendarCog } from "lucide-react";
 import RaceForm from "@/components/master-data/RaceForm";
+import PageHeader from "@/components/ui/PageHeader";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import {
-  getMasterDataOptions,
-  getRaceItems,
+  getMasterDataFilterOptions,
+  getRaceAdminItems,
 } from "@/lib/master-data/queries";
 import { getTrackOptions } from "@/lib/tracks/queries";
 
@@ -16,8 +18,8 @@ const allRacesQuery = {
 export default async function RaceAdminPage() {
   await requirePermission(Permission.ManageMasterData);
   const [races, options, tracks] = await Promise.all([
-    getRaceItems(allRacesQuery),
-    getMasterDataOptions(),
+    getRaceAdminItems(allRacesQuery),
+    getMasterDataFilterOptions(),
     getTrackOptions(),
   ]);
   const activeSeasons = options.seasons.filter(
@@ -26,16 +28,13 @@ export default async function RaceAdminPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-white">
-            Rennkalender verwalten
-          </h1>
-          <p className="mt-2 text-slate-400">
-            Ein Rennwochenende erzeugt automatisch je aktiver Liga einen
-            eigenen Termin.
-          </p>
-        </div>
+      <div className="page-stack page-accent-calendar">
+        <PageHeader
+          title="Rennkalender verwalten"
+          eyebrow="Race Weekend Control"
+          subtitle="Termine, Mystery-Schutz und responsive Event-Bilder zentral pro Rennwochenende pflegen."
+          icon={CalendarCog}
+        />
         <section className="master-card">
           <h2 className="mb-5 text-xl font-semibold text-white">
             Neues Rennen

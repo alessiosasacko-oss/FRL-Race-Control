@@ -6,6 +6,7 @@ import Image from "next/image";
 import { ImagePlus, Replace, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import CountrySelect from "@/components/ui/CountrySelect";
+import RaceHeroFields from "@/components/admin/RaceHeroFields";
 import { createTrackAction, deleteTrackAction, updateTrackAction } from "@/lib/tracks/actions";
 import { initialTrackActionState } from "@/lib/tracks/types";
 
@@ -52,6 +53,8 @@ export default function TrackForm({ track }: { track?: TrackItem }) {
           <Check name="showCornerNumbers" label="Kurvennummern" checked={visual?.showCornerNumbers ?? false} />
         </div>
       </section>
+
+      <RaceHeroFields values={visual} mode="track" />
 
       {state.message ? <p className={`text-sm ${state.status === "success" ? "text-emerald-300" : "text-red-300"}`}>{state.message}</p> : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">

@@ -18,7 +18,19 @@ export type DashboardData = {
     } | null;
     season: { id: number; name: string } | null;
   };
-  nextRace: { id: number; name: string; circuit: string; round: number; scheduledAt: string; timezone: string; sprint: boolean; mystery: boolean } | null;
+  nextRace: {
+    id: number;
+    name: string;
+    circuit: string;
+    countryCode: string | null;
+    round: number;
+    scheduledAt: string;
+    timezone: string;
+    sprint: boolean;
+    mystery: boolean;
+    revealed: boolean;
+    hero: { desktopUrl: string; mobileUrl: string; alt: string } | null;
+  } | null;
   championship: {
     driver: { position: number; points: number; gapToLeader: number; lastRacePoints: number; wins: number; podiums: number } | null;
     team: { position: number; points: number; gapToLeader: number } | null;
@@ -30,3 +42,5 @@ export type DashboardData = {
   notifications: NotificationView[];
   unreadNotificationCount: number;
 };
+
+export type DashboardWidgetData = Omit<DashboardData, "identity">;

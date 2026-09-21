@@ -7,6 +7,8 @@ import {
   MapPin,
 } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard/types";
+import RaceHeroMedia from "@/components/races/RaceHeroMedia";
+import CountryFlag from "@/components/ui/CountryFlag";
 import Countdown from "./Countdown";
 
 export default function NextRaceWidget({
@@ -36,13 +38,14 @@ export default function NextRaceWidget({
 
   return (
     <section className="race-hero relative isolate overflow-hidden rounded-[1.75rem] border shadow-[var(--shadow-card)] lg:min-h-[25rem]">
+      {race.hero ? <RaceHeroMedia hero={race.hero} priority /> : null}
       <div
         aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_12%,rgba(37,99,235,0.38),transparent_33%),radial-gradient(circle_at_92%_82%,rgba(34,211,238,0.12),transparent_28%),linear-gradient(115deg,transparent_0_70%,rgba(255,255,255,0.035)_70%_71%,transparent_71%_100%)]"
+        className={`absolute inset-0 z-[1] ${race.hero ? "bg-[linear-gradient(90deg,rgba(2,6,23,.94)_0%,rgba(2,6,23,.78)_48%,rgba(2,6,23,.34)_100%),linear-gradient(0deg,rgba(2,6,23,.72),transparent_55%)]" : "bg-[radial-gradient(circle_at_18%_12%,rgba(37,99,235,0.38),transparent_33%),radial-gradient(circle_at_92%_82%,rgba(34,211,238,0.12),transparent_28%),linear-gradient(115deg,transparent_0_70%,rgba(255,255,255,0.035)_70%_71%,transparent_71%_100%)]"}`}
       />
       <div
         aria-hidden="true"
-        className="absolute right-[-3rem] top-[-3rem] select-none font-mono text-[13rem] font-black leading-none text-white/[0.025] sm:text-[18rem]"
+        className="absolute right-[-3rem] top-[-3rem] z-[2] select-none font-mono text-[13rem] font-black leading-none text-white/[0.06] sm:text-[18rem]"
       >
         {String(race.round).padStart(2, "0")}
       </div>
@@ -64,7 +67,7 @@ export default function NextRaceWidget({
                   Sprint
                 </span>
               ) : null}
-              {race.mystery ? (
+              {race.mystery && !race.revealed ? (
                 <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-200">
                   <EyeOff className="mr-1 inline" size={13} />
                   Mystery Track
@@ -77,8 +80,9 @@ export default function NextRaceWidget({
             <h2 className="mt-2 max-w-4xl break-words text-3xl font-black tracking-[-0.045em] text-white sm:text-4xl lg:text-6xl">
               {race.name}
             </h2>
-            <p className="mt-4 flex items-center gap-2 text-sm text-slate-300 sm:text-base">
+            <p className="mt-4 flex items-center gap-2 text-sm text-slate-200 sm:text-base">
               <MapPin size={18} className="text-blue-300" />
+              {race.countryCode ? <CountryFlag countryCode={race.countryCode} size="sm" /> : null}
               {race.circuit}
             </p>
           </div>

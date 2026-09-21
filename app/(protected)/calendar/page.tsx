@@ -14,6 +14,8 @@ import ListFilters from "@/components/master-data/ListFilters";
 import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
+import RaceHeroMedia from "@/components/races/RaceHeroMedia";
+import CountryFlag from "@/components/ui/CountryFlag";
 import { RaceStatus, raceStatusLabels } from "@/domain";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -144,11 +146,12 @@ function NextRaceHero({
 }) {
   return (
     <section className="race-hero relative isolate overflow-hidden rounded-[1.75rem] border p-5 sm:p-8 lg:p-10">
+      {race.hero ? <RaceHeroMedia hero={race.hero} priority /> : null}
       <div
         aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_82%_15%,rgba(37,99,235,0.35),transparent_32%),linear-gradient(120deg,transparent_0_70%,rgba(34,211,238,0.06)_70%_71%,transparent_71%_100%)]"
+        className={`absolute inset-0 z-[1] ${race.hero ? "bg-[linear-gradient(90deg,rgba(2,6,23,.94),rgba(2,6,23,.72)_58%,rgba(2,6,23,.3)),linear-gradient(0deg,rgba(2,6,23,.68),transparent_60%)]" : "bg-[radial-gradient(circle_at_82%_15%,rgba(37,99,235,0.35),transparent_32%),linear-gradient(120deg,transparent_0_70%,rgba(34,211,238,0.06)_70%_71%,transparent_71%_100%)]"}`}
       />
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-end">
+      <div className="relative z-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-end">
         <div>
           <div className="flex flex-wrap gap-2">
             <span className="rounded-full border border-blue-400/30 bg-blue-500/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-blue-200">
@@ -164,7 +167,8 @@ function NextRaceHero({
             {race.mystery ? <EyeOff className="mr-3 inline" size={30} /> : null}
             {race.name}
           </h2>
-          <p className="mt-3 text-lg text-slate-300">
+          <p className="mt-3 flex items-center gap-2 text-lg text-slate-200">
+            {race.countryCode ? <CountryFlag countryCode={race.countryCode} size="sm" /> : null}
             {race.circuit ?? "Mystery Track"}
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">

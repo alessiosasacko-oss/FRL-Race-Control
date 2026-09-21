@@ -469,6 +469,17 @@ function racePayload(formData: FormData) {
     sprint: formData.get("sprint"),
     doublePoints: formData.get("doublePoints"),
     mystery: formData.get("mystery"),
+    desktopHeroAsset: formData.get("desktopHeroAsset"),
+    mobileHeroAsset: formData.get("mobileHeroAsset"),
+    heroAltText: formData.get("heroAltText"),
+  };
+}
+
+function raceVisualData(input: ReturnType<typeof raceSchema.parse>) {
+  return {
+    desktopHeroAsset: input.desktopHeroAsset || null,
+    mobileHeroAsset: input.mobileHeroAsset || null,
+    heroAltText: input.heroAltText,
   };
 }
 
@@ -575,6 +586,9 @@ export async function createRaceAction(
           sprint: parsed.data.sprint,
           doublePoints: parsed.data.doublePoints,
           mystery: parsed.data.mystery,
+          visual: {
+            create: raceVisualData(parsed.data),
+          },
           leagueSchedules: {
             create: calculatedSchedules.map((schedule) => ({
               leagueId: schedule.league.id,
@@ -757,6 +771,12 @@ export async function updateRaceAction(
           sprint: parsed.data.sprint,
           doublePoints: parsed.data.doublePoints,
           mystery: parsed.data.mystery,
+          visual: {
+            upsert: {
+              create: raceVisualData(parsed.data),
+              update: raceVisualData(parsed.data),
+            },
+          },
         },
       });
       for (const schedule of calculatedSchedules) {

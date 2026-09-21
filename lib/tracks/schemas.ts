@@ -21,6 +21,12 @@ export const trackSchema = z.object({
   active: z.preprocess((value) => value === "on" || value === true, z.boolean()),
   layoutAsset: z.preprocess((value) => value ?? "", assetReferenceSchema),
   layoutMimeType: z.preprocess((value) => value === "" ? null : value, z.enum(["image/svg+xml", "image/png", "image/webp"]).nullable()),
+  desktopHeroAsset: z.preprocess((value) => value ?? "", assetReferenceSchema),
+  mobileHeroAsset: z.preprocess((value) => value ?? "", assetReferenceSchema),
+  heroAltText: z.preprocess(
+    (value) => value === "" || value === undefined ? null : value,
+    z.string().trim().max(300).nullable(),
+  ),
   primaryColor: hexColorSchema,
   secondaryColor: hexColorSchema,
   overlayStrength: z.coerce.number().int().min(20).max(90),

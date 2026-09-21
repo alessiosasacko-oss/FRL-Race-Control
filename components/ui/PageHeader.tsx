@@ -23,8 +23,8 @@ export default function PageHeader({
   children,
 }: PageHeaderProps) {
   return (
-    <header className="page-header relative flex flex-col gap-5 border-b border-white/10 pb-6 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
-      <div className="min-w-0 border-l-2 border-[var(--page-accent,var(--color-primary))] pl-4 sm:pl-5">
+    <header className="page-header relative flex flex-col gap-5 overflow-hidden rounded-[1.5rem] border border-white/10 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--page-accent,var(--color-primary))_12%,var(--color-card)),var(--color-card)_54%,color-mix(in_srgb,var(--color-secondary)_6%,var(--color-card)))] p-5 shadow-[var(--shadow-card)] sm:p-6 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+      <div className="min-w-0">
         {backHref ? (
           <Link
             href={backHref}
@@ -37,11 +37,11 @@ export default function PageHeader({
         {eyebrow ? <p className="eyebrow mb-2">{eyebrow}</p> : null}
         <div className="flex items-center gap-3">
           {Icon ? (
-            <span className="flex size-10 shrink-0 items-center justify-center border border-[color-mix(in_srgb,var(--page-accent,var(--color-primary))_35%,transparent)] bg-[color-mix(in_srgb,var(--page-accent,var(--color-primary))_10%,transparent)] text-[var(--page-accent,var(--color-primary))]">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-[color-mix(in_srgb,var(--page-accent,var(--color-primary))_35%,transparent)] bg-[color-mix(in_srgb,var(--page-accent,var(--color-primary))_12%,transparent)] text-[var(--page-accent,var(--color-primary))] shadow-lg">
               <Icon size={21} />
             </span>
           ) : null}
-          <h1 className="break-words text-3xl font-black uppercase tracking-[-0.035em] text-white sm:text-4xl lg:text-[2.7rem]">
+          <h1 className="break-words text-3xl font-black tracking-[-0.035em] text-white sm:text-4xl lg:text-[2.7rem]">
             {title}
           </h1>
         </div>

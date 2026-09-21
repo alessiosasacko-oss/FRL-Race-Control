@@ -732,6 +732,7 @@ model Race {
   championshipAdjustments ChampionshipAdjustment[]
   championshipAudits      ChampionshipAudit[]
   globalWeekend           GlobalRaceWeekend?
+  visual                  RaceVisual?
   globalTeamContributions GlobalTeamContribution[]
   resultGraphics          ResultGraphic[]
   createdAt               DateTime                 @default(now())
@@ -1667,8 +1668,9 @@ model TrackVisual {
   trackId                  Int      @unique
   layoutAsset              String?  @db.Text
   layoutMimeType           String?  @db.VarChar(80)
-  legacyHeroAsset          String?  @map("heroAsset") @db.Text
-  legacyMobileHeroAsset    String?  @map("mobileHeroAsset") @db.Text
+  desktopHeroAsset         String?  @map("heroAsset") @db.Text
+  mobileHeroAsset          String?  @map("mobileHeroAsset") @db.Text
+  heroAltText              String?  @db.VarChar(300)
   legacyTrackLogoAsset     String?  @map("trackLogoAsset") @db.Text
   primaryColor             String   @default("#3B82F6") @db.Char(7)
   secondaryColor           String   @default("#22D3EE") @db.Char(7)
@@ -1689,6 +1691,17 @@ model TrackVisual {
   updatedAt                DateTime @updatedAt
 
   @@index([primaryColor])
+}
+
+model RaceVisual {
+  id               Int      @id @default(autoincrement())
+  raceId           Int      @unique
+  desktopHeroAsset String?  @db.Text
+  mobileHeroAsset  String?  @db.Text
+  heroAltText      String?  @db.VarChar(300)
+  race             Race     @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model EmailDelivery {

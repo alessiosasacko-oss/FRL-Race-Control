@@ -3,6 +3,7 @@
 import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
 
 import { useState } from "react";
+import RaceHeroFields from "@/components/admin/RaceHeroFields";
 import {
   RaceStatus,
   raceStatusLabels,
@@ -198,6 +199,7 @@ export default function RaceForm({
             </p>
           )}
         </section>
+        <RaceHeroFields values={race?.visual} mode="race" />
         <div className="grid gap-3 sm:grid-cols-3">
           <Check name="sprint" label="Sprint-Wochenende" checked={race?.sprint} />
           <Check

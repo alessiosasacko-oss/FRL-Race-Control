@@ -22,12 +22,12 @@ const actions = source("lib/dashboard/layout-actions.ts");
 const migration = source("prisma/migrations/20260802190000_personal_dashboard_layouts/migration.sql");
 const available = [...dashboardWidgetIds];
 
-test("1. the fixed driver hero is always first", () => assert.ok(component.indexOf("<DriverHero") < component.indexOf("<NextRaceWidget")));
-test("2. the driver hero is outside the lazy sortable grid", () => assert.ok(component.indexOf("<DriverHero") < component.indexOf("<DashboardEditorGrid")));
-test("3. the driver hero has no hide or resize controls", () => assert.match(component, /<DriverHero data=\{data\} \/>/));
+test("1. the fixed driver hero is always first", () => assert.ok(page.indexOf("<DriverHero") < page.indexOf("<NextRaceWidget")));
+test("2. the driver hero is outside the lazy sortable grid", () => { assert.match(page, /pinnedContent/); assert.ok(component.indexOf("pinnedContent") < component.indexOf("<DashboardEditorGrid")); });
+test("3. the driver hero has no hide or resize controls", () => assert.match(page, /<DriverHero data=\{data\} \/>/));
 test("4. welcome is absent from the customizable registry", () => assert.equal(dashboardWidgetIds.includes("welcome" as never), false));
 test("5. the default layout contains every registered widget", () => assert.equal(createDefaultDashboardLayout().desktop.length, dashboardWidgetIds.length));
-test("6. Next Race stays directly below the hero and above the grid", () => assert.match(component, /<DriverHero data=\{data\} \/>[^]*<NextRaceWidget[^]*<DashboardEditorGrid/));
+test("6. Next Race stays directly below the hero and above the grid", () => { assert.match(page, /<DriverHero data=\{data\} \/>[^]*<NextRaceWidget/); assert.ok(component.indexOf("pinnedContent") < component.indexOf("<DashboardEditorGrid")); });
 test("7. latest results are available on every dashboard", () => assert.ok(availableDashboardWidgetIds([Role.Driver], true).includes("latest-result")));
 test("8. status widgets have stable IDs", () => assert.deepEqual(dashboardWidgetIds.filter((id) => id.startsWith("championship-")), ["championship-position", "championship-points"]));
 test("9. widgets can be hidden", () => assert.match(component, /visible: false/));
