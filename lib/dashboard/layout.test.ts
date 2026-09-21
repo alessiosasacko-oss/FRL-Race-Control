@@ -16,17 +16,18 @@ function source(path: string): string {
 }
 
 const component = source("components/dashboard/PersonalDashboard.tsx");
+const editorGrid = source("components/dashboard/DashboardEditorGrid.tsx");
 const page = source("app/(protected)/dashboard/page.tsx");
 const actions = source("lib/dashboard/layout-actions.ts");
 const migration = source("prisma/migrations/20260802190000_personal_dashboard_layouts/migration.sql");
 const available = [...dashboardWidgetIds];
 
 test("1. the fixed driver hero is always first", () => assert.ok(component.indexOf("<DriverHero") < component.indexOf("<NextRaceWidget")));
-test("2. the driver hero is outside the sortable grid", () => assert.ok(component.indexOf("<DriverHero") < component.indexOf("<DndContext")));
+test("2. the driver hero is outside the lazy sortable grid", () => assert.ok(component.indexOf("<DriverHero") < component.indexOf("<DashboardEditorGrid")));
 test("3. the driver hero has no hide or resize controls", () => assert.match(component, /<DriverHero data=\{data\} \/>/));
 test("4. welcome is absent from the customizable registry", () => assert.equal(dashboardWidgetIds.includes("welcome" as never), false));
 test("5. the default layout contains every registered widget", () => assert.equal(createDefaultDashboardLayout().desktop.length, dashboardWidgetIds.length));
-test("6. Next Race stays directly below the hero and above the grid", () => assert.match(component, /<DriverHero data=\{data\} \/>[^]*<NextRaceWidget[^]*<DndContext/));
+test("6. Next Race stays directly below the hero and above the grid", () => assert.match(component, /<DriverHero data=\{data\} \/>[^]*<NextRaceWidget[^]*<DashboardEditorGrid/));
 test("7. latest results are available on every dashboard", () => assert.ok(availableDashboardWidgetIds([Role.Driver], true).includes("latest-result")));
 test("8. status widgets have stable IDs", () => assert.deepEqual(dashboardWidgetIds.filter((id) => id.startsWith("championship-")), ["championship-position", "championship-points"]));
 test("9. widgets can be hidden", () => assert.match(component, /visible: false/));
@@ -55,7 +56,7 @@ test("21. mobile and tablet layouts are stored independently", () => { const lay
 test("22. automatic refresh is deferred during editing", () => { assert.match(component, /APP_FORM_DIRTY_EVENT/); assert.match(component, /APP_FORM_CLEAN_EVENT/); });
 test("23. cross-tab layout changes use the live channel", () => assert.match(component, /broadcastAppDataChanged\(\["users"\]\)/));
 test("24. saves are debounced and serialized", () => { assert.match(component, /setTimeout\(\(\) => void queueSave\(layout\), 750\)/); assert.match(component, /saveChain\.current = saveChain\.current\.then/); });
-test("25. keyboard and button reordering remain available", () => { assert.match(component, /sortableKeyboardCoordinates/); assert.match(component, /nach oben verschieben/); assert.match(component, /nach unten verschieben/); });
+test("25. keyboard and button reordering remain available in the lazy editor", () => { assert.match(editorGrid, /sortableKeyboardCoordinates/); assert.match(editorGrid, /nach oben verschieben/); assert.match(editorGrid, /nach unten verschieben/); });
 test("26. 360px uses a one-column overflow-safe grid", () => assert.match(component, /grid min-w-0 grid-cols-1/));
 test("27. tablet uses at most two columns and desktop begins at lg", () => assert.match(component, /md:grid-cols-2 lg:grid-cols-12/));
 test("28. the additive migration preserves existing settings", () => assert.match(migration, /ALTER TABLE "UserSettings" ADD COLUMN "dashboardLayout" JSONB/));

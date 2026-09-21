@@ -642,6 +642,7 @@ export async function getResultAdminData(
   const racesRaw = await prisma.race.findMany({
     where: { seasonId },
     orderBy: [{ scheduledAt: "desc" }, { round: "desc" }],
+    take: seasonId ? undefined : 60,
     include: raceOptionInclude,
   });
   const eligibleRaces = leagueId
@@ -702,40 +703,28 @@ export async function getResultAdminData(
   const selectedRaceContext = eligibleRaces.find(
     (race) => race.id === selectedRaceId,
   );
-  const weekendSessions = await prisma.raceResultSession.findMany({
-    where: { raceId: selectedRaceId },
-    select: {
-      leagueId: true,
-      session: true,
-      publicationStatus: true,
-    },
-  });
-  const weekendLeagueResults =
-    selectedRaceContext?.season.participatingLeagues.map((league) => ({
-      league,
-      sessions: weekendSessions
-        .filter((result) => result.leagueId === league.id)
-        .map((result) => ({
-          session: result.session as ResultSession,
-          publicationStatus:
-            result.publicationStatus as ResultPublicationStatus,
-        })),
-    })) ?? [];
-
-  const scoringConfiguration = await prisma.scoringConfiguration.findUnique({
-    where: {
-      leagueId_seasonId: {
-        leagueId: selected.race.season.league.id,
-        seasonId: selected.race.season.id,
+  const [weekendSessions, scoringConfiguration, driverCandidates, teams] = await prisma.$transaction([
+    prisma.raceResultSession.findMany({
+      where: { raceId: selectedRaceId },
+      select: {
+        leagueId: true,
+        session: true,
+        publicationStatus: true,
       },
-    },
-    include: {
-      positions: {
-        orderBy: [{ session: "asc" }, { position: "asc" }],
+    }),
+    prisma.scoringConfiguration.findUnique({
+      where: {
+        leagueId_seasonId: {
+          leagueId: selected.race.season.league.id,
+          seasonId: selected.race.season.id,
+        },
       },
-    },
-  });
-  const [driverCandidates, teams] = await prisma.$transaction([
+      include: {
+        positions: {
+          orderBy: [{ session: "asc" }, { position: "asc" }],
+        },
+      },
+    }),
     prisma.driver.findMany({
       where: {
         OR: [
@@ -771,6 +760,17 @@ export async function getResultAdminData(
       },
     }),
   ]);
+  const weekendLeagueResults =
+    selectedRaceContext?.season.participatingLeagues.map((league) => ({
+      league,
+      sessions: weekendSessions
+        .filter((result) => result.leagueId === league.id)
+        .map((result) => ({
+          session: result.session as ResultSession,
+          publicationStatus:
+            result.publicationStatus as ResultPublicationStatus,
+        })),
+    })) ?? [];
   const drivers = driverCandidates.filter(
     (driver) =>
       existingDriverIds.has(driver.id) ||

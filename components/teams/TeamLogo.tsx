@@ -1,7 +1,4 @@
-"use client";
-
 import Image from "next/image";
-import { memo, useState } from "react";
 import { teamLogoThumbnailUrl } from "@/lib/storage/team-logo-image";
 
 const sizes = {
@@ -39,12 +36,11 @@ function TeamLogoComponent({
   priority = false,
   showFallback = true,
 }: TeamLogoProps) {
-  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const variant = sizes[size];
   const compactUrl = size === "xs" || size === "sm" || size === "md" ? teamLogoThumbnailUrl(logoUrl) : logoUrl;
   const shared = `relative inline-flex shrink-0 items-center justify-center overflow-hidden border border-white/10 bg-slate-950/45 ${variant.className} ${className}`;
 
-  if (!compactUrl || failedUrl === compactUrl) {
+  if (!compactUrl) {
     if (!showFallback) return null;
     return (
       <span
@@ -68,12 +64,10 @@ function TeamLogoComponent({
         height={variant.pixels}
         sizes={`${variant.pixels}px`}
         priority={priority}
-        onError={() => setFailedUrl(compactUrl)}
         className="size-full object-contain p-0.5"
       />
     </span>
   );
 }
 
-const TeamLogo = memo(TeamLogoComponent);
-export default TeamLogo;
+export default TeamLogoComponent;

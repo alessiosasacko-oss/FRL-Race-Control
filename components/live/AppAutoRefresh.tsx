@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, CloudOff, Radio, RefreshCw, TriangleAlert } from "lucide-react";
+import { Check, CloudOff, Radio, TriangleAlert } from "lucide-react";
 import {
   APP_DATA_CHANNEL,
   APP_DATA_EVENT,
@@ -337,7 +337,7 @@ function LiveIndicator({ status, updatedAt }: { status: LiveStatus; updatedAt: n
       title={updatedAt ? `Zuletzt aktualisiert: ${new Intl.DateTimeFormat("de-DE", { timeStyle: "medium" }).format(new Date(updatedAt))}` : content.label}
       className={`fixed right-3 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-40 flex min-h-11 max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border bg-slate-950/90 px-3 text-xs font-bold shadow-lg backdrop-blur lg:right-4 lg:bottom-4 ${content.style}`}
     >
-      {status === "live" && updatedAt ? <RefreshCw size={14} className="animate-spin motion-reduce:animate-none" /> : <Icon size={14} />}
+      <Icon size={14} />
       <span className="truncate">{content.label}</span>
     </div>
   );

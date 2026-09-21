@@ -56,7 +56,7 @@ test("33. character selects have explicit dark option colors", () => { assert.ma
 test("34. character select touch targets remain at least 44 pixels", () => assert.match(characterSelect, /min-h-11/));
 test("35. renderer adds adult material depth without changing stored configuration", () => { assert.match(renderer, /radialGradient/); assert.match(renderer, /linearGradient/); assert.match(renderer, /feDropShadow/); assert.match(renderer, /configuration\.bodyShape/); });
 test("36. realistic renderer retains every configurable detail", () => ["faceShape", "eyeShape", "noseStyle", "mouthStyle", "hairStyle", "beardStyle", "eyewearStyle", "gloves", "shoes", "helmet"].forEach((field) => assert.match(renderer, new RegExp(`configuration\\.${field}`))));
-test("37. dashboard hero and Next Race remain outside the personal widget grid", () => assert.match(dashboard, /<DriverHero data=\{data\} \/>[^]*<NextRaceWidget[^]*<DndContext/));
+test("37. dashboard hero and Next Race remain outside the personal widget grid", () => assert.match(dashboard, /<DriverHero data=\{data\} \/>[^]*<NextRaceWidget[^]*<DashboardEditorGrid/));
 test("38. existing version-one character data remains valid without a migration", () => assert.equal(parseCharacterConfiguration(defaultDriverCharacter).version, 1));
 test("39. legacy version-one configurations receive professional face defaults", () => {
   const legacy = { ...defaultDriverCharacter } as Partial<typeof defaultDriverCharacter>;

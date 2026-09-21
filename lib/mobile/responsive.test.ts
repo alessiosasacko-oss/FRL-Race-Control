@@ -6,7 +6,7 @@ function source(path: string): string {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
-const appLayout = source("components/layout/AppLayout.tsx");
+const appShell = source("components/layout/AppShell.tsx");
 const publicNavbar = source("components/layout/Navbar.tsx");
 const sidebar = source("components/layout/Sidebar.tsx");
 const mobileNavigation = source("components/layout/MobileNavigation.tsx");
@@ -43,13 +43,13 @@ test("the mobile menu is a phone bottom sheet and a tablet drawer", () => {
 });
 
 test("the app shell reserves the bottom navigation safe area", () => {
-  assert.match(appLayout, /mobile-safe-bottom/);
+  assert.match(appShell, /mobile-safe-bottom/);
   assert.match(globalStyles, /env\(safe-area-inset-bottom\)/);
 });
 
-test("the mobile dashboard keeps Next Race first and personal widgets in one contained column", () => {
+test("the mobile dashboard keeps fixed race context above personal widgets in one contained column", () => {
   assert.match(dashboard, /PersonalDashboard/);
-  assert.ok(personalDashboard.indexOf("<NextRaceWidget") < personalDashboard.indexOf("<DndContext"));
+  assert.ok(personalDashboard.indexOf("<NextRaceWidget") < personalDashboard.indexOf("<DashboardEditorGrid"));
   assert.match(personalDashboard, /grid min-w-0 grid-cols-1/);
   assert.match(personalDashboard, /md:grid-cols-2 lg:grid-cols-12/);
 });
@@ -66,8 +66,9 @@ test("result editing keeps cards below lg and the desktop table at lg", () => {
   assert.match(resultEditor, /backdrop-blur lg:hidden/);
 });
 
-test("published results use cards below lg", () => {
-  assert.match(resultOverview, /md:grid-cols-2/);
+test("published results use an overflow-safe list below lg", () => {
+  assert.match(resultOverview, /lg:grid-cols-\[/);
+  assert.doesNotMatch(resultOverview, /overflow-x-auto/);
   assert.match(resultView, /overflow-x-auto lg:block/);
   assert.match(resultView, /space-y-3 lg:hidden/);
 });

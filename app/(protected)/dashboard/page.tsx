@@ -6,12 +6,16 @@ import { getDashboardData } from "@/lib/dashboard/queries";
 
 export default async function DashboardPage() {
   const user = await requireAuthenticatedUser();
-  const data = await getDashboardData(user.id);
-  const { layout, availableWidgetIds } = await getPersonalDashboardLayout(
+  const dataPromise = getDashboardData(user.id);
+  const layoutPromise = getPersonalDashboardLayout(
     user.id,
     user.roles,
-    Boolean(data.identity.driver),
+    dataPromise.then((data) => Boolean(data.identity.driver)),
   );
+  const [data, { layout, availableWidgetIds }] = await Promise.all([
+    dataPromise,
+    layoutPromise,
+  ]);
 
   return (
     <AppLayout>

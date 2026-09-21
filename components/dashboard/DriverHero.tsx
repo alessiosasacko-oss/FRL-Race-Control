@@ -27,7 +27,7 @@ export default function DriverHero({ data }: { data: DashboardData }) {
               <CountryFlag countryCode={null} fallbackFlag={driver.flag} size="sm" />
               <span>{driver.league.code}</span>
               <span aria-hidden="true">·</span>
-              {driver.team ? <TeamLogo logoUrl={driver.team.logoUrl} teamName={driver.team.name} shortName={driver.team.shortName} primaryColor={driver.team.color} size="xs" priority /> : null}
+              {driver.team ? <TeamLogo logoUrl={driver.team.logoUrl} teamName={driver.team.name} shortName={driver.team.shortName} primaryColor={driver.team.color} size="xs" /> : null}
               <span>{driver.team?.name ?? "Ohne Team"}</span>
             </div>
             <p className="mt-3 text-sm text-slate-400">{driver.lineupStatus === "SUBSTITUTE" ? "Ersatzfahrer" : driver.lineupStatus === "RESERVE" ? "Reservefahrer" : "Stammfahrer"} {data.identity.season ? `· ${data.identity.season.name}` : ""}</p>

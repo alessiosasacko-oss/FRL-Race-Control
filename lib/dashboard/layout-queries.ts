@@ -11,9 +11,9 @@ import {
 export async function getPersonalDashboardLayout(
   userId: number,
   roles: readonly Role[],
-  hasDriver: boolean,
+  hasDriver: boolean | Promise<boolean>,
 ): Promise<{ layout: DashboardLayout; availableWidgetIds: DashboardWidgetId[] }> {
-  const settings = await getPrismaClient().userSettings.findUnique({
+  const settingsPromise = getPrismaClient().userSettings.findUnique({
     where: { userId },
     select: { dashboardLayout: true },
   }).catch((error: unknown) => {
@@ -23,7 +23,11 @@ export async function getPersonalDashboardLayout(
     });
     return null;
   });
-  const availableWidgetIds = availableDashboardWidgetIds(roles, hasDriver);
+  const [settings, resolvedHasDriver] = await Promise.all([
+    settingsPromise,
+    Promise.resolve(hasDriver),
+  ]);
+  const availableWidgetIds = availableDashboardWidgetIds(roles, resolvedHasDriver);
   return {
     layout: resolveDashboardLayout(settings?.dashboardLayout, availableWidgetIds),
     availableWidgetIds,

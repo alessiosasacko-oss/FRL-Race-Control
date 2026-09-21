@@ -1,51 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import {
-  ArrowDown,
-  ArrowUp,
-  Bell,
-  CalendarClock,
   Check,
-  EyeOff,
-  Flag,
-  GripVertical,
-  ListOrdered,
-  Medal,
   Pencil,
   Plus,
   RotateCcw,
   Save,
   ShieldAlert,
-  Trophy,
   X,
 } from "lucide-react";
 import NextRaceWidget from "@/components/dashboard/NextRaceWidget";
-import NotificationsWidget from "@/components/dashboard/NotificationsWidget";
-import QuickActionsWidget from "@/components/dashboard/QuickActionsWidget";
-import RankingsWidget from "@/components/dashboard/RankingsWidget";
-import SeasonProgressWidget from "@/components/dashboard/SeasonProgressWidget";
 import DriverHero from "@/components/dashboard/DriverHero";
-import MetricBlock from "@/components/ui/MetricBlock";
+import DashboardWidgetContent, { dashboardWidgetSizeClasses } from "@/components/dashboard/DashboardWidgetContent";
 import type { DashboardData } from "@/lib/dashboard/types";
 import {
   APP_FORM_CLEAN_EVENT,
@@ -69,12 +36,7 @@ import {
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-const sizeClasses: Record<DashboardWidgetSize, string> = {
-  small: "md:col-span-1 lg:col-span-3",
-  medium: "md:col-span-1 lg:col-span-6",
-  large: "md:col-span-2 lg:col-span-8",
-  full: "md:col-span-2 lg:col-span-12",
-};
+const DashboardEditorGrid = lazy(() => import("./DashboardEditorGrid"));
 
 const sizeLabels: Record<DashboardWidgetSize, string> = {
   small: "Klein",
@@ -101,12 +63,6 @@ export default function PersonalDashboard({
   const addDialog = useRef<HTMLDialogElement>(null);
   const saveChain = useRef<Promise<void>>(Promise.resolve());
   const liveDirty = useRef(false);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
   useEffect(() => () => {
     if (liveDirty.current) window.dispatchEvent(new Event(APP_FORM_CLEAN_EVENT));
   }, []);
@@ -177,21 +133,28 @@ export default function PersonalDashboard({
       const from = visible.findIndex((item) => item.id === id);
       const to = Math.max(0, Math.min(visible.length - 1, from + direction));
       if (from < 0 || from === to) return items;
-      const moved = arrayMove(visible, from, to);
+      const moved = moveArrayItem(visible, from, to);
       const hidden = items.filter((item) => !item.visible);
       return [...moved, ...hidden];
     });
   }, [updateAllViewports]);
 
-  const dragEnded = (event: DragEndEvent) => {
-    if (!event.over || event.active.id === event.over.id) return;
+  const reorderWidget = useCallback((activeId: DashboardWidgetId, overId: DashboardWidgetId) => {
     updateAllViewports((items) => {
       const visible = items.filter((item) => item.visible).sort((a, b) => a.order - b.order);
-      const from = visible.findIndex((item) => item.id === event.active.id);
-      const to = visible.findIndex((item) => item.id === event.over?.id);
-      return from < 0 || to < 0 ? items : [...arrayMove(visible, from, to), ...items.filter((item) => !item.visible)];
+      const from = visible.findIndex((item) => item.id === activeId);
+      const to = visible.findIndex((item) => item.id === overId);
+      return from < 0 || to < 0 ? items : [...moveArrayItem(visible, from, to), ...items.filter((item) => !item.visible)];
     });
-  };
+  }, [updateAllViewports]);
+
+  const hideWidget = useCallback((id: DashboardWidgetId) => {
+    updateAllViewports((items) => items.map((entry) => entry.id === id ? { ...entry, visible: false } : entry));
+  }, [updateAllViewports]);
+
+  const resizeWidget = useCallback((id: DashboardWidgetId, size: DashboardWidgetSize) => {
+    updateAllViewports((items) => items.map((entry) => entry.id === id ? { ...entry, size } : entry));
+  }, [updateAllViewports]);
 
   const startEditing = () => {
     editBaseline.current = layout;
@@ -276,25 +239,19 @@ export default function PersonalDashboard({
         </div>
       ) : null}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dragEnded}>
-        <SortableContext items={visibleItems.map((item) => item.id)} strategy={verticalListSortingStrategy} disabled={!editing}>
-          <section className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-12 lg:gap-5" aria-label="Persönliche Dashboard-Widgets">
-            {visibleItems.map((item, index) => (
-              <SortableWidget
-                key={item.id}
-                item={item}
-                index={index}
-                count={visibleItems.length}
-                editing={editing}
-                data={data}
-                onMove={moveWidget}
-                onHide={(id) => updateAllViewports((items) => items.map((entry) => entry.id === id ? { ...entry, visible: false } : entry))}
-                onSize={(id, size) => updateAllViewports((items) => items.map((entry) => entry.id === id ? { ...entry, size } : entry))}
-              />
-            ))}
-          </section>
-        </SortableContext>
-      </DndContext>
+      {editing ? (
+        <Suspense fallback={<DashboardGridSkeleton count={visibleItems.length} />}>
+          <DashboardEditorGrid items={visibleItems} data={data} onReorder={reorderWidget} onMove={moveWidget} onHide={hideWidget} onSize={resizeWidget} />
+        </Suspense>
+      ) : (
+        <section className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-12" aria-label="Persönliche Dashboard-Widgets">
+          {visibleItems.map((item) => (
+            <article key={item.id} className={`min-w-0 ${dashboardWidgetSizeClasses[item.size]}`}>
+              <DashboardWidgetContent item={item} data={data} />
+            </article>
+          ))}
+        </section>
+      )}
 
       {visibleItems.length === 0 ? (
         <div className="surface-panel p-8 text-center text-sm text-slate-400">Deine persönliche Fläche ist leer. Next Race bleibt weiterhin sichtbar.</div>
@@ -322,81 +279,19 @@ export default function PersonalDashboard({
   );
 }
 
-function SortableWidget({
-  item,
-  index,
-  count,
-  editing,
-  data,
-  onMove,
-  onHide,
-  onSize,
-}: {
-  item: DashboardWidgetItem;
-  index: number;
-  count: number;
-  editing: boolean;
-  data: DashboardData;
-  onMove: (id: DashboardWidgetId, direction: -1 | 1) => void;
-  onHide: (id: DashboardWidgetId) => void;
-  onSize: (id: DashboardWidgetId, size: DashboardWidgetSize) => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id, disabled: !editing });
-  const definition = dashboardWidgetRegistry[item.id];
-  const style = { transform: CSS.Transform.toString(transform), transition };
-  return (
-    <article
-      ref={setNodeRef}
-      style={style}
-      aria-label={`${definition.title}, Position ${index + 1} von ${count}`}
-      className={`min-w-0 ${sizeClasses[item.size]} ${isDragging ? "z-20 opacity-70" : ""}`}
-    >
-      {editing ? (
-        <div className="mb-2 rounded-2xl border border-cyan-500/30 bg-slate-950/90 p-2 shadow-lg">
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" {...attributes} {...listeners} aria-label={`${definition.title} ziehen`} className="flex size-11 touch-none items-center justify-center rounded-xl border border-slate-700 text-cyan-200 active:cursor-grabbing"><GripVertical size={20} /></button>
-            <span className="min-w-0 flex-1 truncate px-1 text-sm font-semibold text-white">{definition.title}</span>
-            <button type="button" onClick={() => onMove(item.id, -1)} disabled={index === 0} aria-label={`${definition.title} nach oben verschieben`} className="flex size-11 items-center justify-center rounded-xl border border-slate-700 disabled:opacity-30"><ArrowUp size={18} /></button>
-            <button type="button" onClick={() => onMove(item.id, 1)} disabled={index === count - 1} aria-label={`${definition.title} nach unten verschieben`} className="flex size-11 items-center justify-center rounded-xl border border-slate-700 disabled:opacity-30"><ArrowDown size={18} /></button>
-            <button type="button" onClick={() => onHide(item.id)} aria-label={`${definition.title} ausblenden`} className="flex size-11 items-center justify-center rounded-xl border border-slate-700 text-slate-300"><EyeOff size={18} /></button>
-          </div>
-          <label className="mt-2 flex min-h-11 items-center gap-2 text-xs font-semibold text-slate-400">
-            Größe
-            <select value={item.size} onChange={(event) => onSize(item.id, event.target.value as DashboardWidgetSize)} className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm text-white">
-              {definition.allowedSizes.map((size) => <option key={size} value={size}>{sizeLabels[size]}</option>)}
-            </select>
-          </label>
-        </div>
-      ) : null}
-      <DashboardWidget item={item} data={data} />
-    </article>
-  );
+function moveArrayItem<T>(items: T[], from: number, to: number): T[] {
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
 }
 
-function DashboardWidget({ item, data }: { item: DashboardWidgetItem; data: DashboardData }) {
-  switch (item.id) {
-    case "quick-actions": return <QuickActionsWidget />;
-    case "championship-position": return <MetricBlock label="WM-Position" value={data.championship.driver ? `P${data.championship.driver.position}` : "–"} detail={data.championship.driver?.gapToLeader === 0 ? "Meisterschaftsführung" : data.championship.driver ? `${data.championship.driver.gapToLeader} Pkt. Rückstand` : "Noch keine Wertung"} icon={Trophy} tone="yellow" className="h-full" />;
-    case "championship-points": return <MetricBlock label="Saisonpunkte" value={data.championship.driver?.points ?? "–"} detail={data.championship.driver ? `${data.championship.driver.lastRacePoints} beim letzten Rennen` : "Noch keine Saisonpunkte"} icon={Medal} tone="cyan" className="h-full" />;
-    case "latest-result": return <MetricBlock label="Letztes Ergebnis" value={data.latestResult?.position ? `P${data.latestResult.position}` : "–"} detail={data.latestResult ? `${data.latestResult.raceName} · ${data.latestResult.points} Pkt.` : "Noch kein Ergebnis veröffentlicht"} icon={ListOrdered} tone="blue" className="h-full" />;
-    case "unread-notifications": return <MetricBlock label="Ungelesen" value={data.unreadNotificationCount} detail="Neue Benachrichtigungen" icon={Bell} tone={data.unreadNotificationCount > 0 ? "orange" : "green"} className="h-full" />;
-    case "recent-activity": return <NotificationsWidget notifications={data.notifications.slice(0, 4)} />;
-    case "rankings": return <RankingsWidget championship={data.championship} />;
-    case "season-progress": return <SeasonProgressWidget progress={data.seasonProgress} />;
-    case "next-calendar-event": return (
-      <section className="surface-panel h-full rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5">
-        <div className="flex items-center gap-2 text-cyan-300"><CalendarClock size={18} /><h2 className="text-xs font-bold uppercase tracking-[0.14em]">Nächster Termin</h2></div>
-        <p className="mt-3 font-semibold text-white">{data.nextRace?.name ?? "Noch offen"}</p>
-        <p className="mt-1 text-sm text-slate-400">{data.nextRace ? `Runde ${data.nextRace.round} · ${data.nextRace.circuit}` : "Kein weiteres Rennen geplant"}</p>
-        <Link href="/calendar" className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-cyan-300"><Flag size={15} /> Zum Kalender</Link>
-      </section>
-    );
-  }
+function DashboardGridSkeleton({ count }: { count: number }) {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-12" aria-label="Dashboard-Editor wird geladen" aria-busy="true">
+      {Array.from({ length: Math.max(1, Math.min(count, 4)) }, (_, index) => (
+        <div key={index} className="h-40 animate-pulse border border-slate-800 bg-slate-900/70 md:col-span-1 lg:col-span-3" />
+      ))}
+    </div>
+  );
 }

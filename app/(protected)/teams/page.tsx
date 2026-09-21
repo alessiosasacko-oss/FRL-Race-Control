@@ -37,16 +37,16 @@ export default async function TeamsPage({ searchParams }: TeamsPageProps) {
         </form>
 
         {data.organizations.length ? (
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="space-y-4">
             {data.organizations.map((team) => (
-              <article key={team.id} className="master-card overflow-hidden p-0">
-                <div className="h-1.5" style={{ backgroundColor: team.color }} />
-                <div className="p-5 sm:p-6">
+              <article key={team.id} className="master-card relative overflow-hidden p-0">
+                <div className="absolute bottom-0 left-0 top-0 w-1" style={{ backgroundColor: team.color }} />
+                <div className="p-5 pl-6 sm:p-6 sm:pl-8">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3"><TeamLogo logoUrl={team.logoUrl} teamName={team.name} shortName={team.shortName} primaryColor={team.color} size="md" /><div className="min-w-0"><p className="eyebrow">{data.season?.name ?? "Keine Saison"}</p><h2 className="mt-2 break-words text-2xl font-black text-white">{team.name}</h2><p className="mt-1 text-sm text-slate-400">Teamchef: {team.principalName}</p></div></div>
                     <span className="rounded-xl bg-slate-800 px-3 py-2 font-mono text-sm font-bold">{team.shortName}</span>
                   </div>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                     {team.leagues.map((league) => (
                       <div key={league.id} className="rounded-xl border border-slate-800 bg-slate-950/35 p-3">
                         <div className="flex items-center justify-between"><strong className="text-white">{league.code}</strong><span className="text-xs text-slate-400">{league.primaryDrivers.length}/2</span></div>

@@ -150,17 +150,20 @@ export default function MobileNavigation({
 
             <div className="flex-1 space-y-6 overflow-y-auto p-4">
               <NavigationGroup
+                pathname={pathname}
                 label="Fahrer"
                 items={driverNavigationItems.filter((item) => hasPermission(user.roles, item.permission))}
                 onNavigate={() => setOpen(false)}
               />
               <NavigationGroup
+                pathname={pathname}
                 label="Liga"
                 items={leagueNavigationItems.filter((item) => hasPermission(user.roles, item.permission))}
                 onNavigate={() => setOpen(false)}
               />
               {canManageAdministration ? (
                 <NavigationGroup
+                  pathname={pathname}
                   label="Administration"
                   items={administrationNavigationItems.filter((item) => hasPermission(user.roles, item.permission))}
                   compact
@@ -207,11 +210,13 @@ export default function MobileNavigation({
 }
 
 function NavigationGroup({
+  pathname,
   label,
   items,
   compact = false,
   onNavigate,
 }: {
+  pathname: string;
   label: string;
   items: ReadonlyArray<NavigationItem>;
   compact?: boolean;
@@ -227,6 +232,7 @@ function NavigationGroup({
           <ActiveNavLink
             key={item.href}
             {...item}
+            active={isCurrent(pathname, item.href)}
             compact={compact}
             onNavigate={onNavigate}
           />

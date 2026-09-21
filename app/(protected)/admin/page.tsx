@@ -8,8 +8,11 @@ import {
   Bot,
   Trophy,
   Users,
+  ArrowUpRight,
+  RadioTower,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
+import PageHeader from "@/components/ui/PageHeader";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 
@@ -75,35 +78,26 @@ export default async function AdminPage() {
 
   return (
     <AppLayout>
-      <div>
-        <h1 className="text-3xl font-bold text-white">
-          Stammdatenverwaltung
-        </h1>
-        <p className="mt-2 text-slate-400">
-          Zentrale Verwaltung der sportlichen Grundlage von FRL Race Control.
-        </p>
-        <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {areas.map((area) => {
+      <div className="page-stack page-accent-admin">
+        <PageHeader title="Control Room" eyebrow="Administration" subtitle="Operative Werkzeuge, Stammdaten und Kommunikationssysteme an einem Ort." icon={RadioTower} />
+        <nav aria-label="Administrationsbereiche" className="data-table-shell">
+          {areas.map((area, index) => {
             const Icon = area.icon;
             return (
               <Link
                 key={area.href}
                 href={area.href}
-                className="master-card group transition hover:-translate-y-1 hover:border-blue-500"
+                className="group grid min-h-20 grid-cols-[2.5rem_2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3 border-b border-slate-800/80 px-4 py-4 transition last:border-b-0 hover:bg-blue-500/[0.06] sm:grid-cols-[3rem_3rem_minmax(0,1fr)_auto_2.75rem] sm:px-6"
               >
-                <div className="inline-flex rounded-xl bg-blue-600 p-3">
-                  <Icon size={24} />
-                </div>
-                <h2 className="mt-5 text-xl font-semibold text-white">
-                  {area.title}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  {area.description}
-                </p>
+                <span className="font-mono text-xs font-bold text-slate-600">{String(index + 1).padStart(2, "0")}</span>
+                <span className="flex size-11 items-center justify-center border border-blue-400/20 bg-blue-500/10 text-blue-300"><Icon size={20} /></span>
+                <span className="min-w-0"><span className="block font-bold uppercase tracking-[0.03em] text-white">{area.title}</span><span className="mt-1 block text-sm leading-5 text-slate-500">{area.description}</span></span>
+                <span className="hidden text-[0.62rem] font-bold uppercase tracking-[0.15em] text-slate-600 sm:block">Open module</span>
+                <ArrowUpRight size={18} className="justify-self-end text-slate-600 transition group-hover:text-blue-300" />
               </Link>
             );
           })}
-        </div>
+        </nav>
       </div>
     </AppLayout>
   );

@@ -9,16 +9,17 @@ export async function getGlobalTeamOverview(input: {
   q?: string;
   seasonId?: number;
   includeArchived?: boolean;
+  organizationId?: number;
 }) {
   const prisma = getPrismaClient();
-  const season = input.seasonId
-    ? await prisma.season.findUnique({ where: { id: input.seasonId }, select: { id: true, name: true } })
-    : await prisma.season.findFirst({
-        where: { active: true, archivedAt: null },
-        orderBy: { startsOn: "desc" },
-        select: { id: true, name: true },
-      });
-  const [seasons, leagues] = await Promise.all([
+  const [season, seasons, leagues] = await Promise.all([
+    input.seasonId
+      ? prisma.season.findUnique({ where: { id: input.seasonId }, select: { id: true, name: true } })
+      : prisma.season.findFirst({
+          where: { active: true, archivedAt: null },
+          orderBy: { startsOn: "desc" },
+          select: { id: true, name: true },
+        }),
     prisma.season.findMany({ orderBy: { startsOn: "desc" }, select: { id: true, name: true, active: true } }),
     prisma.league.findMany({
       where: { code: { in: [...leagueCodes] } },
@@ -30,6 +31,7 @@ export async function getGlobalTeamOverview(input: {
 
   const organizations = await prisma.teamOrganization.findMany({
     where: {
+      id: input.organizationId,
       active: input.includeArchived ? undefined : true,
       archivedAt: input.includeArchived ? undefined : null,
       OR: input.q
@@ -152,6 +154,7 @@ export async function getGlobalTeamDetail(organizationId: number, seasonId?: num
   const overview = await getGlobalTeamOverview({
     seasonId: seasonId ?? legacyTeam?.seasonId,
     includeArchived: true,
+    organizationId: resolvedOrganizationId,
   });
   const organization = overview.organizations.find((candidate) => candidate.id === resolvedOrganizationId);
   return organization

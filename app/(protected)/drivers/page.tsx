@@ -5,6 +5,7 @@ import CountryFlag from "@/components/ui/CountryFlag";
 import ListFilters from "@/components/master-data/ListFilters";
 import DriverCharacter from "@/components/characters/DriverCharacter";
 import TeamLogo from "@/components/teams/TeamLogo";
+import PageHeader from "@/components/ui/PageHeader";
 import {
   hasPermission,
   Permission,
@@ -36,61 +37,39 @@ export default async function DriversPage({
 
   return (
     <AppLayout>
-      <div className="page-accent-drivers space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white">Fahrer</h1>
-            <p className="mt-2 text-slate-400">
-              Fahrerfeld aller FRL-Ligen.
-            </p>
-          </div>
+      <div className="page-stack page-accent-drivers">
+        <PageHeader title="Fahrerfeld" eyebrow="Paddock registry" subtitle="Alle aktiven FRL-Fahrer, Startnummern und Teamzuordnungen in einer kompakten Grid-Ansicht." icon={Users}>
           {canManage ? (
             <Link href="/admin/drivers" className="wizard-primary-button">
               Fahrer verwalten
             </Link>
           ) : null}
-        </div>
+        </PageHeader>
         <ListFilters
           action="/drivers"
           query={query}
           leagues={options.leagues}
           showActive
         />
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <section className="data-table-shell" aria-label="FRL Fahrerfeld">
+          <div className="hidden grid-cols-[4rem_5rem_minmax(12rem,1.4fr)_minmax(10rem,1fr)_7rem_3rem] items-center gap-4 border-b border-slate-700/70 bg-slate-950/70 px-5 py-3 text-[0.62rem] font-bold uppercase tracking-[0.16em] text-slate-500 lg:grid">
+            <span>Nr.</span><span>Fahrer</span><span>Name</span><span>Team</span><span>Status</span><span />
+          </div>
           {drivers.map((driver) => (
             <Link
               key={driver.id}
               href={`/drivers/${driver.id}`}
-              className="master-card group transition hover:-translate-y-1 hover:border-blue-500"
+              className="group grid min-h-24 grid-cols-[3rem_3.5rem_minmax(0,1fr)_2.75rem] items-center gap-3 border-b border-slate-800/80 px-4 py-4 transition last:border-b-0 hover:bg-blue-500/[0.06] lg:grid-cols-[4rem_5rem_minmax(12rem,1.4fr)_minmax(10rem,1fr)_7rem_3rem] lg:gap-4 lg:px-5"
             >
-              <div className="mb-3 flex h-32 items-end justify-center overflow-hidden rounded-xl bg-slate-950/70">
-                <DriverCharacter configuration={driver.character.configuration} teamSuit={driver.teamSuit.configuration} pose={driver.character.normalPose} variant="portrait" driverNumber={driver.number} driverInitials={driver.name} alt={`Fahrercharakter von ${driver.name}`} className="h-36 w-auto" showShadow={false} />
-              </div>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="lg" />
-                  <h2 className="mt-3 text-xl font-semibold text-white">
-                    {driver.name}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    <span className="inline-flex items-center gap-2">{driver.team ? <TeamLogo logoUrl={driver.team.logoUrl} teamName={driver.team.name} shortName={driver.team.shortName} primaryColor={driver.team.color} size="xs" /> : null}{driver.league.code} · {driver.team?.name ?? "Ohne Team"}</span>
-                  </p>
-                </div>
-                <span className="rounded-xl bg-blue-600 px-3 py-2 text-lg font-bold">
-                  #{driver.number}
-                </span>
-              </div>
-              <div className="mt-5 flex items-center justify-between border-t border-slate-800 pt-4 text-sm">
-                <span className={driver.active ? "text-green-300" : "text-slate-500"}>
-                  {driver.active ? "Aktiv" : "Inaktiv"}
-                </span>
-                <span className="flex items-center gap-1 text-blue-400">
-                  Profil <ArrowRight size={16} />
-                </span>
-              </div>
+              <span className="font-mono text-2xl font-black text-white">{String(driver.number).padStart(2, "0")}</span>
+              <span className="flex size-14 items-end justify-center overflow-hidden border border-white/10 bg-slate-950/70 lg:size-16"><DriverCharacter configuration={driver.character.configuration} teamSuit={driver.teamSuit.configuration} pose={driver.character.normalPose} variant="head" driverNumber={driver.number} driverInitials={driver.name} alt={`Fahrercharakter von ${driver.name}`} className="size-14 lg:size-16" showShadow={false} /></span>
+              <span className="min-w-0"><span className="flex items-center gap-2"><CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="sm" /><span className="truncate font-bold text-white">{driver.name}</span></span><span className="mt-1 block text-xs font-bold uppercase tracking-[0.12em] text-blue-300">FRL {driver.league.code}</span></span>
+              <span className="col-start-3 flex min-w-0 items-center gap-2 text-sm text-slate-400 lg:col-start-auto">{driver.team ? <TeamLogo logoUrl={driver.team.logoUrl} teamName={driver.team.name} shortName={driver.team.shortName} primaryColor={driver.team.color} size="xs" /> : null}<span className="truncate">{driver.team?.name ?? "Ohne Team"}</span></span>
+              <span className={`col-start-3 text-xs font-bold uppercase tracking-wider lg:col-start-auto ${driver.active ? "text-emerald-300" : "text-slate-500"}`}>{driver.active ? "Aktiv" : "Inaktiv"}</span>
+              <ArrowRight size={17} className="col-start-4 row-start-1 justify-self-end text-slate-600 transition group-hover:text-blue-300 lg:col-start-auto lg:row-start-auto" />
             </Link>
           ))}
-        </div>
+        </section>
         {drivers.length === 0 ? (
           <div className="master-card text-center">
             <Users className="mx-auto text-slate-500" />

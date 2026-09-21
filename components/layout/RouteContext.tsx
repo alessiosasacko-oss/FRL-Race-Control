@@ -27,10 +27,10 @@ export default function RouteContext() {
 
   return (
     <div className="min-w-0">
-      <p className="truncate text-sm font-bold text-white sm:text-base">
+      <p className="truncate text-xs font-black uppercase tracking-[0.08em] text-white sm:text-sm">
         {match?.title ?? "FRL Race Control"}
       </p>
-      <p className="hidden truncate text-[0.68rem] text-slate-500 sm:block">
+      <p className="mt-0.5 hidden truncate text-[0.62rem] uppercase tracking-[0.12em] text-slate-600 sm:block">
         {match?.context ?? "Formula Realistic League"}
       </p>
     </div>

@@ -16,19 +16,19 @@ export default function Topbar({
   unreadNotifications,
 }: TopbarProps) {
   return (
-    <header className="app-topbar sticky top-0 z-40 flex min-h-16 min-w-0 items-center justify-between gap-2 border-b px-3 py-3 backdrop-blur-xl sm:gap-3 sm:px-6 lg:px-8">
+    <header className="app-topbar sticky top-0 z-40 flex min-h-16 min-w-0 items-center justify-between gap-2 border-b px-3 py-2 sm:gap-3 sm:px-6 lg:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
         <Image
           src="/images/frl-logo.png"
           alt=""
           width={36}
           height={36}
-          className="rounded-lg lg:hidden"
+          className="rounded lg:hidden"
         />
         <RouteContext />
       </div>
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        <span className="hidden items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-cyan-300 xl:flex">
+        <span className="hidden items-center gap-2 border-l border-emerald-400/50 px-3 py-1.5 text-[0.62rem] font-bold uppercase tracking-[0.17em] text-emerald-300 xl:flex">
           <Radio size={13} />
           System online
         </span>
@@ -36,7 +36,7 @@ export default function Topbar({
         <Link
           href="/notifications"
           aria-label="Benachrichtigungen öffnen"
-          className="topbar-action relative flex size-11 items-center justify-center rounded-xl border transition"
+          className="topbar-action relative flex size-11 items-center justify-center rounded border transition"
         >
           <Bell size={19} />
           {unreadNotifications > 0 ? (
@@ -48,7 +48,7 @@ export default function Topbar({
         <Link
           href="/profile"
           aria-label="Profil öffnen"
-          className="topbar-action flex size-11 shrink-0 items-center justify-center gap-3 rounded-xl border p-1.5 transition lg:min-h-11 lg:w-auto lg:px-2.5 lg:py-1.5"
+          className="topbar-action flex size-11 shrink-0 items-center justify-center gap-3 rounded border p-1.5 transition lg:min-h-11 lg:w-auto lg:px-2.5 lg:py-1.5"
         >
           {user.avatarUrl ? (
             <Image
@@ -56,10 +56,10 @@ export default function Topbar({
               alt=""
               width={32}
               height={32}
-              className="size-8 rounded-lg object-cover"
+              className="size-8 rounded object-cover"
             />
           ) : (
-            <span className="flex size-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold">
+            <span className="flex size-8 items-center justify-center rounded bg-blue-600 text-xs font-bold">
               {user.displayName.slice(0, 1).toUpperCase()}
             </span>
           )}

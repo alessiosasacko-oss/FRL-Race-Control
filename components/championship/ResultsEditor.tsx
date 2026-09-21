@@ -3,11 +3,15 @@
 import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
 
 import {
+  memo,
+  useCallback,
+  useDeferredValue,
   useEffect,
   useId,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import {
   ArrowDown,
@@ -113,6 +117,28 @@ type RowState = {
 type HistoricalPenaltySummary = {
   penaltyMilliseconds: number;
   disqualified: boolean;
+};
+
+type EditorViewport = "desktop" | "mobile" | null;
+const desktopEditorQuery = "(min-width: 1024px)";
+
+function subscribeEditorViewport(onStoreChange: () => void): () => void {
+  const media = window.matchMedia(desktopEditorQuery);
+  media.addEventListener("change", onStoreChange);
+  return () => media.removeEventListener("change", onStoreChange);
+}
+
+function editorViewportSnapshot(): EditorViewport {
+  return window.matchMedia(desktopEditorQuery).matches ? "desktop" : "mobile";
+}
+
+function serverEditorViewportSnapshot(): EditorViewport {
+  return null;
+}
+
+const noHistoricalPenalty: HistoricalPenaltySummary = {
+  penaltyMilliseconds: 0,
+  disqualified: false,
 };
 
 function editorStatusLabel(session: ResultSession, status: ResultStatus): string {
@@ -351,6 +377,7 @@ export default function ResultsEditor({
   const [rows, setRows] = useState<RowState[]>(() =>
     initialRows(data, session),
   );
+  const rowsRef = useRef(rows);
   const [gapMode, setGapMode] = useState<ResultGapMode>(
     existingSession?.draftPayload?.gapMode ??
       existingSession?.gapMode ??
@@ -365,7 +392,7 @@ export default function ResultsEditor({
   const publicationKey = `result:${data.selected?.race.id ?? 0}:${data.selected?.race.season.league.id ?? 0}:${session}:${existingSession?.updatedAt ?? "new"}:${publicationId}`;
   const [allowArchived, setAllowArchived] = useState(false);
   const [confirmLockedEdit, setConfirmLockedEdit] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const draggedRowKey = useRef<string | null>(null);
   const [removedRow, setRemovedRow] = useState<{
     row: RowState;
     index: number;
@@ -376,12 +403,21 @@ export default function ResultsEditor({
   );
   const [publishConfirmationOpen, setPublishConfirmationOpen] =
     useState(false);
+  const editorViewport = useSyncExternalStore(
+    subscribeEditorViewport,
+    editorViewportSnapshot,
+    serverEditorViewportSnapshot,
+  );
   const publishSubmitRef = useRef<HTMLButtonElement>(null);
   const navigationApprovedRef = useRef(false);
   const [state, action, pending] = useActionState(
     saveResultsAction,
     initialSportsActionState,
   );
+
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
 
   useEffect(() => {
     if (!storageKey) return;
@@ -415,10 +451,13 @@ export default function ResultsEditor({
 
   useEffect(() => {
     if (!storageKey) return;
-    window.sessionStorage.setItem(
-      storageKey,
-      JSON.stringify({ rows, gapMode, qualifyingFormat }),
-    );
+    const persistTimer = window.setTimeout(() => {
+      window.sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({ rows, gapMode, qualifyingFormat }),
+      );
+    }, 300);
+    return () => window.clearTimeout(persistTimer);
   }, [gapMode, qualifyingFormat, rows, storageKey]);
 
   useEffect(() => {
@@ -498,127 +537,87 @@ export default function ResultsEditor({
     () => rows.map((row) => row.driverId).filter(Boolean),
     [rows],
   );
+  const selectedDriverSignature = selectedDriverIds.join(",");
   const hasDuplicateDriver =
     new Set(selectedDriverIds).size !== selectedDriverIds.length;
   const hasIncompleteDriverRow = rows.some(
     (row) => !row.driverId && isPopulatedResultRow(row),
   );
-  const parsedGaps = rows.map(
+  const normalizedGaps = useMemo(() => normalizeGaps(rows.map(
     (row) => parseGapInput(row.gapInput) ?? {
       milliseconds: null,
       lapsBehind: 0,
     },
-  );
-  const normalizedGaps = normalizeGaps(parsedGaps, gapMode);
-  function historicalPenaltySummary(driverId: number) {
-    const result = existingSession?.results.find(
-      (candidate) => candidate.driverId === driverId,
-    );
-    const applications =
-      result?.penaltyApplications.filter(
-        (application) =>
-          application.source !== ResultPenaltySource.Manual &&
-          application.active,
-      ) ?? [];
-    return {
-      penaltyMilliseconds: applications.reduce(
-        (sum, application) =>
-          sum + application.penaltyMilliseconds,
-        0,
-      ),
-      disqualified: applications.some(
-        (application) => application.disqualified,
-      ),
-    };
-  }
-
-  function importedPenaltySummary(row: RowState): HistoricalPenaltySummary {
-    const driverId = Number(row.driverId);
-    if (!existingSession || !Number.isInteger(driverId)) {
-      return { penaltyMilliseconds: 0, disqualified: false };
-    }
-    return historicalPenaltySummary(driverId);
-  }
-
-  const calculated = calculateFinalClassification(
-    rows.map((row, index) => {
-      const imported = importedPenaltySummary(row);
+  ), gapMode), [gapMode, rows]);
+  const historicalPenalties = useMemo(() => new Map(
+    (existingSession?.results ?? []).map((result) => {
+      const applications = result.penaltyApplications.filter(
+        (application) => application.source !== ResultPenaltySource.Manual && application.active,
+      );
+      return [result.driverId, {
+        penaltyMilliseconds: applications.reduce((sum, application) => sum + application.penaltyMilliseconds, 0),
+        disqualified: applications.some((application) => application.disqualified),
+      }] as const;
+    }),
+  ), [existingSession]);
+  const deferredRows = useDeferredValue(rows);
+  const { calculationByKey, fastestDrivers, pointsByKey } = useMemo(() => {
+    const deferredGaps = normalizeGaps(deferredRows.map(
+      (row) => parseGapInput(row.gapInput) ?? { milliseconds: null, lapsBehind: 0 },
+    ), gapMode);
+    const calculated = calculateFinalClassification(deferredRows.map((row, index) => {
+      const imported = historicalPenalties.get(Number(row.driverId)) ?? noHistoricalPenalty;
       return {
         key: row.key,
         order: index,
         status: row.status,
-        gapToLeaderMs:
-          normalizedGaps.rows[index]?.gapToLeaderMs ?? null,
-        lapsBehind:
-          normalizedGaps.rows[index]?.lapsBehind ?? 0,
+        gapToLeaderMs: deferredGaps.rows[index]?.gapToLeaderMs ?? null,
+        lapsBehind: deferredGaps.rows[index]?.lapsBehind ?? 0,
         importedPenaltyMs: imported.penaltyMilliseconds,
         importedDisqualified: imported.disqualified,
         hasManualOverride: row.manualOverride,
-        manualPenaltyMs: Math.max(
-          0,
-          Math.round(Number(row.manualPenaltySeconds || 0) * 1000),
-        ),
+        manualPenaltyMs: Math.max(0, Math.round(Number(row.manualPenaltySeconds || 0) * 1000)),
         manualDisqualified: row.manualDisqualified,
       };
-    }),
-  );
-  const calculationByKey = new Map(
-    calculated.map((result) => [result.key, result]),
-  );
-  const fastestDrivers = fastestLapKeys(
-    rows.map((row) => ({
+    }));
+    const calculations = new Map(calculated.map((result) => [result.key, result]));
+    const fastest = fastestLapKeys(deferredRows.map((row) => ({
       key: row.key,
       fastestLapMs: parseFastestLapInput(row.fastestLapInput),
-      status:
-        calculationByKey.get(row.key)?.effectiveStatus ?? row.status,
-    })),
-  );
-  const positionPoints = new Map(
-    data.scoring.positions.map((position) => [
+      status: calculations.get(row.key)?.effectiveStatus ?? row.status,
+    })));
+    const scoringPositions = new Map(data.scoring.positions.map((position) => [
       scoringPositionKey(position.session, position.position),
       position.points,
-    ]),
-  );
-  const pointsByKey = new Map(calculated.map((result) => {
-    const row = rows.find((candidate) => candidate.key === result.key);
-    const points =
-      session === ResultSession.Qualifying
-        ? {
-            driverBase: 0,
-            driverBonus: 0,
-            teamBase: 0,
-            teamBonus: 0,
-          }
-        : calculateResultPoints(
-            {
-              position: result.finalPosition,
-              status: result.effectiveStatus,
-              fastestLap: fastestDrivers.has(result.key),
-              polePosition: row?.polePosition ?? false,
-              classifiedPercentage: null,
-              substitute: row?.substitute ?? false,
-            },
-            session,
-            data.scoring,
-            positionPoints,
-            data.selected?.race.doublePoints ?? false,
-          );
-    return [
-      result.key,
-      points.driverBase + points.driverBonus,
-    ] as const;
-  }));
+    ]));
+    const rowByKey = new Map(deferredRows.map((row) => [row.key, row]));
+    const points = new Map(calculated.map((result) => {
+      const row = rowByKey.get(result.key);
+      const score = session === ResultSession.Qualifying
+        ? { driverBase: 0, driverBonus: 0, teamBase: 0, teamBonus: 0 }
+        : calculateResultPoints({
+            position: result.finalPosition,
+            status: result.effectiveStatus,
+            fastestLap: fastest.has(result.key),
+            polePosition: row?.polePosition ?? false,
+            classifiedPercentage: null,
+            substitute: row?.substitute ?? false,
+          }, session, data.scoring, scoringPositions, data.selected?.race.doublePoints ?? false);
+      return [result.key, score.driverBase + score.driverBonus] as const;
+    }));
+    return { calculationByKey: calculations, fastestDrivers: fastest, pointsByKey: points };
+  }, [data.scoring, data.selected?.race.doublePoints, deferredRows, gapMode, historicalPenalties, session]);
 
-  function updateRow(index: number, patch: Partial<RowState>): void {
+  const updateRow = useCallback((rowKey: string, patch: Partial<RowState>): void => {
     setDirty(true);
     setRows((current) =>
-      current.map((row, rowIndex) =>
-        rowIndex === index ? { ...row, ...patch } : row,
+      current.map((row) =>
+        row.key === rowKey ? { ...row, ...patch } : row,
       ),
     );
-  }
+  }, []);
 
-  function selectDriver(index: number, driverId: number): void {
+  const selectDriver = useCallback((rowKey: string, driverId: number): void => {
     const driver = data.drivers.find((item) => item.id === driverId);
     if (!driver) return;
     const expectedDriver = driver.expectedDriverId
@@ -626,7 +625,7 @@ export default function ResultsEditor({
           (candidate) => candidate.id === driver.expectedDriverId,
         )
       : null;
-    updateRow(index, {
+    updateRow(rowKey, {
       driverId: String(driver.id),
       driverQuery: `${driver.name} · #${driver.number}`,
       representedTeamId: String(
@@ -639,24 +638,35 @@ export default function ResultsEditor({
         : "",
       substitute: driver.replacement,
     });
-  }
+  }, [data.drivers, updateRow]);
 
-  function moveRow(index: number, direction: -1 | 1): void {
-    setDirty(true);
-    setRows((current) => moveResultRow(current, index, direction));
-  }
-
-  function dropRow(targetIndex: number): void {
-    if (draggedIndex === null || draggedIndex === targetIndex) return;
+  const moveRow = useCallback((rowKey: string, direction: -1 | 1): void => {
     setDirty(true);
     setRows((current) => {
+      const index = current.findIndex((row) => row.key === rowKey);
+      return index < 0 ? current : moveResultRow(current, index, direction);
+    });
+  }, []);
+
+  const dropRow = useCallback((targetKey: string): void => {
+    const sourceKey = draggedRowKey.current;
+    if (!sourceKey || sourceKey === targetKey) return;
+    setDirty(true);
+    setRows((current) => {
+      const draggedIndex = current.findIndex((row) => row.key === sourceKey);
+      const targetIndex = current.findIndex((row) => row.key === targetKey);
+      if (draggedIndex < 0 || targetIndex < 0) return current;
       const next = [...current];
       const [dragged] = next.splice(draggedIndex, 1);
       next.splice(targetIndex, 0, dragged);
       return next;
     });
-    setDraggedIndex(null);
-  }
+    draggedRowKey.current = null;
+  }, []);
+
+  const startDraggingRow = useCallback((rowKey: string) => {
+    draggedRowKey.current = rowKey;
+  }, []);
 
   function addRow(): void {
     setDirty(true);
@@ -669,9 +679,11 @@ export default function ResultsEditor({
     ]);
   }
 
-  function removeRow(index: number): void {
+  const removeRow = useCallback((rowKey: string): void => {
+    const rows = rowsRef.current;
+    const index = rows.findIndex((row) => row.key === rowKey);
     const row = rows[index];
-    if (!row || rows.length === 1) return;
+    if (!row || rows.length === 1 || index < 0) return;
     if (
       isPopulatedResultRow(row) &&
       !window.confirm(
@@ -686,7 +698,7 @@ export default function ResultsEditor({
     setDirty(true);
     setRows(result.rows);
     setRemovedRow({ row: result.removed, index });
-  }
+  }, []);
 
   function undoRemove(): void {
     if (!removedRow) return;
@@ -982,7 +994,7 @@ export default function ResultsEditor({
           Veröffentlichen
         </button>
 
-        <div
+        {editorViewport !== "mobile" ? <div
           className="hidden max-h-[68vh] overflow-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-[var(--shadow-card)] lg:block"
           onKeyDown={handleTableKeyDown}
         >
@@ -1037,51 +1049,49 @@ export default function ResultsEditor({
                   key={row.key}
                   row={row}
                   index={index}
-                  rows={rows}
+                  rowCount={rows.length}
+                  selectedDriverIds={selectedDriverSignature}
                   data={data}
                   session={session}
                   qualifyingFormat={qualifyingFormat}
                   calculation={calculationByKey.get(row.key)}
                   points={pointsByKey.get(row.key) ?? 0}
                   fastest={fastestDrivers.has(row.key)}
-                  imported={importedPenaltySummary(row)}
-                  onUpdate={(patch) => updateRow(index, patch)}
-                  onSelectDriver={(driverId) =>
-                    selectDriver(index, driverId)
-                  }
-                  onMove={(direction) => moveRow(index, direction)}
-                  onRemove={() => removeRow(index)}
-                  onDragStart={() => setDraggedIndex(index)}
-                  onDrop={() => dropRow(index)}
+                  imported={historicalPenalties.get(Number(row.driverId)) ?? noHistoricalPenalty}
+                  onUpdate={updateRow}
+                  onSelectDriver={selectDriver}
+                  onMove={moveRow}
+                  onRemove={removeRow}
+                  onDragStart={startDraggingRow}
+                  onDrop={dropRow}
                 />
               ))}
             </tbody>
           </table>
-        </div>
+        </div> : null}
 
-        <div className="space-y-4 lg:hidden">
+        {editorViewport !== "desktop" ? <div className="space-y-4 lg:hidden">
           {rows.map((row, index) => (
-            <MobileRow
-              key={row.key}
-              row={row}
-              index={index}
-              rows={rows}
-              data={data}
+              <MobileRow
+                key={row.key}
+                row={row}
+                index={index}
+                rowCount={rows.length}
+                selectedDriverIds={selectedDriverSignature}
+                data={data}
               session={session}
               qualifyingFormat={qualifyingFormat}
               calculation={calculationByKey.get(row.key)}
               points={pointsByKey.get(row.key) ?? 0}
               fastest={fastestDrivers.has(row.key)}
-              imported={importedPenaltySummary(row)}
-              onUpdate={(patch) => updateRow(index, patch)}
-              onSelectDriver={(driverId) =>
-                selectDriver(index, driverId)
-              }
-              onMove={(direction) => moveRow(index, direction)}
-              onRemove={() => removeRow(index)}
+                imported={historicalPenalties.get(Number(row.driverId)) ?? noHistoricalPenalty}
+                onUpdate={updateRow}
+                onSelectDriver={selectDriver}
+                onMove={moveRow}
+                onRemove={removeRow}
             />
           ))}
-        </div>
+        </div> : null}
 
         <button
           type="button"
@@ -1320,7 +1330,8 @@ function PublishFact({
 type SharedRowProps = {
   row: RowState;
   index: number;
-  rows: RowState[];
+  rowCount: number;
+  selectedDriverIds: string;
   data: ResultAdminData;
   session: ResultSession;
   qualifyingFormat: QualifyingFormat | null;
@@ -1330,29 +1341,30 @@ type SharedRowProps = {
   points: number;
   fastest: boolean;
   imported: HistoricalPenaltySummary;
-  onUpdate: (patch: Partial<RowState>) => void;
-  onSelectDriver: (driverId: number) => void;
-  onMove: (direction: -1 | 1) => void;
-  onRemove: () => void;
+  onUpdate: (rowKey: string, patch: Partial<RowState>) => void;
+  onSelectDriver: (rowKey: string, driverId: number) => void;
+  onMove: (rowKey: string, direction: -1 | 1) => void;
+  onRemove: (rowKey: string) => void;
 };
 
 function DriverPicker({
   row,
-  rows,
+  selectedDriverIds,
   data,
   onUpdate,
   onSelectDriver,
   compact = false,
-}: Pick<
-  SharedRowProps,
-  "row" | "rows" | "data" | "onUpdate" | "onSelectDriver"
-> & { compact?: boolean }) {
+}: {
+  row: RowState;
+  selectedDriverIds: string;
+  data: ResultAdminData;
+  onUpdate: (patch: Partial<RowState>) => void;
+  onSelectDriver: (driverId: number) => void;
+  compact?: boolean;
+}) {
   const [open, setOpen] = useState(false);
-  const selectedIds = new Set(
-    rows
-      .filter((candidate) => candidate.key !== row.key)
-      .map((candidate) => Number(candidate.driverId)),
-  );
+  const selectedIds = new Set(selectedDriverIds.split(",").filter(Boolean).map(Number));
+  selectedIds.delete(Number(row.driverId));
   const suggestions = data.drivers
     .filter(
       (driver) =>
@@ -1431,10 +1443,11 @@ function PenaltyEditor({
   row,
   imported,
   onUpdate,
-}: Pick<
-  SharedRowProps,
-  "row" | "imported" | "onUpdate"
->) {
+}: {
+  row: RowState;
+  imported: HistoricalPenaltySummary;
+  onUpdate: (patch: Partial<RowState>) => void;
+}) {
   return (
     <div className="space-y-2 text-xs">
       {imported.disqualified || imported.penaltyMilliseconds > 0 ? (
@@ -1574,10 +1587,11 @@ function QualifyingDesktopCells({
   );
 }
 
-function DesktopRow({
+function DesktopRowComponent({
   row,
   index,
-  rows,
+  rowCount,
+  selectedDriverIds,
   data,
   session,
   qualifyingFormat,
@@ -1592,9 +1606,11 @@ function DesktopRow({
   onDragStart,
   onDrop,
 }: SharedRowProps & {
-  onDragStart: () => void;
-  onDrop: () => void;
+  onDragStart: (rowKey: string) => void;
+  onDrop: (rowKey: string) => void;
 }) {
+  const update = useCallback((patch: Partial<RowState>) => onUpdate(row.key, patch), [onUpdate, row.key]);
+  const select = useCallback((driverId: number) => onSelectDriver(row.key, driverId), [onSelectDriver, row.key]);
   const driver = data.drivers.find(
     (candidate) => candidate.id === Number(row.driverId),
   );
@@ -1605,9 +1621,9 @@ function DesktopRow({
   return (
     <tr
       draggable
-      onDragStart={onDragStart}
+      onDragStart={() => onDragStart(row.key)}
       onDragOver={(event) => event.preventDefault()}
-      onDrop={onDrop}
+      onDrop={() => onDrop(row.key)}
       className={`border-t align-top hover:bg-slate-900/50 ${
         row.status === ResultStatus.Dsq
           ? "border-red-500/30 bg-red-500/5"
@@ -1632,10 +1648,10 @@ function DesktopRow({
       <td className="sticky left-20 z-10 bg-slate-950 px-3 py-3">
         <DriverPicker
           row={row}
-          rows={rows}
+          selectedDriverIds={selectedDriverIds}
           data={data}
-          onUpdate={onUpdate}
-          onSelectDriver={onSelectDriver}
+          onUpdate={update}
+          onSelectDriver={select}
         />
         {driver?.replacement ? (
           <span className="mt-1 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-200">
@@ -1652,7 +1668,7 @@ function DesktopRow({
           data-result-cell
           value={row.representedTeamId}
           onChange={(event) =>
-            onUpdate({ representedTeamId: event.target.value })
+            update({ representedTeamId: event.target.value })
           }
           className="form-control min-w-36"
         >
@@ -1668,7 +1684,7 @@ function DesktopRow({
         ) : null}
       </td>
       {session === ResultSession.Qualifying ? (
-        <QualifyingDesktopCells row={row} format={qualifyingFormat} onUpdate={onUpdate} />
+        <QualifyingDesktopCells row={row} format={qualifyingFormat} onUpdate={update} />
       ) : <td className="px-3 py-3">
         <input
           data-result-cell
@@ -1676,7 +1692,7 @@ function DesktopRow({
           min="1"
           value={row.startingPosition}
           onChange={(event) =>
-            onUpdate({ startingPosition: event.target.value })
+            update({ startingPosition: event.target.value })
           }
           aria-label={`Startposition für Position ${index + 1}`}
           className="form-control min-w-20"
@@ -1687,7 +1703,7 @@ function DesktopRow({
           data-result-cell
           value={row.status}
           onChange={(event) =>
-            onUpdate({
+            update({
               status: event.target.value as ResultStatus,
             })
           }
@@ -1707,7 +1723,7 @@ function DesktopRow({
           data-result-cell
           value={row.gapInput}
           onChange={(event) =>
-            onUpdate({ gapInput: event.target.value })
+            update({ gapInput: event.target.value })
           }
           placeholder={index === 0 ? "Sieger" : "+4.321"}
           className="form-control"
@@ -1718,7 +1734,7 @@ function DesktopRow({
           data-result-cell
           value={row.fastestLapInput}
           onChange={(event) =>
-            onUpdate({ fastestLapInput: event.target.value })
+            update({ fastestLapInput: event.target.value })
           }
           placeholder="1:21.456"
           className={`form-control ${
@@ -1735,7 +1751,7 @@ function DesktopRow({
         <PenaltyEditor
           row={row}
           imported={imported}
-          onUpdate={onUpdate}
+          onUpdate={update}
         />
       </td>
       <td className="px-3 py-4">
@@ -1758,7 +1774,7 @@ function DesktopRow({
         <div className="flex gap-1">
           <button
             type="button"
-            onClick={() => onMove(-1)}
+            onClick={() => onMove(row.key, -1)}
             disabled={index === 0}
             aria-label="Fahrer nach oben"
             className="min-h-10 min-w-10 rounded-lg border border-slate-700 p-2 disabled:opacity-30"
@@ -1767,8 +1783,8 @@ function DesktopRow({
           </button>
           <button
             type="button"
-            onClick={() => onMove(1)}
-            disabled={index === rows.length - 1}
+            onClick={() => onMove(row.key, 1)}
+            disabled={index === rowCount - 1}
             aria-label="Fahrer nach unten"
             className="min-h-10 min-w-10 rounded-lg border border-slate-700 p-2 disabled:opacity-30"
           >
@@ -1776,8 +1792,8 @@ function DesktopRow({
           </button>
           <button
             type="button"
-            onClick={onRemove}
-            disabled={rows.length === 1}
+            onClick={() => onRemove(row.key)}
+            disabled={rowCount === 1}
             aria-label="Fahrer entfernen"
             className="min-h-10 min-w-10 rounded-lg border border-red-500/30 p-2 text-red-300 disabled:opacity-30"
           >
@@ -1788,6 +1804,8 @@ function DesktopRow({
     </tr>
   );
 }
+
+const DesktopRow = memo(DesktopRowComponent);
 
 function QualifyingMobileFields({
   row,
@@ -1839,11 +1857,12 @@ function QualifyingMobileFields({
   );
 }
 
-function MobileRow(props: SharedRowProps) {
+function MobileRowComponent(props: SharedRowProps) {
   const {
     row,
     index,
-    rows,
+    rowCount,
+    selectedDriverIds,
     data,
     session,
     qualifyingFormat,
@@ -1855,6 +1874,8 @@ function MobileRow(props: SharedRowProps) {
     onMove,
     onRemove,
   } = props;
+  const update = useCallback((patch: Partial<RowState>) => onUpdate(row.key, patch), [onUpdate, row.key]);
+  const select = useCallback((driverId: number) => onSelectDriver(row.key, driverId), [onSelectDriver, row.key]);
   const team = data.teams.find(
     (candidate) =>
       candidate.id === Number(row.representedTeamId),
@@ -1879,7 +1900,7 @@ function MobileRow(props: SharedRowProps) {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => onMove(-1)}
+              onClick={() => onMove(row.key, -1)}
               disabled={index === 0}
               aria-label="Fahrer nach oben"
               className="min-h-12 min-w-12 rounded-xl border border-slate-700 p-2 disabled:opacity-30"
@@ -1888,8 +1909,8 @@ function MobileRow(props: SharedRowProps) {
             </button>
             <button
               type="button"
-              onClick={() => onMove(1)}
-              disabled={index === rows.length - 1}
+              onClick={() => onMove(row.key, 1)}
+              disabled={index === rowCount - 1}
               aria-label="Fahrer nach unten"
               className="min-h-12 min-w-12 rounded-xl border border-slate-700 p-2 disabled:opacity-30"
             >
@@ -1897,8 +1918,8 @@ function MobileRow(props: SharedRowProps) {
             </button>
             <button
               type="button"
-              onClick={onRemove}
-              disabled={rows.length === 1}
+              onClick={() => onRemove(row.key)}
+              disabled={rowCount === 1}
               aria-label="Fahrer entfernen"
               className="min-h-12 min-w-12 rounded-xl border border-red-500/30 p-2 text-red-200 disabled:opacity-30"
             >
@@ -1908,10 +1929,10 @@ function MobileRow(props: SharedRowProps) {
         </div>
         <DriverPicker
           row={row}
-          rows={rows}
+          selectedDriverIds={selectedDriverIds}
           data={data}
-          onUpdate={onUpdate}
-          onSelectDriver={onSelectDriver}
+          onUpdate={update}
+          onSelectDriver={select}
           compact
         />
         <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1920,7 +1941,7 @@ function MobileRow(props: SharedRowProps) {
             <select
               value={row.status}
               onChange={(event) =>
-                onUpdate({
+                update({
                   status: event.target.value as ResultStatus,
                 })
               }
@@ -1942,7 +1963,7 @@ function MobileRow(props: SharedRowProps) {
             <input
               value={row.gapInput}
               onChange={(event) =>
-                onUpdate({ gapInput: event.target.value })
+                update({ gapInput: event.target.value })
               }
               placeholder={index === 0 ? "Sieger" : "+4.321"}
               className="form-control mt-1 min-h-11"
@@ -2004,7 +2025,7 @@ function MobileRow(props: SharedRowProps) {
             <select
               value={row.representedTeamId}
               onChange={(event) =>
-                onUpdate({
+                update({
                   representedTeamId: event.target.value,
                 })
               }
@@ -2019,13 +2040,13 @@ function MobileRow(props: SharedRowProps) {
             </select>
           </label>
           {session === ResultSession.Qualifying ? (
-            <QualifyingMobileFields row={row} format={qualifyingFormat} onUpdate={onUpdate} />
+            <QualifyingMobileFields row={row} format={qualifyingFormat} onUpdate={update} />
           ) : <label className="master-label">
             Schnellste Runde
             <input
               value={row.fastestLapInput}
               onChange={(event) =>
-                onUpdate({
+                update({
                   fastestLapInput: event.target.value,
                 })
               }
@@ -2041,7 +2062,7 @@ function MobileRow(props: SharedRowProps) {
                 min="1"
                 value={row.startingPosition}
                 onChange={(event) =>
-                  onUpdate({
+                  update({
                     startingPosition: event.target.value,
                   })
                 }
@@ -2055,7 +2076,7 @@ function MobileRow(props: SharedRowProps) {
                 min="0"
                 value={row.lapsCompleted}
                 onChange={(event) =>
-                  onUpdate({
+                  update({
                     lapsCompleted: event.target.value,
                   })
                 }
@@ -2066,14 +2087,14 @@ function MobileRow(props: SharedRowProps) {
           <PenaltyEditor
             row={row}
             imported={imported}
-            onUpdate={onUpdate}
+            onUpdate={update}
           />
           <label className="master-label">
             Notiz
             <textarea
               value={row.notes}
               onChange={(event) =>
-                onUpdate({ notes: event.target.value })
+                update({ notes: event.target.value })
               }
               rows={3}
               className="form-control mt-2"
@@ -2084,6 +2105,8 @@ function MobileRow(props: SharedRowProps) {
     </article>
   );
 }
+
+const MobileRow = memo(MobileRowComponent);
 
 function DeleteResultForm({
   raceId,

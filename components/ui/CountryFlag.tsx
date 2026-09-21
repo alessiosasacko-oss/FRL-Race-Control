@@ -1,7 +1,4 @@
-"use client";
-
 import Image from "next/image";
-import { useState } from "react";
 import { Globe2 } from "lucide-react";
 import {
   countryCodeFromLegacyFlag,
@@ -40,7 +37,7 @@ export default function CountryFlag({
   return (
     <span className={`inline-flex min-w-0 items-center gap-2 ${className}`}>
       {path ? (
-        <FlagImage key={path} path={path} label={label} size={size} />
+        <FlagImage path={path} label={label} size={size} />
       ) : (
         <FlagFallback size={size} />
       )}
@@ -58,9 +55,7 @@ function FlagImage({
   label: string;
   size: keyof typeof sizes;
 }) {
-  const [failed, setFailed] = useState(false);
   const dimensions = sizes[size];
-  if (failed) return <FlagFallback size={size} />;
 
   return (
     <Image
@@ -69,7 +64,6 @@ function FlagImage({
       width={dimensions.width}
       height={dimensions.height}
       unoptimized
-      onError={() => setFailed(true)}
       className={`${dimensions.className} shrink-0 rounded-[3px] border border-white/15 object-cover`}
     />
   );

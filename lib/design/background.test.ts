@@ -185,6 +185,6 @@ test("existing themes without background settings receive safe defaults", () => 
 
 test("cards and navigation retain readable glass and emphasis options", () => {
   assert.match(css, /data-background-glass/);
-  assert.match(css, /backdrop-filter: blur\(18px\)/);
+  assert.match(css, /backdrop-filter: blur\(8px\)/);
   assert.match(css, /data-navigation-emphasis/);
 });

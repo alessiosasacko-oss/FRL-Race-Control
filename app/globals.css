@@ -3,14 +3,14 @@
 :root {
   --color-primary: #3b82f6;
   --color-secondary: #22d3ee;
-  --color-background: #04070d;
-  --color-background-elevated: #09111d;
-  --color-card: #0d1726;
-  --color-sidebar: #060e19;
-  --color-header: #070d17;
+  --color-background: #05070a;
+  --color-background-elevated: #090d12;
+  --color-card: #0e141c;
+  --color-sidebar: #070a0e;
+  --color-header: #080c11;
   --color-text: #f8fafc;
   --color-text-muted: #94a3b8;
-  --color-border: #27364e;
+  --color-border: #252d38;
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #fb7185;
@@ -30,10 +30,10 @@
   --danger: var(--color-danger);
   --special: #a78bfa;
   --live: var(--color-live);
-  --radius-sm: 0.625rem;
-  --radius-md: 0.875rem;
-  --radius-lg: 1.25rem;
-  --shadow-panel: 0 18px 55px rgb(0 0 0 / 0.22);
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --shadow-panel: 0 16px 40px rgb(0 0 0 / 0.24);
 }
 
 @theme inline {
@@ -69,18 +69,14 @@ body::before {
   pointer-events: none;
   content: "";
   background:
-    radial-gradient(circle at 78% -10%, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 28rem),
-    linear-gradient(135deg, transparent 0 49.5%, rgb(255 255 255 / 0.018) 49.5% 50.5%, transparent 50.5% 100%);
-  background-size: auto, 22px 22px;
+    linear-gradient(90deg, transparent 0 7.9%, color-mix(in srgb, var(--color-primary) 6%, transparent) 8%, transparent 8.1%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 5%, transparent), transparent 22rem);
 }
 
 .theme-root {
   color-scheme: dark;
   color: var(--color-text);
-  background:
-    radial-gradient(circle at 8% -8%, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 32rem),
-    radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--color-secondary) 9%, transparent), transparent 28rem),
-    var(--color-background);
+  background: var(--color-background);
   font-family: var(--font-app, var(--font-sans));
 }
 
@@ -89,14 +85,13 @@ body::before {
 }
 
 .theme-root[data-background-glass="true"] .surface-panel {
-  background-color: color-mix(in srgb, var(--color-card) 72%, transparent);
-  backdrop-filter: blur(18px);
+  background-color: color-mix(in srgb, var(--color-card) 88%, transparent);
+  backdrop-filter: blur(8px);
   border-color: color-mix(in srgb, var(--color-border) 86%, white 14%);
 }
 
 .theme-root[data-navigation-emphasis="true"] :is(.app-sidebar, .app-topbar, .app-mobile-nav) {
-  background-color: color-mix(in srgb, var(--color-sidebar) 94%, black 6%);
-  backdrop-filter: blur(28px);
+  background-color: color-mix(in srgb, var(--color-sidebar) 97%, black 3%);
 }
 
 .theme-root :is(h1, h2, h3, .eyebrow) {
@@ -212,31 +207,26 @@ body::before {
 
 .app-shell {
   color: var(--color-text);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 3%, transparent), transparent 24rem),
-    transparent;
+  background: transparent;
 }
 
 .app-sidebar {
   border-color: color-mix(in srgb, var(--color-border) 82%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 9%, transparent), transparent 32%),
-    color-mix(in srgb, var(--color-sidebar) 96%, transparent);
-  box-shadow: 16px 0 55px rgb(0 0 0 / 0.16);
-  backdrop-filter: blur(24px);
+  background: var(--color-sidebar);
+  box-shadow: 12px 0 32px rgb(0 0 0 / 0.16);
 }
 
 .app-topbar {
   border-color: color-mix(in srgb, var(--color-border) 78%, transparent);
-  background: color-mix(in srgb, var(--color-header) 86%, transparent);
-  box-shadow: 0 14px 40px rgb(0 0 0 / 0.12);
+  background: color-mix(in srgb, var(--color-header) 97%, transparent);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
 }
 
 .app-mobile-nav {
   border-color: color-mix(in srgb, var(--color-border) 85%, transparent);
   color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-sidebar) 94%, transparent);
-  box-shadow: 0 -18px 45px rgb(0 0 0 / 0.35);
+  background: color-mix(in srgb, var(--color-sidebar) 98%, transparent);
+  box-shadow: 0 -10px 30px rgb(0 0 0 / 0.3);
 }
 
 .nav-profile-card,
@@ -249,13 +239,12 @@ body::before {
 .topbar-action:hover {
   border-color: var(--color-primary);
   color: var(--color-text);
-  box-shadow: 0 0 24px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 .nav-link-active {
   color: var(--color-text);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-primary) 7%, transparent));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 15%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 11%, var(--color-sidebar));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
 .nav-link-idle {
@@ -283,11 +272,8 @@ body::before {
 .race-hero {
   border-color: color-mix(in srgb, var(--page-accent, var(--color-primary)) 32%, transparent);
   color: var(--color-text);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--page-accent, var(--color-primary)) 12%, var(--color-card)), var(--color-card));
-  box-shadow:
-    var(--shadow-card),
-    0 0 60px color-mix(in srgb, var(--page-accent, var(--color-primary)) var(--glow-strength), transparent);
+  background: linear-gradient(112deg, color-mix(in srgb, var(--page-accent, var(--color-primary)) 9%, var(--color-card)), var(--color-card) 58%, var(--color-background-elevated));
+  box-shadow: var(--shadow-card);
 }
 
 .hero-grid {
@@ -306,16 +292,15 @@ body::before {
   --metric-color: var(--color-primary);
   color: var(--metric-color);
   border-color: color-mix(in srgb, var(--metric-color) 30%, transparent);
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--metric-color) 13%, var(--color-card)), color-mix(in srgb, var(--color-card) 96%, transparent));
-  box-shadow: 0 14px 36px rgb(0 0 0 / 0.12);
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  border-left-width: 2px;
+  background: color-mix(in srgb, var(--metric-color) 6%, var(--color-card));
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.12);
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
 
 .metric-block:hover {
-  transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--metric-color) 55%, transparent);
-  box-shadow: 0 20px 42px color-mix(in srgb, var(--metric-color) 12%, transparent);
+  background: color-mix(in srgb, var(--metric-color) 9%, var(--color-card));
 }
 
 .metric-tone-blue { --metric-color: var(--color-primary); }
@@ -327,7 +312,6 @@ body::before {
 
 .dashboard-card:hover {
   border-color: color-mix(in srgb, var(--page-accent, var(--color-primary)) 46%, transparent);
-  transform: translateY(-2px);
 }
 
 .page-accent-dashboard { --page-accent: var(--accent-dashboard); }
@@ -375,7 +359,7 @@ summary {
   }
 
   .page-stack {
-    @apply space-y-8 lg:space-y-12;
+    @apply space-y-7 lg:space-y-10;
   }
 
   .page-section {
@@ -384,11 +368,10 @@ summary {
 
   .surface-panel {
     @apply border;
-    border-radius: var(--radius-card);
+    border-radius: min(var(--radius-card), 0.5rem);
     border-color: color-mix(in srgb, var(--color-border) 82%, transparent);
-    background:
-      linear-gradient(145deg, color-mix(in srgb, var(--color-card) 95%, white 5%), color-mix(in srgb, var(--color-card) 98%, black));
-    box-shadow: var(--shadow-card);
+    background: var(--color-card);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
   }
 
   .theme-root[data-card-background="solid"] .surface-panel {
@@ -420,11 +403,11 @@ summary {
   }
 
   .surface-subtle {
-    @apply rounded-2xl bg-slate-950/40;
+    @apply rounded bg-slate-950/40;
   }
 
   .eyebrow {
-    @apply text-[0.7rem] font-bold uppercase tracking-[0.18em];
+    @apply text-[0.65rem] font-black uppercase tracking-[0.2em];
     color: var(--page-accent, var(--color-primary));
   }
 
@@ -433,18 +416,18 @@ summary {
   }
 
   .filter-select {
-    @apply min-h-11 rounded-xl border px-4 py-2 text-sm transition;
+    @apply min-h-11 rounded border px-4 py-2 text-sm transition;
     color: var(--color-text);
     border-color: var(--color-border);
     background: var(--color-background-elevated);
   }
 
   .pagination-link {
-    @apply inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-950/20 px-3 py-2 text-slate-300 transition hover:border-blue-500 hover:bg-blue-500/10 hover:text-white;
+    @apply inline-flex min-h-11 items-center justify-center gap-1 rounded border border-slate-700 bg-slate-950/20 px-3 py-2 text-slate-300 transition hover:border-blue-500 hover:bg-blue-500/10 hover:text-white;
   }
 
   .form-control {
-    @apply min-h-11 w-full rounded-xl border px-4 py-3 outline-none transition;
+    @apply min-h-11 w-full rounded border px-4 py-3 outline-none transition;
     color: var(--color-text);
     border-color: var(--color-border);
     background: color-mix(in srgb, var(--color-background-elevated) 92%, transparent);
@@ -461,18 +444,17 @@ summary {
   }
 
   .wizard-primary-button {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40;
-    background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 68%, var(--color-secondary)));
-    box-shadow: 0 12px 30px color-mix(in srgb, var(--color-primary) 25%, transparent);
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded px-5 py-2.5 text-xs font-black uppercase tracking-[0.08em] text-white transition disabled:cursor-not-allowed disabled:opacity-40;
+    background: var(--color-primary);
+    box-shadow: none;
   }
 
   .wizard-primary-button:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 16px 36px color-mix(in srgb, var(--color-primary) 34%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 84%, white);
   }
 
   .wizard-secondary-button {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-semibold transition;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded border px-5 py-2.5 text-xs font-black uppercase tracking-[0.08em] transition;
     color: var(--color-text-muted);
     border-color: var(--color-border);
     background: color-mix(in srgb, var(--color-card) 72%, transparent);
@@ -485,7 +467,7 @@ summary {
   }
 
   .danger-button {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-5 py-2.5 text-sm font-semibold text-red-200 transition hover:border-red-400 hover:bg-red-500/20;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded border border-red-500/40 bg-red-500/10 px-5 py-2.5 text-xs font-black uppercase tracking-[0.08em] text-red-200 transition hover:border-red-400 hover:bg-red-500/20;
   }
 
   .master-label {
@@ -494,15 +476,15 @@ summary {
 
   .master-card {
     @apply border p-5 sm:p-6;
-    border-radius: var(--radius-card);
+    border-radius: min(var(--radius-card), 0.5rem);
     border-color: var(--color-border);
     background: var(--color-card);
-    box-shadow: var(--shadow-card);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
   }
 
   .data-table-shell {
     @apply overflow-hidden border;
-    border-radius: var(--radius-card);
+    border-radius: min(var(--radius-card), 0.5rem);
     border-color: var(--color-border);
     background: var(--color-card);
     box-shadow: var(--shadow-card);
@@ -578,6 +560,55 @@ summary {
     width: 100%;
     max-width: 100%;
     height: auto;
+  }
+}
+
+/* FRL race-control geometry: flat timing surfaces, restrained depth, clear edges. */
+.surface-panel,
+.master-card,
+.data-table-shell,
+.race-hero {
+  border-radius: 0.5rem !important;
+}
+
+.app-topbar {
+  backdrop-filter: none !important;
+}
+
+.app-content {
+  position: relative;
+}
+
+.app-content::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(90deg, var(--color-primary) 0 4rem, color-mix(in srgb, var(--color-border) 55%, transparent) 4rem 100%);
+}
+
+.page-header::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  width: min(22vw, 12rem);
+  height: 1px;
+  content: "";
+  background: var(--page-accent, var(--color-primary));
+}
+
+.theme-root :is(dialog, [role="dialog"] > div) {
+  border-radius: 0.5rem;
+}
+
+.theme-root .animate-pulse {
+  animation-duration: 1.6s;
+}
+
+@media (max-width: 639px) {
+  .page-header h1 {
+    line-height: 1;
   }
 }
 
