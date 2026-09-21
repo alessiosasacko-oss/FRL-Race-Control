@@ -136,6 +136,36 @@ enum ResultPenaltySource {
   MANUAL
 }
 
+enum FinanceTransactionType {
+  START_BALANCE
+  RACE_POSITION_REWARD
+  POLE_REWARD
+  FASTEST_LAP_REWARD
+  PARTICIPATION_FEE
+  SUPER_LICENSE_FEE
+  DAMAGE_FEE
+  DNF_FEE
+  DSQ_FEE
+  PIT_RETIREMENT_FEE
+  PENALTY_POINTS_FINE
+  RULE_VIOLATION_FINE
+  TEAM_CHAMPIONSHIP_REWARD
+  DRIVER_TRANSFER
+  MANUAL_ADJUSTMENT
+  CORRECTION
+}
+
+enum FinanceTransactionSource {
+  AUTOMATIC
+  MANUAL
+}
+
+enum FinanceSettlementStatus {
+  PENDING
+  SETTLED
+  NEEDS_RECONCILIATION
+}
+
 enum ChampionshipAdjustmentTarget {
   DRIVER
   TEAM
@@ -205,6 +235,7 @@ enum DiscordChannelPurpose {
   RACE_RESULTS
   DRIVER_STANDINGS
   TEAM_STANDINGS
+  FINANCE_STANDINGS
   FIA_DECISION
   PENALTY_ISSUED
   SEASON_STARTED
@@ -245,6 +276,7 @@ enum AutomationJobType {
   STATISTICS_REFRESH
   ANNOUNCEMENT_PUBLICATION
   DISCORD_ROLE_SYNC
+  FINANCE_RECONCILIATION
 }
 
 enum AutomationJobStatus {
@@ -388,6 +420,11 @@ model User {
   driverCharacter          DriverCharacter?
   emailDeliveries          EmailDelivery[]
   createdAnnouncements     Announcement[]
+  createdFinanceRuleSets   FinanceRuleSet[]           @relation("FinanceRuleCreator")
+  financeTransactions      TeamFinanceTransaction[]   @relation("FinanceTransactionActor")
+  financeResultDetails     RaceResultFinanceDetail[]  @relation("FinanceDetailActor")
+  raceFinanceSettlements   RaceFinanceSettlement[]    @relation("RaceFinanceSettlementActor")
+  seasonFinanceSettlements SeasonFinanceSettlement[]  @relation("SeasonFinanceSettlementActor")
   retriedAutomationRuns    AutomationJobRun[]         @relation("AutomationRunRetryActor")
   systemAuditEntries       SystemAuditLog[]
   createdDesignThemes      DesignTheme[]              @relation("DesignThemeCreator")
@@ -530,6 +567,7 @@ model Driver {
   affectedPenaltyProposals PenaltyProposal[]
   fiaDecisions             Decision[]
   seasonAssignments        DriverSeasonAssignment[]
+  financeTransactions      TeamFinanceTransaction[]
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime                 @updatedAt
 
@@ -585,6 +623,8 @@ model Team {
   attendanceEntries       RaceAttendance[]
   representedResults      RaceResult[]
   championshipAdjustments ChampionshipAdjustment[]
+  financeAccount          TeamFinanceAccount?
+  financeTransactions     TeamFinanceTransaction[]
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 
@@ -637,21 +677,21 @@ model TeamOrganizationSeason {
 }
 
 model League {
-  id                               Int                      @id @default(autoincrement())
+  id                               Int                       @id @default(autoincrement())
   currentSeasonId                  Int?
-  name                             String                   @db.VarChar(160)
-  code                             String                   @unique @db.VarChar(12)
-  description                      String?                  @db.Text
-  active                           Boolean                  @default(true)
-  raceWeekday                      Int                      @default(7)
-  raceStartMinute                  Int                      @default(1140)
-  raceTimezone                     String                   @default("Europe/Berlin") @db.VarChar(64)
+  name                             String                    @db.VarChar(160)
+  code                             String                    @unique @db.VarChar(12)
+  description                      String?                   @db.Text
+  active                           Boolean                   @default(true)
+  raceWeekday                      Int                       @default(7)
+  raceStartMinute                  Int                       @default(1140)
+  raceTimezone                     String                    @default("Europe/Berlin") @db.VarChar(64)
   defaultAttendanceDeadlineMinutes Int?
-  displayOrder                     Int                      @default(0)
-  color                            String?                  @db.Char(7)
-  currentSeason                    Season?                  @relation("CurrentSeason", fields: [currentSeasonId], references: [id], onDelete: SetNull)
-  seasons                          Season[]                 @relation("LeagueSeasons")
-  calendarSeasons                  Season[]                 @relation("SeasonParticipation")
+  displayOrder                     Int                       @default(0)
+  color                            String?                   @db.Char(7)
+  currentSeason                    Season?                   @relation("CurrentSeason", fields: [currentSeasonId], references: [id], onDelete: SetNull)
+  seasons                          Season[]                  @relation("LeagueSeasons")
+  calendarSeasons                  Season[]                  @relation("SeasonParticipation")
   teams                            Team[]
   drivers                          Driver[]
   championships                    Championship[]
@@ -667,8 +707,14 @@ model League {
   discordChannels                  DiscordChannelMapping[]
   discordDeliveries                DiscordDelivery[]
   resultGraphics                   ResultGraphic[]
-  createdAt                        DateTime                 @default(now())
-  updatedAt                        DateTime                 @updatedAt
+  financeAccounts                  TeamFinanceAccount[]
+  financeTransactions              TeamFinanceTransaction[]
+  financeRuleSets                  FinanceRuleSet[]
+  raceFinanceSettlements           RaceFinanceSettlement[]
+  seasonFinanceSettlements         SeasonFinanceSettlement[]
+  financePublishSetting            FinancePublishSetting?
+  createdAt                        DateTime                  @default(now())
+  updatedAt                        DateTime                  @updatedAt
 
   @@index([active])
   @@index([name])
@@ -676,28 +722,33 @@ model League {
 }
 
 model Season {
-  id                      Int                      @id @default(autoincrement())
-  leagueId                Int
-  name                    String                   @db.VarChar(160)
-  startsOn                DateTime                 @db.Date
-  endsOn                  DateTime                 @db.Date
-  active                  Boolean                  @default(true)
-  archivedAt              DateTime?
-  league                  League                   @relation("LeagueSeasons", fields: [leagueId], references: [id], onDelete: Restrict)
-  participatingLeagues    League[]                 @relation("SeasonParticipation")
-  currentForLeagues       League[]                 @relation("CurrentSeason")
-  races                   Race[]
-  teams                   Team[]
-  driverAssignments       DriverSeasonAssignment[]
-  championships           Championship[]
-  scoringConfigurations   ScoringConfiguration[]
-  championshipAdjustments ChampionshipAdjustment[]
-  championshipAudits      ChampionshipAudit[]
-  organizationSeasons     TeamOrganizationSeason[]
-  globalTeamStandings     GlobalTeamStanding[]
-  tickets                 FiaTicket[]
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  id                       Int                       @id @default(autoincrement())
+  leagueId                 Int
+  name                     String                    @db.VarChar(160)
+  startsOn                 DateTime                  @db.Date
+  endsOn                   DateTime                  @db.Date
+  active                   Boolean                   @default(true)
+  archivedAt               DateTime?
+  league                   League                    @relation("LeagueSeasons", fields: [leagueId], references: [id], onDelete: Restrict)
+  participatingLeagues     League[]                  @relation("SeasonParticipation")
+  currentForLeagues        League[]                  @relation("CurrentSeason")
+  races                    Race[]
+  teams                    Team[]
+  driverAssignments        DriverSeasonAssignment[]
+  championships            Championship[]
+  scoringConfigurations    ScoringConfiguration[]
+  championshipAdjustments  ChampionshipAdjustment[]
+  championshipAudits       ChampionshipAudit[]
+  organizationSeasons      TeamOrganizationSeason[]
+  globalTeamStandings      GlobalTeamStanding[]
+  tickets                  FiaTicket[]
+  financeAccounts          TeamFinanceAccount[]
+  financeTransactions      TeamFinanceTransaction[]
+  financeRuleSets          FinanceRuleSet[]
+  raceFinanceSettlements   RaceFinanceSettlement[]
+  seasonFinanceSettlements SeasonFinanceSettlement[]
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
 
   @@unique([leagueId, name])
   @@index([leagueId, active])
@@ -735,6 +786,8 @@ model Race {
   visual                  RaceVisual?
   globalTeamContributions GlobalTeamContribution[]
   resultGraphics          ResultGraphic[]
+  financeTransactions     TeamFinanceTransaction[]
+  financeSettlements      RaceFinanceSettlement[]
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 
@@ -900,27 +953,28 @@ model AttendanceAudit {
 }
 
 model RaceResultSession {
-  id                 Int                     @id @default(autoincrement())
-  raceId             Int
-  leagueId           Int
-  session            ResultSession
-  gapMode            ResultGapMode           @default(TO_LEADER)
-  publicationStatus  ResultPublicationStatus @default(DRAFT)
-  qualifyingFormat   QualifyingFormat?
-  lastPublicationKey String?                 @unique @db.VarChar(190)
-  fiaPenaltyVersion  String?                 @db.VarChar(64)
-  draftPayload       Json?
-  revision           Int                     @default(1)
-  lockedAt           DateTime?
-  publishedAt        DateTime?
-  publishedByUserId  Int?
-  race               Race                    @relation(fields: [raceId], references: [id], onDelete: Restrict)
-  league             League                  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  publishedBy        User?                   @relation("ResultPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
-  results            RaceResult[]
-  graphics           ResultGraphic[]
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  id                  Int                      @id @default(autoincrement())
+  raceId              Int
+  leagueId            Int
+  session             ResultSession
+  gapMode             ResultGapMode            @default(TO_LEADER)
+  publicationStatus   ResultPublicationStatus  @default(DRAFT)
+  qualifyingFormat    QualifyingFormat?
+  lastPublicationKey  String?                  @unique @db.VarChar(190)
+  fiaPenaltyVersion   String?                  @db.VarChar(64)
+  draftPayload        Json?
+  revision            Int                      @default(1)
+  lockedAt            DateTime?
+  publishedAt         DateTime?
+  publishedByUserId   Int?
+  race                Race                     @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  league              League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  publishedBy         User?                    @relation("ResultPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  results             RaceResult[]
+  graphics            ResultGraphic[]
+  financeTransactions TeamFinanceTransaction[]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
   @@unique([raceId, leagueId, session])
   @@index([raceId, lockedAt])
@@ -1001,6 +1055,8 @@ model RaceResult {
   representedTeam      Team                       @relation(fields: [representedTeamId], references: [id], onDelete: Restrict)
   expectedDriver       Driver?                    @relation("ExpectedResultDriver", fields: [expectedDriverId], references: [id], onDelete: Restrict)
   penaltyApplications  ResultPenaltyApplication[]
+  financeDetail        RaceResultFinanceDetail?
+  financeTransactions  TeamFinanceTransaction[]
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
 
@@ -1704,6 +1760,216 @@ model RaceVisual {
   updatedAt        DateTime @updatedAt
 }
 
+model FinanceRuleSet {
+  id                       Int                       @id @default(autoincrement())
+  leagueId                 Int
+  seasonId                 Int
+  version                  Int
+  active                   Boolean                   @default(true)
+  defaultStartBalanceEuro  BigInt                    @default(100000000)
+  participationFeeBps      Int                       @default(150)
+  superLicensePerPointEuro BigInt                    @default(30000)
+  poleRewardEuro           BigInt                    @default(2000000)
+  fastestLapRewardEuro     BigInt                    @default(500000)
+  dnfFeeEuro               BigInt                    @default(3000000)
+  dsqFeeEuro               BigInt                    @default(5000000)
+  pitRetirementFeeEuro     BigInt                    @default(6000000)
+  frontWingDamageFeeEuro   BigInt                    @default(500000)
+  underfloorDamageFeeEuro  BigInt                    @default(1000000)
+  sidepodDamageFeeEuro     BigInt                    @default(1000000)
+  rearWingDamageFeeEuro    BigInt                    @default(1000000)
+  positionRewards          Json
+  penaltyPointThresholds   Json
+  teamChampionshipRewards  Json
+  createdByUserId          Int?
+  league                   League                    @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  season                   Season                    @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  createdBy                User?                     @relation("FinanceRuleCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  raceSettlements          RaceFinanceSettlement[]
+  seasonSettlements        SeasonFinanceSettlement[]
+  transactions             TeamFinanceTransaction[]
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+
+  @@unique([leagueId, seasonId, version])
+  @@index([leagueId, seasonId, active, version])
+  @@index([createdByUserId])
+}
+
+model TeamFinanceAccount {
+  id                Int                          @id @default(autoincrement())
+  teamId            Int                          @unique
+  leagueId          Int
+  seasonId          Int
+  balanceEuro       BigInt                       @default(0)
+  totalIncomeEuro   BigInt                       @default(0)
+  totalExpensesEuro BigInt                       @default(0)
+  ledgerRevision    Int                          @default(0)
+  lastTransactionAt DateTime?
+  team              Team                         @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  league            League                       @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  season            Season                       @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  transactions      TeamFinanceTransaction[]
+  raceSnapshots     RaceFinanceAccountSnapshot[]
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+
+  @@index([leagueId, seasonId, balanceEuro])
+  @@index([seasonId, lastTransactionAt])
+}
+
+model TeamFinanceTransaction {
+  id                 Int                      @id @default(autoincrement())
+  accountId          Int
+  teamId             Int
+  leagueId           Int
+  seasonId           Int
+  raceId             Int?
+  driverId           Int?
+  resultSessionId    Int?
+  raceResultId       Int?
+  ruleSetId          Int?
+  raceSettlementId   Int?
+  seasonSettlementId Int?
+  actorUserId        Int?
+  amountEuro         BigInt
+  type               FinanceTransactionType
+  source             FinanceTransactionSource
+  description        String                   @db.VarChar(500)
+  logicalKey         String?                  @db.VarChar(190)
+  sourceKey          String                   @unique @db.VarChar(190)
+  metadata           Json?
+  account            TeamFinanceAccount       @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  team               Team                     @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  league             League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  season             Season                   @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  race               Race?                    @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  driver             Driver?                  @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  resultSession      RaceResultSession?       @relation(fields: [resultSessionId], references: [id], onDelete: Restrict)
+  raceResult         RaceResult?              @relation(fields: [raceResultId], references: [id], onDelete: Restrict)
+  ruleSet            FinanceRuleSet?          @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
+  raceSettlement     RaceFinanceSettlement?   @relation(fields: [raceSettlementId], references: [id], onDelete: Restrict)
+  seasonSettlement   SeasonFinanceSettlement? @relation(fields: [seasonSettlementId], references: [id], onDelete: Restrict)
+  actor              User?                    @relation("FinanceTransactionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt          DateTime                 @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([leagueId, seasonId, createdAt])
+  @@index([teamId, seasonId, createdAt])
+  @@index([raceId, leagueId])
+  @@index([driverId, createdAt])
+  @@index([type, createdAt])
+  @@index([logicalKey])
+  @@index([raceSettlementId, logicalKey])
+  @@index([seasonSettlementId, logicalKey])
+}
+
+model RaceResultFinanceDetail {
+  id               Int        @id @default(autoincrement())
+  raceResultId     Int        @unique
+  frontWingDamage  Boolean    @default(false)
+  underfloorDamage Boolean    @default(false)
+  sidepodDamage    Boolean    @default(false)
+  rearWingDamage   Boolean    @default(false)
+  updatedByUserId  Int?
+  raceResult       RaceResult @relation(fields: [raceResultId], references: [id], onDelete: Cascade)
+  updatedBy        User?      @relation("FinanceDetailActor", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([updatedByUserId])
+  @@index([updatedAt])
+}
+
+model RaceFinanceSettlement {
+  id               Int                          @id @default(autoincrement())
+  raceId           Int
+  leagueId         Int
+  seasonId         Int
+  ruleSetId        Int
+  status           FinanceSettlementStatus      @default(PENDING)
+  revision         Int                          @default(0)
+  inputHash        String?                      @db.Char(64)
+  automatic        Boolean                      @default(false)
+  settledAt        DateTime?
+  settledByUserId  Int?
+  race             Race                         @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  league           League                       @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  season           Season                       @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  ruleSet          FinanceRuleSet               @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
+  settledBy        User?                        @relation("RaceFinanceSettlementActor", fields: [settledByUserId], references: [id], onDelete: SetNull)
+  transactions     TeamFinanceTransaction[]
+  accountSnapshots RaceFinanceAccountSnapshot[]
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+
+  @@unique([raceId, leagueId])
+  @@index([leagueId, seasonId, status])
+  @@index([ruleSetId])
+  @@index([settledByUserId])
+}
+
+model RaceFinanceAccountSnapshot {
+  id                 Int                   @id @default(autoincrement())
+  raceSettlementId   Int
+  accountId          Int
+  openingBalanceEuro BigInt
+  participantCount   Int
+  raceSettlement     RaceFinanceSettlement @relation(fields: [raceSettlementId], references: [id], onDelete: Cascade)
+  account            TeamFinanceAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  createdAt          DateTime              @default(now())
+
+  @@unique([raceSettlementId, accountId])
+  @@index([accountId, createdAt])
+}
+
+model SeasonFinanceSettlement {
+  id              Int                      @id @default(autoincrement())
+  seasonId        Int
+  leagueId        Int
+  ruleSetId       Int
+  status          FinanceSettlementStatus  @default(PENDING)
+  revision        Int                      @default(0)
+  inputHash       String?                  @db.Char(64)
+  settledAt       DateTime?
+  settledByUserId Int?
+  season          Season                   @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  league          League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  ruleSet         FinanceRuleSet           @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
+  settledBy       User?                    @relation("SeasonFinanceSettlementActor", fields: [settledByUserId], references: [id], onDelete: SetNull)
+  transactions    TeamFinanceTransaction[]
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  @@unique([seasonId, leagueId])
+  @@index([leagueId, status, updatedAt])
+  @@index([ruleSetId])
+  @@index([settledByUserId])
+}
+
+model FinancePublishSetting {
+  id              Int                  @id @default(autoincrement())
+  leagueId        Int                  @unique
+  guildSettingsId Int
+  enabled         Boolean              @default(false)
+  autoReconcile   Boolean              @default(false)
+  autoPublish     Boolean              @default(false)
+  channelId       String               @db.VarChar(32)
+  channelName     String?              @db.VarChar(160)
+  pingRoleId      String?              @db.VarChar(32)
+  pingRoleName    String?              @db.VarChar(160)
+  messageTemplate String               @default("Die aktuellen FRL-Teamfinanzen nach {race} sind verfügbar.") @db.VarChar(1000)
+  showBalances    Boolean              @default(true)
+  showDelta       Boolean              @default(true)
+  league          League               @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  guildSettings   DiscordGuildSettings @relation(fields: [guildSettingsId], references: [id], onDelete: Cascade)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([guildSettingsId, enabled])
+  @@index([autoReconcile, autoPublish])
+}
+
 model EmailDelivery {
   id             Int                 @id @default(autoincrement())
   userId         Int
@@ -1726,20 +1992,21 @@ model EmailDelivery {
 }
 
 model DiscordGuildSettings {
-  id              Int                     @id @default(autoincrement())
-  guildId         String                  @unique @db.VarChar(32)
-  guildName       String                  @db.VarChar(160)
-  enabled         Boolean                 @default(true)
-  botUserId       String?                 @db.VarChar(32)
-  botUsername     String?                 @db.VarChar(64)
-  lastConnectedAt DateTime?
-  lastHeartbeatAt DateTime?
-  lastError       String?                 @db.Text
-  channelMappings DiscordChannelMapping[]
-  roleMappings    DiscordRoleMapping[]
-  deliveries      DiscordDelivery[]
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
+  id                     Int                     @id @default(autoincrement())
+  guildId                String                  @unique @db.VarChar(32)
+  guildName              String                  @db.VarChar(160)
+  enabled                Boolean                 @default(true)
+  botUserId              String?                 @db.VarChar(32)
+  botUsername            String?                 @db.VarChar(64)
+  lastConnectedAt        DateTime?
+  lastHeartbeatAt        DateTime?
+  lastError              String?                 @db.Text
+  channelMappings        DiscordChannelMapping[]
+  roleMappings           DiscordRoleMapping[]
+  deliveries             DiscordDelivery[]
+  financePublishSettings FinancePublishSetting[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 
   @@index([enabled])
   @@index([lastHeartbeatAt])

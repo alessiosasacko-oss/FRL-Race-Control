@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
 import ResultsEditor from "@/components/championship/ResultsEditor";
+import ResultFinancePanel from "@/components/finance/ResultFinancePanel";
 import PageHeader from "@/components/ui/PageHeader";
 import CountryFlag from "@/components/ui/CountryFlag";
 import { Flag, LockKeyhole, SlidersHorizontal } from "lucide-react";
@@ -17,6 +18,7 @@ import {
 import { resultWorkspaceStatus } from "@/lib/championship/result-workspace";
 import { resultSessionInputSchema } from "@/lib/championship/schemas";
 import { getMasterDataFilterOptions } from "@/lib/master-data/queries";
+import { getResultFinancePanelData } from "@/lib/finance/queries";
 
 type ResultsAdminPageProps = {
   searchParams: Promise<
@@ -58,6 +60,12 @@ export default async function ResultsAdminPage({
       ? filterOptionsResult.value
       : { leagues: [], seasons: [] };
   const selected = data.selected;
+  const financePanel = selected && session === ResultSession.Race
+    ? await getResultFinancePanelData(
+        selected.race.id,
+        selected.race.season.league.id,
+      )
+    : null;
   const sessionOptions = selected
     ? [ResultSession.Qualifying, ...(selected.race.sprint ? [ResultSession.Sprint] : []), ResultSession.Race]
     : [];
@@ -234,6 +242,15 @@ export default async function ResultsAdminPage({
               data={data}
               session={session}
             />
+            {session === ResultSession.Race && financePanel ? (
+              <ResultFinancePanel
+                raceId={selected.race.id}
+                leagueId={selected.race.season.league.id}
+                publicationStatus={financePanel.session?.publicationStatus ?? null}
+                results={financePanel.session?.results ?? []}
+                preview={financePanel.preview}
+              />
+            ) : null}
           </section>
         ) : (
           <div className="master-card text-center text-slate-400">

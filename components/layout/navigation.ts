@@ -10,6 +10,7 @@ import {
   Home,
   Layers3,
   Megaphone,
+  Landmark,
   Map,
   Palette,
   Settings2,
@@ -30,6 +31,7 @@ export const driverNavigationItems = [
 export const leagueNavigationItems = [
   { name: "Fahrer", href: "/drivers", icon: Users, permission: Permission.ViewMasterData },
   { name: "Teams", href: "/teams", icon: Flag, permission: Permission.ViewMasterData },
+  { name: "Finanzen", href: "/finance", icon: Landmark, permission: Permission.ViewFinance },
 ] as const;
 
 export const administrationNavigationItems = [
@@ -43,6 +45,7 @@ export const administrationNavigationItems = [
   { name: "Saisons", href: "/admin/seasons", icon: Layers3, permission: Permission.ManageMasterData },
   { name: "Rennen", href: "/admin/races", icon: CalendarRange, permission: Permission.ManageMasterData },
   { name: "Ergebnisse", href: "/admin/results", icon: ChartNoAxesCombined, permission: Permission.ManageResults },
+  { name: "Finanzsystem", href: "/admin/finance", icon: Landmark, permission: Permission.ManageFinance },
   { name: "Fahrer", href: "/admin/drivers", icon: UserCog, permission: Permission.ManageMasterData },
   { name: "Benutzer & Rollen", href: "/admin/users", icon: Users, permission: Permission.ManageUsers },
   { name: "Kommunikation", href: "/admin/announcements", icon: Megaphone, permission: Permission.ManageAdministration },

@@ -121,6 +121,36 @@ export enum ResultPenaltySource {
   Manual = "MANUAL",
 }
 
+export enum FinanceTransactionType {
+  StartBalance = "START_BALANCE",
+  RacePositionReward = "RACE_POSITION_REWARD",
+  PoleReward = "POLE_REWARD",
+  FastestLapReward = "FASTEST_LAP_REWARD",
+  ParticipationFee = "PARTICIPATION_FEE",
+  SuperLicenseFee = "SUPER_LICENSE_FEE",
+  DamageFee = "DAMAGE_FEE",
+  DnfFee = "DNF_FEE",
+  DsqFee = "DSQ_FEE",
+  PitRetirementFee = "PIT_RETIREMENT_FEE",
+  PenaltyPointsFine = "PENALTY_POINTS_FINE",
+  RuleViolationFine = "RULE_VIOLATION_FINE",
+  TeamChampionshipReward = "TEAM_CHAMPIONSHIP_REWARD",
+  DriverTransfer = "DRIVER_TRANSFER",
+  ManualAdjustment = "MANUAL_ADJUSTMENT",
+  Correction = "CORRECTION",
+}
+
+export enum FinanceTransactionSource {
+  Automatic = "AUTOMATIC",
+  Manual = "MANUAL",
+}
+
+export enum FinanceSettlementStatus {
+  Pending = "PENDING",
+  Settled = "SETTLED",
+  NeedsReconciliation = "NEEDS_RECONCILIATION",
+}
+
 export enum ChampionshipAdjustmentTarget {
   Driver = "DRIVER",
   Team = "TEAM",
@@ -190,6 +220,7 @@ export enum DiscordChannelPurpose {
   RaceResults = "RACE_RESULTS",
   DriverStandings = "DRIVER_STANDINGS",
   TeamStandings = "TEAM_STANDINGS",
+  FinanceStandings = "FINANCE_STANDINGS",
   FiaDecision = "FIA_DECISION",
   PenaltyIssued = "PENALTY_ISSUED",
   SeasonStarted = "SEASON_STARTED",
@@ -230,6 +261,7 @@ export enum AutomationJobType {
   StatisticsRefresh = "STATISTICS_REFRESH",
   AnnouncementPublication = "ANNOUNCEMENT_PUBLICATION",
   DiscordRoleSync = "DISCORD_ROLE_SYNC",
+  FinanceReconciliation = "FINANCE_RECONCILIATION",
 }
 
 export enum AutomationJobStatus {
@@ -327,6 +359,9 @@ export const qualifyingFormatSchema = z.enum(QualifyingFormat);
 export const resultGraphicTypeSchema = z.enum(ResultGraphicType);
 export const graphicRenderStatusSchema = z.enum(GraphicRenderStatus);
 export const resultPenaltySourceSchema = z.enum(ResultPenaltySource);
+export const financeTransactionTypeSchema = z.enum(FinanceTransactionType);
+export const financeTransactionSourceSchema = z.enum(FinanceTransactionSource);
+export const financeSettlementStatusSchema = z.enum(FinanceSettlementStatus);
 export const championshipAdjustmentTargetSchema = z.enum(
   ChampionshipAdjustmentTarget,
 );

@@ -10,6 +10,7 @@ import {
   Users,
   ArrowUpRight,
   RadioTower,
+  Landmark,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageHeader from "@/components/ui/PageHeader";
@@ -58,6 +59,12 @@ const areas = [
     title: "Meisterschaft",
     description: "Ergebnisse, Punktesystem und Neuberechnung",
     icon: Calculator,
+  },
+  {
+    href: "/admin/finance",
+    title: "Teamfinanzen",
+    description: "Konten, Ledger, Regeln, Abrechnungen und Discord-Publishing",
+    icon: Landmark,
   },
   {
     href: "/admin/automation",

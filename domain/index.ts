@@ -2,6 +2,7 @@ export * from "./championship";
 export * from "./automation";
 export * from "./common";
 export * from "./driver";
+export * from "./finance";
 export * from "./enums";
 export * from "./fia-ticket";
 export * from "./labels";

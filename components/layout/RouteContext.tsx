@@ -13,6 +13,8 @@ const routeLabels = [
   { path: "/admin/design", title: "Design & Branding", context: "Globale Markensteuerung" },
   { path: "/admin/design/driver-suits", title: "Fahrer-Rennanzüge", context: "Teamgebundene Charakter-Designs" },
   { path: "/admin/tracks", title: "Strecken", context: "Layouts & Rennstreckendaten" },
+  { path: "/admin/finance", title: "Finanzsystem", context: "Teamkonten & Buchungsjournal" },
+  { path: "/finance", title: "Teamfinanzen", context: "Kontostand & Buchungsjournal" },
   { path: "/admin/users", title: "Benutzer & Rollen", context: "Zugriffe & sportliche Zuordnung" },
   { path: "/admin", title: "Administration", context: "Race-Control-Werkzeuge" },
   { path: "/profile", title: "Profil", context: "Fahreridentität" },
