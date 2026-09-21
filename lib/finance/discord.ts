@@ -137,10 +137,11 @@ export async function queueFinanceDiscordPublication(
   return { deliveryId: delivery.id, queued: true };
 }
 
-export async function queueAutomaticFinancePublication(raceId: number, leagueId: number, changed: boolean): Promise<void> {
-  if (!changed) return;
+export async function queueAutomaticFinancePublication(raceId: number, leagueId: number, changed: boolean): Promise<boolean> {
+  if (!changed) return false;
   const setting = await getPrismaClient().financePublishSetting.findUnique({ where: { leagueId }, select: { enabled: true, autoPublish: true } });
-  if (setting?.enabled && setting.autoPublish) await queueFinanceDiscordPublication(raceId, leagueId);
+  if (!setting?.enabled || !setting.autoPublish) return false;
+  return (await queueFinanceDiscordPublication(raceId, leagueId)).queued;
 }
 
 export async function processFinanceDiscordOutbox(limit = 10): Promise<{ sent: number; failed: number }> {

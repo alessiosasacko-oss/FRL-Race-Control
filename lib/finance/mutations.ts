@@ -16,9 +16,9 @@ import {
   persistedRules,
   runSerializable,
 } from "./ledger";
+import { reconcilePublishedResultFinance } from "./automation";
 import { serializePositionRules, serializeThresholdRules } from "./rules";
-import { markRaceFinanceDirty, reconcileAutomaticallyConfiguredRace } from "./reconciliation";
-import { queueAutomaticFinancePublication } from "./discord";
+import { markRaceFinanceDirty } from "./reconciliation";
 
 export async function setTeamStartBalance(input: {
   teamId: number;
@@ -242,10 +242,7 @@ export async function saveResultFinanceDamage(input: {
     });
     return { raceId: result.resultSession.raceId, leagueId: result.resultSession.leagueId };
   });
-  const reconciliation = await reconcileAutomaticallyConfiguredRace(context.raceId, context.leagueId);
-  if (reconciliation.processed) {
-    await queueAutomaticFinancePublication(context.raceId, context.leagueId, reconciliation.changed);
-  }
+  await reconcilePublishedResultFinance(context.raceId, context.leagueId);
   return context;
 }
 

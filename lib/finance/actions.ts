@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { FinanceTransactionType } from "@/generated/prisma/client";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
+import { reconcilePublishedResultFinance } from "./automation";
 import { queueAutomaticFinancePublication, queueFinanceDiscordPublication } from "./discord";
 import {
   createFinanceRuleVersion,
@@ -12,7 +13,7 @@ import {
   saveResultFinanceDamage,
   setTeamStartBalance,
 } from "./mutations";
-import { reconcileAutomaticallyConfiguredRace, reconcileRaceFinances } from "./reconciliation";
+import { reconcileRaceFinances } from "./reconciliation";
 import { reconcileSeasonFinances } from "./season-settlement";
 import {
   financeDamageSchema,
@@ -182,7 +183,6 @@ export async function publishFinanceDiscordAction(_previous: FinanceActionState,
 
 export async function triggerAutomaticRaceFinanceAction(raceId: number, leagueId: number): Promise<void> {
   await requirePermission(Permission.ManageResults);
-  const result = await reconcileAutomaticallyConfiguredRace(raceId, leagueId);
-  if (result.processed) await queueAutomaticFinancePublication(raceId, leagueId, result.changed);
+  const result = await reconcilePublishedResultFinance(raceId, leagueId);
   if (result.processed) revalidateFinance();
 }

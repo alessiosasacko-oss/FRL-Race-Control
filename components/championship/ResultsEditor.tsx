@@ -40,8 +40,7 @@ import {
 import CountryFlag from "@/components/ui/CountryFlag";
 import TeamLogo from "@/components/teams/TeamLogo";
 import { deleteResultsAction } from "@/lib/championship/actions";
-import { saveResultsAction } from "@/lib/championship/result-actions";
-import { triggerAutomaticRaceFinanceAction } from "@/lib/finance/actions";
+import { saveResultsWithFinanceAction } from "@/lib/finance/result-actions";
 import {
   isPopulatedResultRow,
   moveResultRow,
@@ -412,10 +411,9 @@ export default function ResultsEditor({
   const publishSubmitRef = useRef<HTMLButtonElement>(null);
   const navigationApprovedRef = useRef(false);
   const [state, action, pending] = useActionState(
-    saveResultsAction,
+    saveResultsWithFinanceAction,
     initialSportsActionState,
   );
-  const financeTriggerRef = useRef<string | null>(null);
 
   useEffect(() => {
     rowsRef.current = rows;
@@ -477,22 +475,6 @@ export default function ResultsEditor({
     }, 0);
     return () => window.clearTimeout(completionTimer);
   }, [state.completedAt, state.persisted, state.status, storageKey]);
-
-  useEffect(() => {
-    if (
-      state.status !== "success" ||
-      !state.persisted ||
-      !state.completedAt ||
-      !state.message.toLocaleLowerCase("de-DE").includes("veröffentlicht") ||
-      !data.selected ||
-      financeTriggerRef.current === state.completedAt
-    ) return;
-    financeTriggerRef.current = state.completedAt;
-    void triggerAutomaticRaceFinanceAction(
-      data.selected.race.id,
-      data.selected.race.season.league.id,
-    ).catch(() => undefined);
-  }, [data.selected, state.completedAt, state.message, state.persisted, state.status]);
 
   useEffect(() => {
     if (!dirty || !data.selected) return;

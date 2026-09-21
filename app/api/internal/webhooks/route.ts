@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { webhookEventTypeSchema } from "@/domain";
+import { WebhookEventType, webhookEventTypeSchema } from "@/domain";
 import {
   authorizeInternalRequest,
   internalRateLimitResponse,
   unauthorizedResponse,
 } from "@/lib/api/internal-auth";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { reconcilePublishedResultFinance } from "@/lib/finance/automation";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 
 export const runtime = "nodejs";
@@ -37,5 +38,17 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   await recordWebhookEvent(getPrismaClient(), parsed.data);
+  if (parsed.data.type === WebhookEventType.RaceFinished) {
+    const raceId = Number(parsed.data.payload.raceId);
+    const leagueId = Number(parsed.data.payload.leagueId);
+    if (
+      Number.isInteger(raceId) &&
+      raceId > 0 &&
+      Number.isInteger(leagueId) &&
+      leagueId > 0
+    ) {
+      await reconcilePublishedResultFinance(raceId, leagueId);
+    }
+  }
   return Response.json({ accepted: true }, { status: 202 });
 }

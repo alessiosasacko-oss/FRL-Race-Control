@@ -20,11 +20,8 @@ import {
 } from "@/lib/notifications/service";
 import { logger } from "@/lib/observability/logger";
 import { processPendingResultGraphics } from "@/lib/graphics/result-graphic-service";
-import {
-  processFinanceDiscordOutbox,
-  queueAutomaticFinancePublication,
-} from "@/lib/finance/discord";
-import { reconcileAutomaticallyConfiguredRace } from "@/lib/finance/reconciliation";
+import { recoverPublishedRaceFinances } from "@/lib/finance/automation";
+import { processFinanceDiscordOutbox } from "@/lib/finance/discord";
 import { publicRaceTrack } from "@/lib/races/visibility";
 import { cleanupMobileAuthRecords } from "@/lib/mobile-api/auth/cleanup";
 
@@ -44,7 +41,7 @@ const jobDefinitions: readonly JobDefinition[] = [
   { type: AutomationJobType.StatisticsRefresh, name: "Statistik-Aktualisierung", intervalMinutes: 60 },
   { type: AutomationJobType.AnnouncementPublication, name: "Geplante Mitteilungen", intervalMinutes: 2 },
   { type: AutomationJobType.DiscordRoleSync, name: "Discord-Rollensynchronisierung", intervalMinutes: 30 },
-  { type: AutomationJobType.FinanceReconciliation, name: "Finance-Abgleich", intervalMinutes: 5 },
+  { type: AutomationJobType.FinanceReconciliation, name: "Tägliche Finance-Wiederherstellung", intervalMinutes: 1440 },
 ] as const;
 
 export async function ensureAutomationJobs(): Promise<void> {
@@ -238,37 +235,6 @@ async function refreshStatistics() {
   return { activeUsers, upcomingRaces, pendingDeliveries };
 }
 
-async function reconcilePublishedRaceFinances() {
-  const prisma = getPrismaClient();
-  const settings = await prisma.financePublishSetting.findMany({
-    where: { autoReconcile: true },
-    select: { leagueId: true },
-  });
-  if (settings.length === 0) return { checked: 0, reconciled: 0, published: 0 };
-  const sessions = await prisma.raceResultSession.findMany({
-    where: {
-      leagueId: { in: settings.map((setting) => setting.leagueId) },
-      session: "RACE",
-      publicationStatus: "PUBLISHED",
-    },
-    orderBy: { updatedAt: "desc" },
-    take: 100,
-    select: { raceId: true, leagueId: true },
-  });
-  let reconciled = 0;
-  let published = 0;
-  for (const session of sessions) {
-    const result = await reconcileAutomaticallyConfiguredRace(session.raceId, session.leagueId);
-    if (!result.processed) continue;
-    if (result.changed) reconciled += 1;
-    if (result.autoPublish && result.changed) {
-      await queueAutomaticFinancePublication(session.raceId, session.leagueId, true);
-      published += 1;
-    }
-  }
-  return { checked: sessions.length, reconciled, published };
-}
-
 async function executeJob(
   type: AutomationJobType,
 ): Promise<Prisma.InputJsonValue> {
@@ -298,7 +264,7 @@ async function executeJob(
     case AutomationJobType.DiscordRoleSync:
       return synchronizeDiscordRoles();
     case AutomationJobType.FinanceReconciliation:
-      return reconcilePublishedRaceFinances();
+      return recoverPublishedRaceFinances();
   }
 }
 
