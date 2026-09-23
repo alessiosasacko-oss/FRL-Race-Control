@@ -41,6 +41,7 @@ function errorMessage(error: unknown): string {
     NO_TEAMS: "Es wurden keine veröffentlichten Rennteilnehmer gefunden.",
     FINANCE_PUBLISHING_DISABLED: "Finance-Publishing ist für diese Liga nicht aktiv.",
     FINANCE_SETTLEMENT_NOT_FOUND: "Die Rennfinanzen müssen zuerst finalisiert werden.",
+    TEAM_ORGANIZATION_NOT_FOUND: "Das technische Team ist keiner globalen Teamorganisation zugeordnet.",
     DISCORD_CHANNEL_INVALID: "Der ausgewählte Discord-Kanal ist nicht verfügbar oder dem Bot fehlen Rechte.",
     DISCORD_ROLE_INVALID: "Die ausgewählte Discord-Rolle ist nicht konfiguriert.",
   };

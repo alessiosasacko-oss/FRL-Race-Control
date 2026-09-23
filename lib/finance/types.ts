@@ -7,6 +7,8 @@ export type FinanceTransactionView = {
   description: string;
   source: "AUTOMATIC" | "MANUAL";
   createdAt: string;
+  league: { id: number; code: string; name: string };
+  season: { id: number; name: string };
   race: { id: number; name: string; round: number; mystery: boolean; scheduledAt: string } | null;
   driver: { id: number; name: string } | null;
   actor: { displayName: string } | null;
@@ -14,13 +16,11 @@ export type FinanceTransactionView = {
 
 export type FinanceAccountView = {
   id: number;
-  teamId: number;
+  organizationId: number;
   teamName: string;
   shortName: string;
   color: string;
   logoUrl: string | null;
-  league: { id: number; code: string; name: string };
-  season: { id: number; name: string };
   balanceEuro: string;
   totalIncomeEuro: string;
   totalExpensesEuro: string;
@@ -29,7 +29,7 @@ export type FinanceAccountView = {
 
 export type FinancePreviewEntry = {
   logicalKey: string;
-  teamId: number;
+  organizationId: number;
   teamName: string;
   driverId: number | null;
   driverName: string | null;
@@ -49,7 +49,7 @@ export type RaceFinancePreview = {
   currentInputHash: string;
   needsReconciliation: boolean;
   entries: FinancePreviewEntry[];
-  teamTotals: Array<{ teamId: number; teamName: string; openingBalanceEuro: string; incomeEuro: string; expensesEuro: string; netEuro: string }>;
+  teamTotals: Array<{ organizationId: number; teamName: string; openingBalanceEuro: string; incomeEuro: string; expensesEuro: string; netEuro: string }>;
 };
 
 export type SeasonFinancePreview = {

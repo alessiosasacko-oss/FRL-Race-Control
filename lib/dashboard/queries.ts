@@ -56,7 +56,7 @@ export async function getDashboardData(userId: number): Promise<DashboardData> {
   const driverId = user.driver?.id;
   const teamId = user.driver?.team?.seasonId === seasonId ? user.driver.team.id : null;
 
-  const [championship, lastResult, latestResult, seasonProgress, notifications, unreadNotificationCount, driverStanding, teamStanding] = await Promise.all([
+  const [championship, lastResult, latestResult, seasonProgress, notifications, unreadNotificationCount, driverStanding, teamStanding, financeOrganization] = await Promise.all([
     seasonId && leagueId ? optionalDashboardData("championship", () => prisma.championship.findUnique({ where: { leagueId_seasonId: { leagueId, seasonId } }, include: { driverStandings: { orderBy: { position: "asc" }, take: 5, include: { driver: { select: { name: true, flag: true } } } }, teamStandings: { orderBy: { position: "asc" }, take: 5, include: { team: { select: { name: true, color: true, logoUrl: true, organization: { select: { name: true, color: true, logoUrl: true } } } } } } } }), null) : null,
     driverId && seasonId ? optionalDashboardData("driver result", () => prisma.raceResult.findFirst({ where: { driverId, resultSession: { leagueId: leagueId ?? undefined, session: "RACE", race: { seasonId } } }, orderBy: { resultSession: { race: { scheduledAt: "desc" } } }, select: { racePoints: true, bonusPoints: true } }), null) : null,
     seasonId && leagueId ? optionalDashboardData("latest published result", () => prisma.raceResultSession.findFirst({ where: { leagueId, session: "RACE", publicationStatus: "PUBLISHED", race: { seasonId } }, orderBy: { publishedAt: "desc" }, select: { publishedAt: true, race: { select: { id: true, name: true } }, results: { orderBy: [{ finalPosition: { sort: "asc", nulls: "last" } }, { position: "asc" }], take: 1, select: { finalPosition: true, position: true, racePoints: true, bonusPoints: true } } } }), null) : null,
@@ -65,6 +65,17 @@ export async function getDashboardData(userId: number): Promise<DashboardData> {
     optionalDashboardData("notification count", () => getUnreadNotificationCount(userId), 0),
     driverId && seasonId ? optionalDashboardData("driver standing", () => prisma.driverStanding.findFirst({ where: { driverId, championship: { seasonId, leagueId: leagueId ?? undefined } } }), null) : null,
     teamId && seasonId ? optionalDashboardData("team standing", () => prisma.teamStanding.findFirst({ where: { teamId, championship: { seasonId, leagueId: leagueId ?? undefined } } }), null) : null,
+    optionalDashboardData("team finance", () => prisma.teamOrganization.findFirst({
+      where: {
+        financeAccount: { isNot: null },
+        OR: [
+          { seasons: { some: { principalUserId: userId } } },
+          { teams: { some: { principalUserId: userId } } },
+        ],
+      },
+      orderBy: [{ active: "desc" }, { name: "asc" }],
+      select: { id: true, name: true, financeAccount: { select: { balanceEuro: true } } },
+    }), null),
   ]);
 
   const character = characterView(user.driverCharacter);
@@ -81,6 +92,7 @@ export async function getDashboardData(userId: number): Promise<DashboardData> {
     championship: { driver: driverStanding ? { position: driverStanding.position, points: driverStanding.points, gapToLeader: Math.max(0, (championship?.driverStandings[0]?.points ?? driverStanding.points) - driverStanding.points), lastRacePoints: (lastResult?.racePoints ?? 0) + (lastResult?.bonusPoints ?? 0), wins: driverStanding.wins, podiums: driverStanding.podiums } : null, team: teamStanding ? { position: teamStanding.position, points: teamStanding.points, gapToLeader: Math.max(0, (championship?.teamStandings[0]?.points ?? teamStanding.points) - teamStanding.points) } : null, topDrivers: championship?.driverStandings.map((standing) => ({ position: standing.position, name: standing.driver.name, flag: standing.driver.flag, points: standing.points })) ?? [], topTeams: championship?.teamStandings.map((standing) => ({ position: standing.position, name: standing.team.organization?.name ?? standing.team.name, color: standing.team.organization?.color ?? standing.team.color, logoUrl: standing.team.organization?.logoUrl ?? standing.team.logoUrl, points: standing.points })) ?? [] },
     seasonProgress: seasonProgress ? { completed: seasonProgress.races.filter((race) => race.status === "COMPLETED").length, total: seasonProgress.races.length } : null,
     latestResult: latestResult ? { raceId: latestResult.race.id, raceName: latestResult.race.name, position: winner?.finalPosition ?? winner?.position ?? null, points: (winner?.racePoints ?? 0) + (winner?.bonusPoints ?? 0), publishedAt: latestResult.publishedAt?.toISOString() ?? null } : null,
+    teamFinance: financeOrganization?.financeAccount ? { organizationId: financeOrganization.id, teamName: financeOrganization.name, balanceEuro: financeOrganization.financeAccount.balanceEuro.toString() } : null,
     notifications, unreadNotificationCount,
   };
   console.info("[dashboard] query completed", { durationMs: Math.round(performance.now() - startedAt) });

@@ -20,11 +20,24 @@ export type TeamIdentity = {
   id: number;
   leagueId: number;
   seasonId: number;
-  name: string;
-  shortName: string;
-  color: string;
-  logoUrl: string | null;
+  organization: {
+    id: number;
+    name: string;
+    shortName: string;
+    color: string;
+    logoUrl: string | null;
+  };
 };
+
+export function toFinanceTeamIdentity(team: {
+  id: number;
+  leagueId: number;
+  seasonId: number;
+  organization: TeamIdentity["organization"] | null;
+}): TeamIdentity {
+  if (!team.organization) throw new Error("TEAM_ORGANIZATION_NOT_FOUND");
+  return { ...team, organization: team.organization };
+}
 
 export async function getActiveFinanceRuleSet(
   database: FinanceDatabase,
@@ -77,14 +90,12 @@ export async function ensureFinanceAccount(
   ruleSetId: number,
   startBalanceEuro: bigint,
 ) {
-  const existing = await database.teamFinanceAccount.findUnique({ where: { teamId: team.id } });
+  const existing = await database.teamFinanceAccount.findUnique({ where: { organizationId: team.organization.id } });
   if (existing) return existing;
   const now = new Date();
   const account = await database.teamFinanceAccount.create({
     data: {
-      teamId: team.id,
-      leagueId: team.leagueId,
-      seasonId: team.seasonId,
+      organizationId: team.organization.id,
       balanceEuro: startBalanceEuro,
       totalIncomeEuro: startBalanceEuro > BigInt(0) ? startBalanceEuro : BigInt(0),
       totalExpensesEuro: startBalanceEuro < BigInt(0) ? -startBalanceEuro : BigInt(0),
@@ -102,10 +113,14 @@ export async function ensureFinanceAccount(
       amountEuro: startBalanceEuro,
       type: FinanceTransactionType.START_BALANCE,
       source: FinanceTransactionSource.AUTOMATIC,
-      description: "Startkontostand des Teamkontos",
-      logicalKey: `start:team:${team.id}`,
-      sourceKey: `start:team:${team.id}:initial`,
-      metadata: { configuredAmountEuro: startBalanceEuro.toString() },
+      description: "Globaler Startkontostand der Teamorganisation",
+      logicalKey: `start:organization:${team.organization.id}`,
+      sourceKey: `start:organization:${team.organization.id}:initial`,
+      metadata: {
+        organizationId: team.organization.id,
+        sourceTeamId: team.id,
+        configuredAmountEuro: startBalanceEuro.toString(),
+      },
       createdAt: now,
     },
   });
@@ -181,7 +196,7 @@ export async function runSerializable<T>(operation: (transaction: Prisma.Transac
       });
     } catch (error: unknown) {
       lastError = error;
-      if (!(error && typeof error === "object" && "code" in error && error.code === "P2034")) throw error;
+      if (!(error && typeof error === "object" && "code" in error && (error.code === "P2034" || error.code === "P2002"))) throw error;
     }
   }
   throw lastError;

@@ -14,6 +14,7 @@ import {
   getActiveFinanceRuleSet,
   persistedRules,
   runSerializable,
+  toFinanceTeamIdentity,
   type FinanceDatabase,
   type TeamIdentity,
 } from "./ledger";
@@ -44,7 +45,7 @@ async function calculateSeasonFinance(
           orderBy: { position: "asc" },
           select: {
             position: true,
-            team: { select: { id: true, leagueId: true, seasonId: true, name: true, shortName: true, color: true, logoUrl: true } },
+            team: { select: { id: true, leagueId: true, seasonId: true, organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true } } } },
           },
         },
       },
@@ -60,9 +61,10 @@ async function calculateSeasonFinance(
   const rules = selectedRuleSet ? persistedRules(selectedRuleSet) : DEFAULT_FINANCE_RULES;
   const entries: SeasonEntry[] = championship.teamStandings.flatMap((standing) => {
     const amountEuro = rewardForPosition(standing.position, rules.teamChampionshipRewards);
+    const team = toFinanceTeamIdentity(standing.team);
     return amountEuro > BigInt(0) ? [{
       logicalKey: `season:${seasonId}:league:${leagueId}:team:${standing.team.id}:championship-position`,
-      team: standing.team,
+      team,
       amountEuro,
       description: `Team-WM-Endprämie P${standing.position}`,
     }] : [];
@@ -85,8 +87,8 @@ async function calculateSeasonFinance(
     needsReconciliation: ready && settlement?.inputHash !== inputHash,
     entries: entries.map((entry) => ({
       logicalKey: entry.logicalKey,
-      teamId: entry.team.id,
-      teamName: entry.team.name,
+      organizationId: entry.team.organization.id,
+      teamName: entry.team.organization.name,
       driverId: null,
       driverName: null,
       type: FinanceTransactionType.TEAM_CHAMPIONSHIP_REWARD as unknown as import("@/domain").FinanceTransactionType,
@@ -119,20 +121,22 @@ export async function reconcileSeasonFinances(input: { seasonId: number; leagueI
       update: { ruleSetId: ruleSet.id, status: FinanceSettlementStatus.PENDING },
       create: { seasonId: input.seasonId, leagueId: input.leagueId, ruleSetId: ruleSet.id, status: FinanceSettlementStatus.PENDING },
     });
-    const accounts = await transaction.teamFinanceAccount.findMany({ where: { teamId: { in: calculation.entries.map((entry) => entry.team.id) } } });
-    const accountByTeam = new Map(accounts.map((account) => [account.teamId, account]));
+    const accounts = await transaction.teamFinanceAccount.findMany({ where: { organizationId: { in: calculation.entries.map((entry) => entry.team.organization.id) } } });
+    const accountByOrganization = new Map(accounts.map((account) => [account.organizationId, account]));
+    const teamById = new Map(calculation.entries.map((entry) => [entry.team.id, entry.team]));
     const existing = await transaction.teamFinanceTransaction.findMany({ where: { seasonSettlementId: settlement.id, source: FinanceTransactionSource.AUTOMATIC } });
     const missingTeamIds = [...new Set(existing.map((entry) => entry.teamId))]
-      .filter((teamId) => !accountByTeam.has(teamId));
+      .filter((teamId) => !calculation.entries.some((entry) => entry.team.id === teamId));
     if (missingTeamIds.length > 0) {
       const historicalTeams = await transaction.team.findMany({
         where: { id: { in: missingTeamIds }, leagueId: input.leagueId, seasonId: input.seasonId },
-        select: { id: true, leagueId: true, seasonId: true, name: true, shortName: true, color: true, logoUrl: true, financeAccount: true },
+        select: { id: true, leagueId: true, seasonId: true, organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true, financeAccount: true } } },
       });
       for (const historicalTeam of historicalTeams) {
-        const { financeAccount, ...team } = historicalTeam;
-        const account = financeAccount ?? await ensureFinanceAccount(transaction, team, ruleSet.id, calculation.rules.defaultStartBalanceEuro);
-        accountByTeam.set(team.id, account);
+        const team = toFinanceTeamIdentity(historicalTeam);
+        const account = historicalTeam.organization?.financeAccount ?? await ensureFinanceAccount(transaction, team, ruleSet.id, calculation.rules.defaultStartBalanceEuro);
+        accountByOrganization.set(team.organization.id, account);
+        teamById.set(team.id, team);
       }
     }
     const existingByKey = new Map<string, typeof existing>();
@@ -162,7 +166,8 @@ export async function reconcileSeasonFinances(input: { seasonId: number; leagueI
       if (delta === BigInt(0)) continue;
       const teamId = desired?.team.id ?? prior[0]?.teamId;
       if (!teamId) throw new Error("FINANCE_ACCOUNT_NOT_FOUND");
-      const account = accountByTeam.get(teamId);
+      const team = desired?.team ?? teamById.get(teamId);
+      const account = team ? accountByOrganization.get(team.organization.id) : null;
       if (!account) throw new Error("FINANCE_ACCOUNT_NOT_FOUND");
       const keyHash = createHash("sha256").update(logicalKey).digest("hex").slice(0, 20);
       await appendLedgerEntry(transaction, {

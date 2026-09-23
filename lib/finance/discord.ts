@@ -62,9 +62,8 @@ export async function buildFinanceDiscordPreview(raceId: number, leagueId: numbe
   const setting = await prisma.financePublishSetting.findUnique({ where: { leagueId } });
   if (!setting?.enabled) throw new Error("FINANCE_PUBLISHING_DISABLED");
   const accounts = await prisma.teamFinanceAccount.findMany({
-    where: { leagueId, seasonId: settlement.season.id },
-    orderBy: [{ balanceEuro: "desc" }, { team: { name: "asc" } }],
-    select: { id: true, balanceEuro: true, team: { select: { name: true } } },
+    orderBy: [{ balanceEuro: "desc" }, { organization: { name: "asc" } }],
+    select: { id: true, balanceEuro: true, organization: { select: { name: true } } },
   });
   const deltaByAccount = new Map<number, bigint>();
   for (const transaction of settlement.transactions) {
@@ -84,11 +83,11 @@ export async function buildFinanceDiscordPreview(raceId: number, leagueId: numbe
     const balance = setting.showBalances ? `\n${formatEuro(account.balanceEuro)}` : "";
     const delta = deltaByAccount.get(account.id) ?? BigInt(0);
     const deltaText = setting.showDelta ? `\n${delta >= BigInt(0) ? "+" : "−"}${formatEuro(delta >= BigInt(0) ? delta : -delta)}` : "";
-    return `**${index + 1}. ${account.team.name}**${balance}${deltaText}`;
+    return `**${index + 1}. ${account.organization.name}**${balance}${deltaText}`;
   });
   return {
     kind: "FINANCE",
-    title: `FRL ${settlement.league.code} · Teamfinanzen`,
+    title: "FRL · Globale Teamfinanzen",
     description: `${intro}\n\n${rows.join("\n\n")}`.slice(0, 4096),
     color: settlement.league.color ?? "#3B82F6",
     league: settlement.league.name,

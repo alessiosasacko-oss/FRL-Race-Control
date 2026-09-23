@@ -623,7 +623,6 @@ model Team {
   attendanceEntries       RaceAttendance[]
   representedResults      RaceResult[]
   championshipAdjustments ChampionshipAdjustment[]
-  financeAccount          TeamFinanceAccount?
   financeTransactions     TeamFinanceTransaction[]
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
@@ -651,6 +650,7 @@ model TeamOrganization {
   contributions     GlobalTeamContribution[]
   driverAssignments DriverSeasonAssignment[]
   suitTemplates     TeamSuitTemplate[]
+  financeAccount    TeamFinanceAccount?
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
 
@@ -707,7 +707,6 @@ model League {
   discordChannels                  DiscordChannelMapping[]
   discordDeliveries                DiscordDelivery[]
   resultGraphics                   ResultGraphic[]
-  financeAccounts                  TeamFinanceAccount[]
   financeTransactions              TeamFinanceTransaction[]
   financeRuleSets                  FinanceRuleSet[]
   raceFinanceSettlements           RaceFinanceSettlement[]
@@ -742,7 +741,6 @@ model Season {
   organizationSeasons      TeamOrganizationSeason[]
   globalTeamStandings      GlobalTeamStanding[]
   tickets                  FiaTicket[]
-  financeAccounts          TeamFinanceAccount[]
   financeTransactions      TeamFinanceTransaction[]
   financeRuleSets          FinanceRuleSet[]
   raceFinanceSettlements   RaceFinanceSettlement[]
@@ -1798,24 +1796,20 @@ model FinanceRuleSet {
 
 model TeamFinanceAccount {
   id                Int                          @id @default(autoincrement())
-  teamId            Int                          @unique
-  leagueId          Int
-  seasonId          Int
+  organizationId    Int                          @unique
   balanceEuro       BigInt                       @default(0)
   totalIncomeEuro   BigInt                       @default(0)
   totalExpensesEuro BigInt                       @default(0)
   ledgerRevision    Int                          @default(0)
   lastTransactionAt DateTime?
-  team              Team                         @relation(fields: [teamId], references: [id], onDelete: Restrict)
-  league            League                       @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  season            Season                       @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  organization      TeamOrganization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   transactions      TeamFinanceTransaction[]
   raceSnapshots     RaceFinanceAccountSnapshot[]
   createdAt         DateTime                     @default(now())
   updatedAt         DateTime                     @updatedAt
 
-  @@index([leagueId, seasonId, balanceEuro])
-  @@index([seasonId, lastTransactionAt])
+  @@index([balanceEuro])
+  @@index([lastTransactionAt])
 }
 
 model TeamFinanceTransaction {

@@ -65,7 +65,7 @@ test("participation fee rounds mathematically to full euro", () => {
 test("two participants use the same opening balance basis", () => {
   const perDriver = roundBasisPoints(BigInt(100_000_000), 150);
   assert.equal(perDriver * BigInt(2), BigInt(3_000_000));
-  assert.match(source("./reconciliation.ts"), /openingBalances\.get\(result\.representedTeamId\)/);
+  assert.match(source("./reconciliation.ts"), /openingBalances\.get\(resultTeam\.organization\.id\)/);
 });
 
 test("negative opening balance produces no percentage participation fee", () => {
@@ -88,7 +88,7 @@ test("penalty point thresholds are 8 and 20 and use global logical keys", () => 
 
 test("manual positive and negative adjustments are accepted", () => {
   for (const amountEuro of [5_000_000, -2_000_000]) {
-    assert.equal(manualFinanceTransactionSchema.safeParse({ leagueId: 1, seasonId: 1, teamId: 1, amountEuro, type: FinanceTransactionType.ManualAdjustment, description: "Sponsor oder Korrektur", raceId: null, driverId: null }).success, true);
+    assert.equal(manualFinanceTransactionSchema.safeParse({ leagueId: 1, seasonId: 1, organizationId: 1, amountEuro, type: FinanceTransactionType.ManualAdjustment, description: "Sponsor oder Korrektur", raceId: null, driverId: null }).success, true);
   }
 });
 
@@ -146,8 +146,71 @@ test("all finance mutation actions enforce server-side permissions", () => {
 
 test("team finance query scopes team principals to owned organizations", () => {
   assert.match(source("./queries.ts"), /principalUserId: user\.id/);
-  assert.match(source("./queries.ts"), /organizationId: assignment\.organizationId/);
-  assert.match(source("./queries.ts"), /seasonId: assignment\.seasonId/);
+  assert.match(source("./queries.ts"), /teamOrganization\.findMany/);
+  assert.match(source("./queries.ts"), /financeAccount: \{ isNot: null \}/);
+});
+
+test("Ferrari F1 debit and F2 credit share one global organization balance", () => {
+  const start = BigInt(100_000_000);
+  const entries = [
+    { league: "F1", amountEuro: BigInt(-10_000_000) },
+    { league: "F2", amountEuro: BigInt(4_000_000) },
+  ];
+  assert.equal(entries.reduce((balance, entry) => balance + entry.amountEuro, start), BigInt(94_000_000));
+  assert.match(source("./ledger.ts"), /findUnique\(\{ where: \{ organizationId: team\.organization\.id \} \}\)/);
+  assert.match(source("../../prisma/schema.prisma"), /organizationId\s+Int\s+@unique/);
+});
+
+test("league ledger filter never changes the global balance", () => {
+  const entries = [
+    { leagueId: 1, amountEuro: BigInt(-10_000_000) },
+    { leagueId: 2, amountEuro: BigInt(4_000_000) },
+  ];
+  const globalBalance = entries.reduce((balance, entry) => balance + entry.amountEuro, BigInt(100_000_000));
+  const f1Ledger = entries.filter((entry) => entry.leagueId === 1);
+  assert.equal(globalBalance, BigInt(94_000_000));
+  assert.deepEqual(f1Ledger.map((entry) => entry.amountEuro), [BigInt(-10_000_000)]);
+  assert.match(source("./queries.ts"), /where: \{ accountId: selectedOrganization\.financeAccount\.id, leagueId \}/);
+});
+
+test("dashboard team-principal widget reads the organization finance account", () => {
+  const dashboardQuery = source("../dashboard/queries.ts");
+  const dashboardWidget = source("../../components/dashboard/DashboardWidgetContent.tsx");
+  assert.match(dashboardQuery, /teamOrganization\.findFirst/);
+  assert.match(dashboardQuery, /financeAccount: \{ select: \{ balanceEuro: true \} \}/);
+  assert.match(dashboardWidget, /Globales Teamkonto/);
+});
+
+test("Discord publishes the global ranking while retaining trigger metadata", () => {
+  const discord = source("./discord.ts");
+  assert.match(discord, /teamFinanceAccount\.findMany\(\{\s*orderBy:/);
+  assert.doesNotMatch(discord, /teamFinanceAccount\.findMany\(\{\s*where: \{ leagueId/);
+  assert.match(discord, /title: "FRL · Globale Teamfinanzen"/);
+  assert.match(discord, /renderFinanceTemplate\(setting\.messageTemplate/);
+});
+
+test("migration merges accounts without adding duplicate start balances or deleting ledger history", () => {
+  const migration = source("../../prisma/migrations/20260922120000_global_team_finance_accounts/migration.sql");
+  assert.match(migration, /_GlobalFinanceAccountMap/);
+  assert.match(migration, /neutralized-duplicate-start-balance/);
+  assert.match(migration, /UPDATE "TeamFinanceTransaction" AS entry[\s\S]+"amountEuro" = 0/);
+  assert.doesNotMatch(migration, /DELETE FROM "TeamFinanceTransaction"/);
+  assert.match(migration, /CREATE UNIQUE INDEX "TeamFinanceAccount_organizationId_key"/);
+});
+
+test("parallel F1 and F2 settlements retry conflicts against the unique global account", () => {
+  const ledger = source("./ledger.ts");
+  assert.match(ledger, /isolationLevel: "Serializable"/);
+  assert.match(ledger, /error\.code === "P2034" \|\| error\.code === "P2002"/);
+  assert.match(source("../../prisma/schema.prisma"), /organizationId\s+Int\s+@unique/);
+});
+
+test("race and season settlements both resolve the same organization account", () => {
+  const raceSettlement = source("./reconciliation.ts");
+  const seasonSettlement = source("./season-settlement.ts");
+  assert.match(raceSettlement, /accountByOrganization\.get\(team\.organization\.id\)/);
+  assert.match(seasonSettlement, /accountByOrganization\.get\(team\.organization\.id\)/);
+  assert.doesNotMatch(seasonSettlement, /teamFinanceAccount\.findMany\(\{ where: \{ teamId/);
 });
 
 test("finance template replaces only supported placeholders", () => {
@@ -200,11 +263,15 @@ for (const width of [360, 390, 430, 768, 1024, 1440, 1920]) {
     const ledger = source("../../components/finance/FinanceLedger.tsx");
     const forms = source("../../components/finance/FinanceAdminForms.tsx");
     const adminPage = source("../../app/(protected)/admin/finance/page.tsx");
+    const teamPage = source("../../app/(protected)/finance/page.tsx");
     assert.match(ledger, /lg:hidden/);
     assert.match(ledger, /hidden overflow-x-auto[\s\S]+lg:block/);
     assert.match(forms, /min-h-11/);
     assert.match(forms, /min-w-0/);
     assert.match(adminPage, /sm:grid-cols-2 xl:grid-cols-4/);
+    assert.match(teamPage, /min-w-0/);
+    assert.match(teamPage, /sm:grid-cols-2/);
+    assert.match(teamPage, /Der Kontostand bleibt unabhängig vom Journalfilter immer global/);
     assert.doesNotMatch(ledger, /block[^"\n]*lg:hidden[^\n]*<table/);
   });
 }

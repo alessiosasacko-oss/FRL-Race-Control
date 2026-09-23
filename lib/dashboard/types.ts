@@ -39,6 +39,7 @@ export type DashboardData = {
   };
   seasonProgress: { completed: number; total: number } | null;
   latestResult: { raceId: number; raceName: string; position: number | null; points: number; publishedAt: string | null } | null;
+  teamFinance: { organizationId: number; teamName: string; balanceEuro: string } | null;
   notifications: NotificationView[];
   unreadNotificationCount: number;
 };

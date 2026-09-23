@@ -24,6 +24,7 @@ export default async function DashboardPage() {
     championship: data.championship,
     seasonProgress: data.seasonProgress,
     latestResult: data.latestResult,
+    teamFinance: data.teamFinance,
     notifications: data.notifications,
     unreadNotificationCount: data.unreadNotificationCount,
   } satisfies DashboardWidgetData;

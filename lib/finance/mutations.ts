@@ -15,13 +15,14 @@ import {
   ensureFinanceRuleSet,
   persistedRules,
   runSerializable,
+  toFinanceTeamIdentity,
 } from "./ledger";
 import { reconcilePublishedResultFinance } from "./automation";
 import { serializePositionRules, serializeThresholdRules } from "./rules";
 import { markRaceFinanceDirty } from "./reconciliation";
 
 export async function setTeamStartBalance(input: {
-  teamId: number;
+  organizationId: number;
   leagueId: number;
   seasonId: number;
   amountEuro: bigint;
@@ -29,11 +30,13 @@ export async function setTeamStartBalance(input: {
   actorUserId: number;
 }) {
   return runSerializable(async (transaction) => {
-    const team = await transaction.team.findFirst({
-      where: { id: input.teamId, leagueId: input.leagueId, seasonId: input.seasonId },
-      select: { id: true, leagueId: true, seasonId: true, name: true, shortName: true, color: true, logoUrl: true },
+    const teamRow = await transaction.team.findFirst({
+      where: { organizationId: input.organizationId, leagueId: input.leagueId, seasonId: input.seasonId },
+      orderBy: { id: "asc" },
+      select: { id: true, leagueId: true, seasonId: true, organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true } } },
     });
-    if (!team) throw new Error("TEAM_NOT_FOUND");
+    if (!teamRow) throw new Error("TEAM_NOT_FOUND");
+    const team = toFinanceTeamIdentity(teamRow);
     const ruleSet = await ensureFinanceRuleSet(transaction, input.leagueId, input.seasonId, input.actorUserId);
     const account = await ensureFinanceAccount(transaction, team, ruleSet.id, persistedRules(ruleSet).defaultStartBalanceEuro);
     const startEntries = await transaction.teamFinanceTransaction.findMany({
@@ -54,19 +57,19 @@ export async function setTeamStartBalance(input: {
       type: FinanceTransactionType.START_BALANCE,
       source: FinanceTransactionSource.MANUAL,
       description: input.description,
-      logicalKey: `start:team:${team.id}`,
+      logicalKey: `start:organization:${team.organization.id}`,
       sourceKey: `manual:start:${randomUUID()}`,
-      metadata: { previousStartEuro: currentStart.toString(), configuredStartEuro: input.amountEuro.toString() },
+      metadata: { organizationId: team.organization.id, sourceTeamId: team.id, previousStartEuro: currentStart.toString(), configuredStartEuro: input.amountEuro.toString() },
     });
     await transaction.systemAuditLog.create({
-      data: { actorId: input.actorUserId, action: "FINANCE_START_BALANCE_CHANGED", entityType: "TeamFinanceTransaction", entityId: ledgerEntry.id, metadata: { teamId: team.id, previousStartEuro: currentStart.toString(), configuredStartEuro: input.amountEuro.toString() } },
+      data: { actorId: input.actorUserId, action: "FINANCE_START_BALANCE_CHANGED", entityType: "TeamFinanceTransaction", entityId: ledgerEntry.id, metadata: { organizationId: team.organization.id, teamId: team.id, previousStartEuro: currentStart.toString(), configuredStartEuro: input.amountEuro.toString() } },
     });
     return { changed: true, accountId: account.id };
   });
 }
 
 export async function createManualFinanceTransaction(input: {
-  teamId: number;
+  organizationId: number;
   leagueId: number;
   seasonId: number;
   raceId: number | null;
@@ -77,11 +80,13 @@ export async function createManualFinanceTransaction(input: {
   actorUserId: number;
 }) {
   return runSerializable(async (transaction) => {
-    const team = await transaction.team.findFirst({
-      where: { id: input.teamId, leagueId: input.leagueId, seasonId: input.seasonId },
-      select: { id: true, leagueId: true, seasonId: true, name: true, shortName: true, color: true, logoUrl: true },
+    const teamRow = await transaction.team.findFirst({
+      where: { organizationId: input.organizationId, leagueId: input.leagueId, seasonId: input.seasonId },
+      orderBy: { id: "asc" },
+      select: { id: true, leagueId: true, seasonId: true, organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true } } },
     });
-    if (!team) throw new Error("TEAM_NOT_FOUND");
+    if (!teamRow) throw new Error("TEAM_NOT_FOUND");
+    const team = toFinanceTeamIdentity(teamRow);
     if (input.raceId) {
       const race = await transaction.race.findFirst({ where: { id: input.raceId, seasonId: input.seasonId }, select: { id: true } });
       if (!race) throw new Error("RACE_NOT_FOUND");
@@ -111,7 +116,7 @@ export async function createManualFinanceTransaction(input: {
       metadata: { requestedAmountEuro: input.amountEuro.toString() },
     });
     await transaction.systemAuditLog.create({
-      data: { actorId: input.actorUserId, action: "FINANCE_MANUAL_TRANSACTION_CREATED", entityType: "TeamFinanceTransaction", entityId: ledgerEntry.id, metadata: { teamId: team.id, type: input.type, amountEuro: amountEuro.toString(), raceId: input.raceId, driverId: input.driverId } },
+      data: { actorId: input.actorUserId, action: "FINANCE_MANUAL_TRANSACTION_CREATED", entityType: "TeamFinanceTransaction", entityId: ledgerEntry.id, metadata: { organizationId: team.organization.id, teamId: team.id, type: input.type, amountEuro: amountEuro.toString(), raceId: input.raceId, driverId: input.driverId } },
     });
     return { transactionId: ledgerEntry.id, amountEuro };
   });
@@ -131,9 +136,10 @@ export async function bookDriverTransfer(input: {
   return runSerializable(async (transaction) => {
     const existing = await transaction.teamFinanceTransaction.findUnique({ where: { sourceKey: input.transferSourceKey } });
     if (existing) return { transactionId: existing.id, changed: false };
-    const team = await transaction.team.findFirst({ where: { id: input.teamId, leagueId: input.leagueId, seasonId: input.seasonId }, select: { id: true, leagueId: true, seasonId: true, name: true, shortName: true, color: true, logoUrl: true } });
+    const teamRow = await transaction.team.findFirst({ where: { id: input.teamId, leagueId: input.leagueId, seasonId: input.seasonId }, select: { id: true, leagueId: true, seasonId: true, organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true } } } });
     const driver = await transaction.driver.findUnique({ where: { id: input.driverId }, select: { id: true } });
-    if (!team || !driver) throw new Error("TRANSFER_CONTEXT_NOT_FOUND");
+    if (!teamRow || !driver) throw new Error("TRANSFER_CONTEXT_NOT_FOUND");
+    const team = toFinanceTeamIdentity(teamRow);
     const ruleSet = await ensureFinanceRuleSet(transaction, input.leagueId, input.seasonId, input.actorUserId);
     const account = await ensureFinanceAccount(transaction, team, ruleSet.id, persistedRules(ruleSet).defaultStartBalanceEuro);
     const entry = await appendLedgerEntry(transaction, {

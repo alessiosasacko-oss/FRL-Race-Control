@@ -5,6 +5,7 @@ import {
   Flag,
   ListOrdered,
   Medal,
+  WalletCards,
   Trophy,
 } from "lucide-react";
 import MetricBlock from "@/components/ui/MetricBlock";
@@ -41,6 +42,15 @@ export default function DashboardWidgetContent({
       return <MetricBlock label="Saisonpunkte" value={data.championship.driver?.points ?? "–"} detail={data.championship.driver ? `${data.championship.driver.lastRacePoints} beim letzten Rennen` : "Noch keine Saisonpunkte"} icon={Medal} tone="cyan" className="h-full" />;
     case "latest-result":
       return <MetricBlock label="Letztes Ergebnis" value={data.latestResult?.position ? `P${data.latestResult.position}` : "–"} detail={data.latestResult ? `${data.latestResult.raceName} · ${data.latestResult.points} Pkt.` : "Noch kein Ergebnis veröffentlicht"} icon={ListOrdered} tone="blue" className="h-full" />;
+    case "team-finance":
+      return (
+        <section className="surface-panel h-full min-w-0 p-5">
+          <div className="flex items-center gap-2 text-emerald-300"><WalletCards size={18} /><h2 className="text-xs font-bold uppercase tracking-[0.14em]">Globales Teamkonto</h2></div>
+          <p className="mt-3 truncate font-semibold text-white">{data.teamFinance?.teamName ?? "Kein Teamkonto"}</p>
+          <p className="mt-2 break-all text-2xl font-black tabular-nums text-white">{data.teamFinance ? `${new Intl.NumberFormat("de-DE").format(BigInt(data.teamFinance.balanceEuro))} €` : "–"}</p>
+          <Link href={data.teamFinance ? `/finance?organizationId=${data.teamFinance.organizationId}` : "/finance"} className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-emerald-300">Zum Buchungsjournal</Link>
+        </section>
+      );
     case "unread-notifications":
       return <MetricBlock label="Ungelesen" value={data.unreadNotificationCount} detail="Neue Benachrichtigungen" icon={Bell} tone={data.unreadNotificationCount > 0 ? "orange" : "green"} className="h-full" />;
     case "recent-activity":

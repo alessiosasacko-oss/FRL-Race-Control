@@ -18,6 +18,7 @@ import {
   getActiveFinanceRuleSet,
   persistedRules,
   runSerializable,
+  toFinanceTeamIdentity,
   type FinanceDatabase,
   type TeamIdentity,
 } from "./ledger";
@@ -92,10 +93,9 @@ const resultSelect = {
       id: true,
       leagueId: true,
       seasonId: true,
-      name: true,
-      shortName: true,
-      color: true,
-      logoUrl: true,
+      organization: {
+        select: { id: true, name: true, shortName: true, color: true, logoUrl: true },
+      },
     },
   },
   financeDetail: {
@@ -171,12 +171,15 @@ async function calculateRaceFinance(
 
   const allResults = race.resultSessions.flatMap((session) => session.results);
   const teamMap = new Map<number, TeamIdentity>();
-  for (const result of allResults) teamMap.set(result.representedTeam.id, result.representedTeam);
-  const teams = [...teamMap.values()].sort((left, right) => left.name.localeCompare(right.name, "de"));
+  for (const result of allResults) {
+    const team = toFinanceTeamIdentity(result.representedTeam);
+    teamMap.set(team.organization.id, team);
+  }
+  const teams = [...teamMap.values()].sort((left, right) => left.organization.name.localeCompare(right.organization.name, "de"));
   const accounts = teams.length > 0
-    ? await database.teamFinanceAccount.findMany({ where: { teamId: { in: teams.map((team) => team.id) } } })
+    ? await database.teamFinanceAccount.findMany({ where: { organizationId: { in: teams.map((team) => team.organization.id) } } })
     : [];
-  const accountByTeam = new Map(accounts.map((account) => [account.teamId, account]));
+  const accountByOrganization = new Map(accounts.map((account) => [account.organizationId, account]));
   const snapshotByAccount = new Map(settlement?.accountSnapshots.map((snapshot) => [snapshot.accountId, snapshot.openingBalanceEuro]) ?? []);
   const accountsWithoutSnapshot = settlement
     ? accounts.filter((account) => !snapshotByAccount.has(account.id))
@@ -199,9 +202,9 @@ async function calculateRaceFinance(
   }
   const openingBalances = new Map<number, bigint>();
   for (const team of teams) {
-    const account = accountByTeam.get(team.id);
+    const account = accountByOrganization.get(team.organization.id);
     openingBalances.set(
-      team.id,
+      team.organization.id,
       account
         ? snapshotByAccount.get(account.id)
           ?? historicalOpeningByAccount.get(account.id)
@@ -244,7 +247,7 @@ async function calculateRaceFinance(
     const pole = qualifying.results.find((result) => result.polePosition);
     if (pole) add({
       logicalKey: `race:${raceId}:league:${leagueId}:driver:${pole.driverId}:pole`,
-      team: pole.representedTeam,
+      team: toFinanceTeamIdentity(pole.representedTeam),
       driverId: pole.driverId,
       driverName: pole.driver.name,
       resultSessionId: qualifying.id,
@@ -255,10 +258,11 @@ async function calculateRaceFinance(
     });
 
     for (const result of raceSession.results) {
-      const opening = openingBalances.get(result.representedTeamId) ?? rules.defaultStartBalanceEuro;
+      const resultTeam = toFinanceTeamIdentity(result.representedTeam);
+      const opening = openingBalances.get(resultTeam.organization.id) ?? rules.defaultStartBalanceEuro;
       if (result.status !== "DNS") add({
         logicalKey: `race:${raceId}:league:${leagueId}:driver:${result.driverId}:participation`,
-        team: result.representedTeam,
+        team: resultTeam,
         driverId: result.driverId,
         driverName: result.driver.name,
         resultSessionId: raceSession.id,
@@ -270,7 +274,7 @@ async function calculateRaceFinance(
       const positionReward = rewardForPosition(result.finalPosition, rules.positionRewards);
       if (positionReward > BigInt(0)) add({
         logicalKey: `race:${raceId}:league:${leagueId}:driver:${result.driverId}:race-position`,
-        team: result.representedTeam,
+        team: resultTeam,
         driverId: result.driverId,
         driverName: result.driver.name,
         resultSessionId: raceSession.id,
@@ -281,7 +285,7 @@ async function calculateRaceFinance(
       });
       if (result.fastestLap && result.finalPosition && result.finalPosition <= 12) add({
         logicalKey: `race:${raceId}:league:${leagueId}:driver:${result.driverId}:fastest-lap`,
-        team: result.representedTeam,
+        team: resultTeam,
         driverId: result.driverId,
         driverName: result.driver.name,
         resultSessionId: raceSession.id,
@@ -293,7 +297,7 @@ async function calculateRaceFinance(
       const statusFee = resultStatusFee(result.status as DomainResultStatus, rules);
       if (statusFee) add({
         logicalKey: `race:${raceId}:league:${leagueId}:driver:${result.driverId}:status`,
-        team: result.representedTeam,
+        team: resultTeam,
         driverId: result.driverId,
         driverName: result.driver.name,
         resultSessionId: raceSession.id,
@@ -304,7 +308,7 @@ async function calculateRaceFinance(
       });
       for (const damage of damageFees(result.financeDetail ?? { frontWingDamage: false, underfloorDamage: false, sidepodDamage: false, rearWingDamage: false }, rules)) add({
         logicalKey: `race:${raceId}:league:${leagueId}:driver:${result.driverId}:damage:${damage.key}`,
-        team: result.representedTeam,
+        team: resultTeam,
         driverId: result.driverId,
         driverName: result.driver.name,
         resultSessionId: raceSession.id,
@@ -324,7 +328,7 @@ async function calculateRaceFinance(
         const fee = primary ? amountForPoints(points, rules.superLicensePerPointEuro) : BigInt(0);
         if (fee > BigInt(0)) add({
           logicalKey: `race:${raceId}:league:${leagueId}:driver:${result.driverId}:super-license:${session.session.toLowerCase()}`,
-          team: result.representedTeam,
+          team: toFinanceTeamIdentity(result.representedTeam),
           driverId: result.driverId,
           driverName: result.driver.name,
           resultSessionId: session.id,
@@ -347,9 +351,9 @@ async function calculateRaceFinance(
           .filter((transaction) => transaction.raceSettlementId === settlement?.id)
           .reduce((total, transaction) => total + transaction.amountEuro, BigInt(0));
         if (currentSettlementTotal !== BigInt(0)) {
-          add({ logicalKey, team: result.representedTeam, driverId, driverName: result.driver.name, resultSessionId: raceSession.id, raceResultId: result.id, type: FinanceTransactionType.PENALTY_POINTS_FINE, amountEuro: currentSettlementTotal, description: `${threshold.points}-PP-Schwellenwert`, thresholdEvent: true });
+          add({ logicalKey, team: toFinanceTeamIdentity(result.representedTeam), driverId, driverName: result.driver.name, resultSessionId: raceSession.id, raceResultId: result.id, type: FinanceTransactionType.PENALTY_POINTS_FINE, amountEuro: currentSettlementTotal, description: `${threshold.points}-PP-Schwellenwert`, thresholdEvent: true });
         } else if (prior.length === 0) {
-          add({ logicalKey, team: result.representedTeam, driverId, driverName: result.driver.name, resultSessionId: raceSession.id, raceResultId: result.id, type: FinanceTransactionType.PENALTY_POINTS_FINE, amountEuro: -threshold.amountEuro, description: `${threshold.points}-PP-Schwellenwert erstmals erreicht`, thresholdEvent: true });
+          add({ logicalKey, team: toFinanceTeamIdentity(result.representedTeam), driverId, driverName: result.driver.name, resultSessionId: raceSession.id, raceResultId: result.id, type: FinanceTransactionType.PENALTY_POINTS_FINE, amountEuro: -threshold.amountEuro, description: `${threshold.points}-PP-Schwellenwert erstmals erreicht`, thresholdEvent: true });
         }
       }
     }
@@ -362,16 +366,16 @@ async function calculateRaceFinance(
     ruleVersion: selectedRuleSet?.version ?? 0,
     sessions: race.resultSessions.map((session) => ({ id: session.id, session: session.session, revision: session.revision, updatedAt: session.updatedAt.toISOString() })),
     openings: [...openingBalances.entries()].sort(([left], [right]) => left - right).map(([teamId, balance]) => [teamId, balance.toString()]),
-    entries: entries.map((entry) => [entry.logicalKey, entry.team.id, entry.amountEuro.toString()]),
+    entries: entries.map((entry) => [entry.logicalKey, entry.team.organization.id, entry.team.id, entry.amountEuro.toString()]),
   })).digest("hex");
   const teamTotals = teams.map((team) => {
-    const teamEntries = entries.filter((entry) => entry.team.id === team.id);
+    const teamEntries = entries.filter((entry) => entry.team.organization.id === team.organization.id);
     const income = teamEntries.filter((entry) => entry.amountEuro > BigInt(0)).reduce((sum, entry) => sum + entry.amountEuro, BigInt(0));
     const expenses = teamEntries.filter((entry) => entry.amountEuro < BigInt(0)).reduce((sum, entry) => sum - entry.amountEuro, BigInt(0));
     return {
-      teamId: team.id,
-      teamName: team.name,
-      openingBalanceEuro: (openingBalances.get(team.id) ?? rules.defaultStartBalanceEuro).toString(),
+      organizationId: team.organization.id,
+      teamName: team.organization.name,
+      openingBalanceEuro: (openingBalances.get(team.organization.id) ?? rules.defaultStartBalanceEuro).toString(),
       incomeEuro: income.toString(),
       expensesEuro: expenses.toString(),
       netEuro: (income - expenses).toString(),
@@ -395,7 +399,7 @@ async function calculateRaceFinance(
       settlement: settlement ? { id: settlement.id, revision: settlement.revision, status: settlement.status as unknown as import("@/domain").FinanceSettlementStatus, inputHash: settlement.inputHash } : null,
       currentInputHash: inputHash,
       needsReconciliation: ready && settlement?.inputHash !== inputHash,
-      entries: entries.map((entry) => ({ logicalKey: entry.logicalKey, teamId: entry.team.id, teamName: entry.team.name, driverId: entry.driverId, driverName: entry.driverName, type: entry.type as unknown as import("@/domain").FinanceTransactionType, amountEuro: entry.amountEuro.toString(), description: entry.description })),
+      entries: entries.map((entry) => ({ logicalKey: entry.logicalKey, organizationId: entry.team.organization.id, teamName: entry.team.organization.name, driverId: entry.driverId, driverName: entry.driverName, type: entry.type as unknown as import("@/domain").FinanceTransactionType, amountEuro: entry.amountEuro.toString(), description: entry.description })),
       teamTotals,
     },
   };
@@ -408,9 +412,12 @@ export async function previewRaceFinance(raceId: number, leagueId: number, useCu
 async function teamIdentitiesForPublishedRace(database: FinanceDatabase, raceId: number, leagueId: number): Promise<TeamIdentity[]> {
   const sessions = await database.raceResultSession.findMany({
     where: { raceId, leagueId, publicationStatus: ResultPublicationStatus.PUBLISHED },
-    select: { results: { select: { representedTeam: { select: { id: true, leagueId: true, seasonId: true, name: true, shortName: true, color: true, logoUrl: true } } } } },
+    select: { results: { select: { representedTeam: { select: { id: true, leagueId: true, seasonId: true, organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true } } } } } } },
   });
-  return [...new Map(sessions.flatMap((session) => session.results).map((result) => [result.representedTeam.id, result.representedTeam])).values()];
+  return [...new Map(sessions.flatMap((session) => session.results).map((result) => {
+    const team = toFinanceTeamIdentity(result.representedTeam);
+    return [team.organization.id, team] as const;
+  })).values()];
 }
 
 export async function reconcileRaceFinances(input: {
@@ -447,10 +454,10 @@ export async function reconcileRaceFinances(input: {
       update: { ruleSetId: ruleSet.id, status: FinanceSettlementStatus.PENDING },
       create: { raceId: input.raceId, leagueId: input.leagueId, seasonId: race.seasonId, ruleSetId: ruleSet.id, status: FinanceSettlementStatus.PENDING },
     });
-    const accountRows = await transaction.teamFinanceAccount.findMany({ where: { teamId: { in: teams.map((team) => team.id) } } });
-    const accountByTeam = new Map(accountRows.map((account) => [account.teamId, account]));
+    const accountRows = await transaction.teamFinanceAccount.findMany({ where: { organizationId: { in: teams.map((team) => team.organization.id) } } });
+    const accountByOrganization = new Map(accountRows.map((account) => [account.organizationId, account]));
     for (const team of teams) {
-      const account = accountByTeam.get(team.id);
+      const account = accountByOrganization.get(team.organization.id);
       if (!account) throw new FinanceReconciliationError("NO_TEAMS");
       await transaction.raceFinanceAccountSnapshot.upsert({
         where: { raceSettlementId_accountId: { raceSettlementId: settlement.id, accountId: account.id } },
@@ -458,8 +465,8 @@ export async function reconcileRaceFinances(input: {
         create: {
           raceSettlementId: settlement.id,
           accountId: account.id,
-          openingBalanceEuro: calculation.openingBalances.get(team.id) ?? account.balanceEuro,
-          participantCount: calculation.entries.filter((entry) => entry.team.id === team.id && entry.type === FinanceTransactionType.PARTICIPATION_FEE).length,
+          openingBalanceEuro: calculation.openingBalances.get(team.organization.id) ?? account.balanceEuro,
+          participantCount: calculation.entries.filter((entry) => entry.team.organization.id === team.organization.id && entry.type === FinanceTransactionType.PARTICIPATION_FEE).length,
         },
       });
     }
@@ -468,17 +475,18 @@ export async function reconcileRaceFinances(input: {
       where: { raceSettlementId: settlement.id, source: FinanceTransactionSource.AUTOMATIC },
       orderBy: { id: "asc" },
     });
+    const knownTeamIds = new Set(teams.map((team) => team.id));
     const missingTeamIds = [...new Set(existing.map((entry) => entry.teamId))]
-      .filter((teamId) => !accountByTeam.has(teamId));
+      .filter((teamId) => !knownTeamIds.has(teamId));
     if (missingTeamIds.length > 0) {
       const historicalTeams = await transaction.team.findMany({
         where: { id: { in: missingTeamIds }, leagueId: input.leagueId, seasonId: race.seasonId },
-        select: { id: true, leagueId: true, seasonId: true, name: true, shortName: true, color: true, logoUrl: true, financeAccount: true },
+        select: { id: true, leagueId: true, seasonId: true, organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true, financeAccount: true } } },
       });
       for (const historicalTeam of historicalTeams) {
-        const { financeAccount, ...team } = historicalTeam;
-        const account = financeAccount ?? await ensureFinanceAccount(transaction, team, ruleSet.id, rules.defaultStartBalanceEuro);
-        accountByTeam.set(team.id, account);
+        const team = toFinanceTeamIdentity(historicalTeam);
+        const account = historicalTeam.organization?.financeAccount ?? await ensureFinanceAccount(transaction, team, ruleSet.id, rules.defaultStartBalanceEuro);
+        accountByOrganization.set(team.organization.id, account);
         if (!teams.some((candidate) => candidate.id === team.id)) teams.push(team);
       }
     }
@@ -512,7 +520,7 @@ export async function reconcileRaceFinances(input: {
       if (delta === BigInt(0)) continue;
       const reference = desired ?? calculation.entries.find((entry) => entry.team.id === prior[0]?.teamId);
       const team = reference?.team ?? teams.find((candidate) => candidate.id === prior[0]?.teamId);
-      const account = team ? accountByTeam.get(team.id) : null;
+      const account = team ? accountByOrganization.get(team.organization.id) : null;
       if (!team || !account) throw new FinanceReconciliationError("NO_TEAMS");
       const thresholdInitial = Boolean(desired?.thresholdEvent && priorForLogicalKey.length === 0);
       const keyHash = createHash("sha256").update(logicalKey).digest("hex").slice(0, 20);

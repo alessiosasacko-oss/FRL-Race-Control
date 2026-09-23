@@ -15,8 +15,9 @@ import type { FinanceAccountView, FinanceTransactionView } from "./types";
 export type FinanceListQuery = {
   leagueId?: number;
   seasonId?: number;
-  teamId?: number;
+  organizationId?: number;
   raceId?: number;
+  driverId?: number;
   type?: PrismaFinanceTransactionType;
   page: number;
 };
@@ -35,8 +36,9 @@ export function parseFinanceListQuery(input: Record<string, string | string[] | 
   return {
     leagueId: positiveInteger(input.leagueId),
     seasonId: positiveInteger(input.seasonId),
-    teamId: positiveInteger(input.teamId),
+    organizationId: positiveInteger(input.organizationId),
     raceId: positiveInteger(input.raceId),
+    driverId: positiveInteger(input.driverId),
     type,
     page: positiveInteger(input.page) ?? 1,
   };
@@ -44,24 +46,20 @@ export function parseFinanceListQuery(input: Record<string, string | string[] | 
 
 function accountView(account: {
   id: number;
-  teamId: number;
+  organizationId: number;
   balanceEuro: bigint;
   totalIncomeEuro: bigint;
   totalExpensesEuro: bigint;
   lastTransactionAt: Date | null;
-  team: { name: string; shortName: string; color: string; logoUrl: string | null };
-  league: { id: number; code: string; name: string };
-  season: { id: number; name: string };
+  organization: { name: string; shortName: string; color: string; logoUrl: string | null };
 }): FinanceAccountView {
   return {
     id: account.id,
-    teamId: account.teamId,
-    teamName: account.team.name,
-    shortName: account.team.shortName,
-    color: account.team.color,
-    logoUrl: account.team.logoUrl,
-    league: account.league,
-    season: account.season,
+    organizationId: account.organizationId,
+    teamName: account.organization.name,
+    shortName: account.organization.shortName,
+    color: account.organization.color,
+    logoUrl: account.organization.logoUrl,
     balanceEuro: account.balanceEuro.toString(),
     totalIncomeEuro: account.totalIncomeEuro.toString(),
     totalExpensesEuro: account.totalExpensesEuro.toString(),
@@ -76,6 +74,8 @@ function transactionView(transaction: {
   description: string;
   source: "AUTOMATIC" | "MANUAL";
   createdAt: Date;
+  league: { id: number; code: string; name: string };
+  season: { id: number; name: string };
   race: { id: number; name: string; circuit: string | null; countryCode: string | null; mystery: boolean; scheduledAt: Date; round: number } | null;
   driver: { id: number; name: string } | null;
   actor: { displayName: string } | null;
@@ -88,6 +88,8 @@ function transactionView(transaction: {
     description: transaction.description,
     source: transaction.source,
     createdAt: transaction.createdAt.toISOString(),
+    league: transaction.league,
+    season: transaction.season,
     race: race ? { id: race.id, name: publicRaceTrack(race).name, round: race.round, mystery: race.mystery, scheduledAt: race.scheduledAt.toISOString() } : null,
     driver: transaction.driver,
     actor: transaction.actor,
@@ -101,6 +103,8 @@ const transactionSelection = {
   description: true,
   source: true,
   createdAt: true,
+  league: { select: { id: true, code: true, name: true } },
+  season: { select: { id: true, name: true } },
   race: { select: { id: true, name: true, circuit: true, countryCode: true, mystery: true, scheduledAt: true, round: true } },
   driver: { select: { id: true, name: true } },
   actor: { select: { displayName: true } },
@@ -125,17 +129,21 @@ export async function getFinanceAdminData(query: FinanceListQuery) {
   const pageSize = 50;
   const transactionWhere = {
     ...whereContext,
-    teamId: query.teamId,
+    account: query.organizationId ? { organizationId: query.organizationId } : undefined,
     raceId: query.raceId,
+    driverId: query.driverId,
     type: query.type,
   };
 
-  const [teams, accounts, races, drivers, transactions, transactionCount, ruleSet, guild, publishSetting, settlements] = await Promise.all([
-    prisma.team.findMany({ where: { ...whereContext }, orderBy: { name: "asc" }, select: { id: true, name: true, shortName: true, color: true, logoUrl: true } }),
+  const [organizations, accounts, races, drivers, transactions, transactionCount, ruleSet, guild, publishSetting, settlements] = await Promise.all([
+    prisma.teamOrganization.findMany({
+      where: { teams: { some: { ...whereContext } } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, shortName: true, color: true, logoUrl: true },
+    }),
     prisma.teamFinanceAccount.findMany({
-      where: whereContext,
-      orderBy: [{ balanceEuro: "desc" }, { team: { name: "asc" } }],
-      select: { id: true, teamId: true, balanceEuro: true, totalIncomeEuro: true, totalExpensesEuro: true, lastTransactionAt: true, team: { select: { name: true, shortName: true, color: true, logoUrl: true } }, league: { select: { id: true, code: true, name: true } }, season: { select: { id: true, name: true } } },
+      orderBy: [{ balanceEuro: "desc" }, { organization: { name: "asc" } }],
+      select: { id: true, organizationId: true, balanceEuro: true, totalIncomeEuro: true, totalExpensesEuro: true, lastTransactionAt: true, organization: { select: { name: true, shortName: true, color: true, logoUrl: true } } },
     }),
     prisma.race.findMany({ where: seasonId ? { seasonId } : { id: -1 }, orderBy: { round: "desc" }, select: { id: true, name: true, circuit: true, countryCode: true, mystery: true, scheduledAt: true, round: true } }),
     prisma.driver.findMany({ where: leagueId ? { leagueId } : { id: -1 }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -159,7 +167,7 @@ export async function getFinanceAdminData(query: FinanceListQuery) {
     seasons,
     selectedLeague,
     selectedSeason,
-    teams,
+    teams: organizations,
     accounts: accounts.map(accountView),
     races: races.map((race) => ({ id: race.id, name: publicRaceTrack(race).name, round: race.round, scheduledAt: race.scheduledAt.toISOString() })),
     drivers,
@@ -177,33 +185,47 @@ export async function getFinanceAdminData(query: FinanceListQuery) {
   };
 }
 
-export async function getAuthorizedTeamFinanceData(user: AuthenticatedUser, requestedTeamId?: number) {
+export async function getAuthorizedTeamFinanceData(user: AuthenticatedUser, requestedOrganizationId?: number, leagueId?: number) {
   const prisma = getPrismaClient();
   const canManageAll = hasPermission(user.roles, Permission.ManageFinance);
-  const ownedOrganizationSeasons = canManageAll ? [] : await prisma.teamOrganizationSeason.findMany({
-    where: { principalUserId: user.id },
-    select: { organizationId: true, seasonId: true },
+  const organizations = await prisma.teamOrganization.findMany({
+    where: {
+      financeAccount: { isNot: null },
+      ...(canManageAll ? {} : {
+        OR: [
+          { seasons: { some: { principalUserId: user.id } } },
+          { teams: { some: { principalUserId: user.id } } },
+        ],
+      }),
+    },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      shortName: true,
+      color: true,
+      logoUrl: true,
+      financeAccount: { select: { id: true, organizationId: true, balanceEuro: true, totalIncomeEuro: true, totalExpensesEuro: true, lastTransactionAt: true } },
+    },
   });
-  const ownership = canManageAll ? {} : {
-    OR: [
-      { principalUserId: user.id },
-      ...ownedOrganizationSeasons.map((assignment) => ({
-        organizationId: assignment.organizationId,
-        seasonId: assignment.seasonId,
-      })),
-    ],
-  };
-  const teams = await prisma.team.findMany({
-    where: { ...ownership, financeAccount: { isNot: null } },
-    orderBy: [{ season: { startsOn: "desc" } }, { league: { displayOrder: "asc" } }, { name: "asc" }],
-    select: { id: true, name: true, shortName: true, color: true, logoUrl: true, league: { select: { id: true, code: true, name: true } }, season: { select: { id: true, name: true } }, financeAccount: { select: { id: true, balanceEuro: true, totalIncomeEuro: true, totalExpensesEuro: true, lastTransactionAt: true } } },
-  });
-  const selectedTeam = teams.find((team) => team.id === requestedTeamId) ?? teams[0] ?? null;
-  const transactions = selectedTeam ? await prisma.teamFinanceTransaction.findMany({ where: { teamId: selectedTeam.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 50, select: transactionSelection }) : [];
+  const selectedOrganization = organizations.find((organization) => organization.id === requestedOrganizationId) ?? organizations[0] ?? null;
+  const [transactions, leagues] = await Promise.all([
+    selectedOrganization?.financeAccount
+      ? prisma.teamFinanceTransaction.findMany({
+          where: { accountId: selectedOrganization.financeAccount.id, leagueId },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: 50,
+          select: transactionSelection,
+        })
+      : [],
+    prisma.league.findMany({ orderBy: [{ displayOrder: "asc" }, { code: "asc" }], select: { id: true, code: true, name: true } }),
+  ]);
   return {
     canManageAll,
-    teams: teams.map((team) => ({ id: team.id, name: team.name, shortName: team.shortName, league: team.league, season: team.season })),
-    selected: selectedTeam?.financeAccount ? accountView({ ...selectedTeam.financeAccount, teamId: selectedTeam.id, team: { name: selectedTeam.name, shortName: selectedTeam.shortName, color: selectedTeam.color, logoUrl: selectedTeam.logoUrl }, league: selectedTeam.league, season: selectedTeam.season }) : null,
+    teams: organizations.map((organization) => ({ id: organization.id, name: organization.name, shortName: organization.shortName })),
+    selected: selectedOrganization?.financeAccount ? accountView({ ...selectedOrganization.financeAccount, organization: { name: selectedOrganization.name, shortName: selectedOrganization.shortName, color: selectedOrganization.color, logoUrl: selectedOrganization.logoUrl } }) : null,
+    leagues,
+    selectedLeagueId: leagueId,
     transactions: transactions.map(transactionView),
   };
 }

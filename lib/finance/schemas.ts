@@ -14,13 +14,13 @@ export const financeSelectionSchema = z.object({
 });
 
 export const startBalanceSchema = financeSelectionSchema.extend({
-  teamId: entityId,
+  organizationId: entityId,
   amountEuro: euroAmount,
   description: z.string().trim().min(3).max(500),
 });
 
 export const manualFinanceTransactionSchema = financeSelectionSchema.extend({
-  teamId: entityId,
+  organizationId: entityId,
   amountEuro: euroAmount.refine((value) => value !== 0, "Der Betrag darf nicht 0 sein."),
   type: z.enum([
     FinanceTransactionType.ManualAdjustment,
