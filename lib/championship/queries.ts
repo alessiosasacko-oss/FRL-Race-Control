@@ -1,6 +1,4 @@
 import "server-only";
-import { characterView, suitView } from "@/lib/characters/resolve";
-import { driverCharacterSnapshotSchema } from "@/lib/characters/schema";
 import {
   PenaltyType,
   ResultGapMode,
@@ -184,7 +182,6 @@ export async function getChampionshipPageData(
       orderBy: [{ startsOn: "desc" }, { name: "asc" }],
       select: {
         id: true,
-        leagueId: true,
         name: true,
         archivedAt: true,
       },
@@ -196,9 +193,6 @@ export async function getChampionshipPageData(
       ?.currentSeasonId ??
     leagues.find((league) => league.currentSeasonId)?.currentSeasonId ??
     seasons[0]?.id;
-  const seasonOwnerLeagueId = seasons.find(
-    (season) => season.id === preferredSeasonId,
-  )?.leagueId;
   const leagueOptions = leagues.map((league) => ({
     id: league.id,
     code: league.code,
@@ -213,7 +207,7 @@ export async function getChampionshipPageData(
           (item) => item.currentSeasonId === preferredSeasonId,
         )?.id,
     ) ??
-    leagueOptions.find((league) => league.id === seasonOwnerLeagueId);
+    leagueOptions[0];
 
   if (!preferredSeasonId) {
     return {
@@ -237,7 +231,7 @@ export async function getChampionshipPageData(
             leagues.find(
               (league) => league.currentSeasonId === preferredSeasonId,
             )?.id ??
-            seasonOwnerLeagueId,
+            selectedLeague?.id,
         },
         take: 1,
         include: {
@@ -246,9 +240,6 @@ export async function getChampionshipPageData(
             include: {
               driver: {
                 include: {
-                  user: {
-                    select: { driverCharacter: { select: { id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true } } },
-                  },
                   team: {
                     select: {
                       id: true,
@@ -258,8 +249,7 @@ export async function getChampionshipPageData(
                       logoUrl: true,
                       organization: {
                         select: {
-                          id: true, name: true, shortName: true, color: true, secondaryColor: true, contrastColor: true, logoUrl: true,
-                          suitTemplates: { where: { active: true, archivedAt: null }, orderBy: [{ displayOrder: "asc" }, { name: "asc" }], select: { id: true, organizationId: true, name: true, configuration: true } },
+                          id: true, name: true, shortName: true, color: true, logoUrl: true,
                         },
                       },
                     },
@@ -301,7 +291,6 @@ export async function getChampionshipPageData(
       leagues: leagueOptions,
       seasons: seasons.map((item) => ({
         id: item.id,
-        leagueId: selectedLeague?.id ?? item.leagueId,
         name: item.name,
         archived: item.archivedAt !== null,
       })),
@@ -337,7 +326,6 @@ export async function getChampionshipPageData(
     leagues: leagueOptions,
     seasons: seasons.map((item) => ({
       id: item.id,
-      leagueId: selectedLeague?.id ?? item.leagueId,
       name: item.name,
       archived: item.archivedAt !== null,
     })),
@@ -369,16 +357,10 @@ export async function getChampionshipPageData(
         name: standing.driver.name,
         number: standing.driver.number,
         flag: standing.driver.flag,
+        imageUrl: standing.driver.imageUrl,
         team: standing.driver.team
           ? (standing.driver.team.organization ?? standing.driver.team)
           : null,
-        character: characterView(standing.driver.user?.driverCharacter),
-        teamSuit: (() => {
-          const organization = standing.driver.team?.organization ?? null;
-          const character = characterView(standing.driver.user?.driverCharacter);
-          const template = organization?.suitTemplates.find((item) => item.id === character.suitVariantId) ?? null;
-          return suitView(template, organization);
-        })(),
       },
     })),
     teams: teamRows.map((standing) => ({
@@ -436,13 +418,12 @@ function resultRow(result: {
   racePoints: number;
   bonusPoints: number;
   teamPoints: number;
-  characterSnapshot: unknown;
   driver: {
     id: number;
     name: string;
     number: number;
     flag: string;
-    user: { driverCharacter: { id: number; configuration: unknown; normalPose: string; winnerPose: string; version: number; suitVariantId: number | null } | null } | null;
+    imageUrl: string | null;
   };
   representedTeam: {
     id: number;
@@ -456,9 +437,6 @@ function resultRow(result: {
       shortName: string;
       color: string;
       logoUrl: string | null;
-      secondaryColor: string | null;
-      contrastColor: string | null;
-      suitTemplates: Array<{ id: number; organizationId: number; name: string; configuration: unknown }>;
     } | null;
   };
   expectedDriver: { id: number; name: string } | null;
@@ -475,16 +453,11 @@ function resultRow(result: {
   }>;
 }): ResultRowView {
   const organization = result.representedTeam.organization;
-  const snapshot = driverCharacterSnapshotSchema.safeParse(result.characterSnapshot).data;
-  const liveCharacter = characterView(result.driver.user?.driverCharacter);
-  const character = snapshot ? { ...liveCharacter, configuration: snapshot.configuration, normalPose: snapshot.normalPose, winnerPose: snapshot.winnerPose, version: snapshot.characterVersion } : liveCharacter;
-  const selectedSuit = organization?.suitTemplates.find((item) => item.id === character.suitVariantId) ?? null;
   return {
     ...result,
-    driver: { id: result.driver.id, name: result.driver.name, number: snapshot?.driverNumber ?? result.driver.number, flag: snapshot?.flag ?? result.driver.flag, character },
+    driver: { id: result.driver.id, name: result.driver.name, number: result.driver.number, flag: result.driver.flag, imageUrl: result.driver.imageUrl },
     representedTeam: {
       ...(organization ?? result.representedTeam),
-      teamSuit: snapshot ? { id: snapshot.suitTemplateId, organizationId: organization?.id ?? null, name: "Historischer Rennanzug", configuration: snapshot.teamSuit } : suitView(selectedSuit, organization),
     },
     baseStatus: result.baseStatus as ResultStatus,
     status: result.status as ResultStatus,
@@ -515,14 +488,34 @@ export async function getRaceResults(
   includeDrafts = false,
 ): Promise<RaceResultsView | null> {
   const prisma = getPrismaClient();
-  const resultLeagueId =
-    leagueId ??
-    (
-      await prisma.race.findUnique({
+  let resultLeagueId = leagueId;
+  if (!resultLeagueId) {
+    const [existingSession, raceContext] = await Promise.all([
+      prisma.raceResultSession.findFirst({
+        where: {
+          raceId,
+          publicationStatus: includeDrafts ? undefined : ResultPublicationStatus.Published,
+        },
+        orderBy: [{ league: { displayOrder: "asc" } }, { leagueId: "asc" }],
+        select: { leagueId: true },
+      }),
+      prisma.race.findUnique({
         where: { id: raceId },
-        select: { season: { select: { leagueId: true } } },
-      })
-    )?.season.leagueId;
+        select: {
+          season: {
+            select: {
+              participatingLeagues: {
+                where: { active: true },
+                orderBy: [{ displayOrder: "asc" }, { id: "asc" }],
+                select: { id: true },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+    resultLeagueId = existingSession?.leagueId ?? raceContext?.season.participatingLeagues[0]?.id;
+  }
   const race = await prisma.race.findUnique({
     where: { id: raceId },
     include: {
@@ -552,8 +545,7 @@ export async function getRaceResults(
             include: {
               driver: {
                 select: {
-                  id: true, name: true, number: true, flag: true,
-                  user: { select: { driverCharacter: { select: { id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true } } } },
+                  id: true, name: true, number: true, flag: true, imageUrl: true,
                 },
               },
               representedTeam: {
@@ -569,14 +561,7 @@ export async function getRaceResults(
                       name: true,
                       shortName: true,
                       color: true,
-                      secondaryColor: true,
-                      contrastColor: true,
                       logoUrl: true,
-                      suitTemplates: {
-                        where: { active: true, archivedAt: null },
-                        orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
-                        select: { id: true, organizationId: true, name: true, configuration: true },
-                      },
                     },
                   },
                 },
@@ -865,7 +850,7 @@ export async function getScoringAdminData(
       const league =
         season.participatingLeagues.find(
           (item) => item.id === leagueId,
-        ) ?? season.league;
+        ) ?? season.participatingLeagues[0] ?? season.league;
       return {
         ...season,
         league,
@@ -882,14 +867,16 @@ export async function getScoringAdminData(
           league:
             selected.participatingLeagues.find(
               (item) => item.id === leagueId,
-            ) ?? selected.league,
+            ) ?? selected.participatingLeagues[0] ?? selected.league,
           scoringConfiguration:
             selected.scoringConfigurations.find(
               (configuration) =>
                 configuration.leagueId ===
                 (selected.participatingLeagues.find(
                   (item) => item.id === leagueId,
-                )?.id ?? selected.leagueId),
+                )?.id ??
+                  selected.participatingLeagues[0]?.id ??
+                  selected.leagueId),
             ) ?? null,
         }
       : null,
@@ -940,7 +927,7 @@ export async function getAdjustmentAdminData(
   const selectedLeague =
     selectedSeason?.participatingLeagues.find(
       (item) => item.id === leagueId,
-    ) ?? selectedSeason?.league;
+    ) ?? selectedSeason?.participatingLeagues[0] ?? selectedSeason?.league;
   const [drivers, teams, races, adjustments] =
     await Promise.all([
       prisma.driver.findMany({
@@ -1000,7 +987,7 @@ export async function getAdjustmentAdminData(
       league:
         season.participatingLeagues.find(
           (item) => item.id === leagueId,
-        ) ?? season.league,
+        ) ?? season.participatingLeagues[0] ?? season.league,
     })),
     selectedSeasonId,
     selectedLeagueId: selectedLeague?.id ?? null,

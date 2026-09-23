@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, MessageCircle, Users } from "lucide-react";
 import { notFound } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
-import DriverCharacter from "@/components/characters/DriverCharacter";
+import DriverAvatar from "@/components/drivers/DriverAvatar";
 import CountryFlag from "@/components/ui/CountryFlag";
 import TeamLogo from "@/components/teams/TeamLogo";
 import { DriverLineupStatus } from "@/domain";
@@ -56,9 +56,9 @@ export default async function TeamDetailPage({ params, searchParams }: TeamDetai
               <details key={league.id} className="surface-panel group" open={league.primaryDrivers.length > 0 || league.substitutes.length > 0}>
                 <summary className="flex min-h-14 cursor-pointer items-center justify-between px-5"><strong className="text-lg text-white">{league.code} · {league.primaryDrivers.length}/2 Stammplätze</strong><span className="text-xs text-slate-500">{league.substitutes.length} Ersatz</span></summary>
                 <div className="space-y-4 border-t border-slate-800 p-5">
-                  <LineupGroup title="Stammfahrer" drivers={league.primaryDrivers} teamLogoUrl={team.logoUrl} />
+                  <LineupGroup title="Stammfahrer" drivers={league.primaryDrivers} />
                   {Array.from({ length: Math.max(0, 2 - league.primaryDrivers.length) }, (_, index) => <div key={index} className="rounded-xl border border-dashed border-slate-700 p-4 text-sm text-slate-500">Noch kein Fahrer zugeordnet</div>)}
-                  <LineupGroup title="Ersatzfahrer" drivers={league.substitutes} teamLogoUrl={team.logoUrl} empty="Keine Ersatzfahrer" />
+                  <LineupGroup title="Ersatzfahrer" drivers={league.substitutes} empty="Keine Ersatzfahrer" />
                 </div>
               </details>
             ))}
@@ -73,8 +73,8 @@ export default async function TeamDetailPage({ params, searchParams }: TeamDetai
 
 type DetailDriver = NonNullable<Awaited<ReturnType<typeof getGlobalTeamDetail>>>["leagues"][number]["primaryDrivers"][number];
 
-function LineupGroup({ title, drivers, teamLogoUrl, empty }: { title: string; drivers: DetailDriver[]; teamLogoUrl: string | null; empty?: string }) {
-  return <div><h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{title}</h3><div className="space-y-2">{drivers.map((driver) => <Link key={driver.id} href={`/drivers/${driver.id}`} className="flex min-h-16 min-w-0 items-center justify-between gap-3 overflow-hidden rounded-xl bg-slate-950/45 px-3 sm:px-4"><span className="flex min-w-0 items-center gap-3"><DriverCharacter configuration={driver.character.configuration} teamSuit={driver.teamSuit.configuration} pose={driver.character.normalPose} variant="head" driverNumber={driver.number} driverInitials={driver.name} teamLogoUrl={teamLogoUrl} alt={`Fahrercharakter von ${driver.name}`} className="size-12 shrink-0" showShadow={false} /><span className="min-w-0"><span className="flex items-center gap-2"><CountryFlag countryCode={driver.countryCode} size="sm" /><span className="truncate font-semibold text-white">{driver.name}</span></span><span className="mt-1 block text-xs text-slate-500">Fahrer #{driver.number}</span></span></span><span className={driver.active ? "shrink-0 text-xs text-emerald-300" : "shrink-0 text-xs text-slate-500"}>{driver.lineupStatus === DriverLineupStatus.Primary ? "Stamm" : "Ersatz"}</span></Link>)}{drivers.length === 0 && empty ? <p className="text-sm text-slate-600">{empty}</p> : null}</div></div>;
+function LineupGroup({ title, drivers, empty }: { title: string; drivers: DetailDriver[]; empty?: string }) {
+  return <div><h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{title}</h3><div className="space-y-2">{drivers.map((driver) => <Link key={driver.id} href={`/drivers/${driver.id}`} className="flex min-h-16 min-w-0 items-center justify-between gap-3 overflow-hidden rounded-xl bg-slate-950/45 px-3 sm:px-4"><span className="flex min-w-0 items-center gap-3"><DriverAvatar imageUrl={driver.imageUrl} name={driver.name} size="md" /><span className="min-w-0"><span className="flex items-center gap-2"><CountryFlag countryCode={driver.countryCode} size="sm" /><span className="truncate font-semibold text-white">{driver.name}</span></span><span className="mt-1 block text-xs text-slate-500">Fahrer #{driver.number}</span></span></span><span className={driver.active ? "shrink-0 text-xs text-emerald-300" : "shrink-0 text-xs text-slate-500"}>{driver.lineupStatus === DriverLineupStatus.Primary ? "Stamm" : "Ersatz"}</span></Link>)}{drivers.length === 0 && empty ? <p className="text-sm text-slate-600">{empty}</p> : null}</div></div>;
 }
 
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {

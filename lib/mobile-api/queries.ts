@@ -119,7 +119,6 @@ function activeSeasonForLeague(
   }
   const fallback = fallbacks.find(
     (season) =>
-      season.leagueId === league.id ||
       season.participatingLeagues.some((item) => item.id === league.id),
   );
   return fallback ? { id: fallback.id, name: fallback.name } : null;

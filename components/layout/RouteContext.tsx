@@ -11,7 +11,6 @@ const routeLabels = [
   { path: "/teams", title: "Teams", context: "Ligaübersicht" },
   { path: "/notifications", title: "Benachrichtigungen", context: "Deine Inbox" },
   { path: "/admin/design", title: "Design & Branding", context: "Globale Markensteuerung" },
-  { path: "/admin/design/driver-suits", title: "Fahrer-Rennanzüge", context: "Teamgebundene Charakter-Designs" },
   { path: "/admin/tracks", title: "Strecken", context: "Layouts & Rennstreckendaten" },
   { path: "/admin/finance", title: "Finanzsystem", context: "Teamkonten & Buchungsjournal" },
   { path: "/finance", title: "Teamfinanzen", context: "Kontostand & Buchungsjournal" },

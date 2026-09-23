@@ -9,6 +9,8 @@ import { getPrismaClient } from "@/lib/db/prisma";
 import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { writeSystemAudit } from "@/lib/audit/system";
 import { ensureInternalTeamSlot } from "@/lib/master-data/internal-team-slots";
+import { reconcileDriverCareerStats } from "@/lib/drivers/career-stats";
+import { logger } from "@/lib/observability/logger";
 import {
   activeUserRoleRequirementMessage,
   primarySlotAvailable,
@@ -357,8 +359,9 @@ export async function updateUserSportAssignmentAction(
     ["USER_COUNTRY_CHANGED", previousSport.countryCode, nextSport.countryCode],
     ["USER_DRIVER_STATUS_CHANGED", previousSport.active, nextSport.active],
   ].filter(([, previous, next]) => previous !== next);
+  let affectedDriverIds: number[] = [];
   try {
-    await prisma.$transaction(async (transaction) => {
+    affectedDriverIds = await prisma.$transaction(async (transaction) => {
       if (parsed.data.lineupStatus === DriverLineupStatus.Primary && organization) {
         const primaryCount = await transaction.driverSeasonAssignment.count({
           where: {
@@ -454,6 +457,7 @@ export async function updateUserSportAssignmentAction(
         },
         });
       }
+      return [driver.id, replacement?.driverId].filter((id): id is number => id != null);
     }, { isolationLevel: "Serializable" });
   } catch (error: unknown) {
     const code = typeof error === "object" && error && "code" in error
@@ -466,6 +470,11 @@ export async function updateUserSportAssignmentAction(
       return { status: "error", message: "Die Zuordnung wurde gleichzeitig geändert. Bitte prüfe die Stammplätze und versuche es erneut." };
     }
     return { status: "error", message: "Die sportliche Zuordnung konnte nicht gespeichert werden." };
+  }
+  try {
+    await Promise.all(affectedDriverIds.map((driverId) => reconcileDriverCareerStats(driverId)));
+  } catch (error: unknown) {
+    logger.error("Driver career-stat reconciliation after user assignment failed", error, { driverIds: affectedDriverIds });
   }
 
   await refreshUserAdministration(target.id);

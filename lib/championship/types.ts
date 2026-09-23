@@ -71,9 +71,8 @@ export type DriverStandingView = {
     name: string;
     number: number;
     flag: string;
+    imageUrl: string | null;
     team: { id: number; name: string; shortName: string; color: string; logoUrl: string | null } | null;
-    character: import("@/lib/characters/types").DriverCharacterView;
-    teamSuit: import("@/lib/characters/types").TeamSuitView;
   };
 };
 
@@ -102,7 +101,6 @@ export type ChampionshipPageData = {
   leagues: Array<{ id: number; code: string; name: string }>;
   seasons: Array<{
     id: number;
-    leagueId: number;
     name: string;
     archived: boolean;
   }>;
@@ -157,7 +155,7 @@ export type ResultRowView = {
     name: string;
     number: number;
     flag: string;
-    character: import("@/lib/characters/types").DriverCharacterView;
+    imageUrl: string | null;
   };
   representedTeam: {
     id: number;
@@ -165,7 +163,6 @@ export type ResultRowView = {
     shortName: string;
     color: string;
     logoUrl: string | null;
-    teamSuit: import("@/lib/characters/types").TeamSuitView;
   };
   expectedDriver: { id: number; name: string } | null;
   penaltyApplications: Array<{

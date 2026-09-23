@@ -8,18 +8,15 @@ import {
 } from "@/lib/master-data/actions";
 import {
   initialMasterDataActionState,
-  type LeagueOption,
   type SeasonAdminItem,
 } from "@/lib/master-data/types";
 import ActionMessage from "./ActionMessage";
 
 type SeasonFormProps = {
-  leagues: LeagueOption[];
   season?: SeasonAdminItem;
 };
 
 export default function SeasonForm({
-  leagues,
   season,
 }: SeasonFormProps) {
   const saveAction = season
@@ -39,21 +36,6 @@ export default function SeasonForm({
     <div className="space-y-4">
       <form action={formAction} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="master-label">
-            Liga
-            <select
-              name="leagueId"
-              defaultValue={season?.leagueId ?? leagues[0]?.id}
-              required
-              className="form-control mt-2"
-            >
-              {leagues.map((league) => (
-                <option key={league.id} value={league.id}>
-                  {league.code} · {league.name}
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="master-label">
             Name
             <input
@@ -94,6 +76,15 @@ export default function SeasonForm({
             className="h-4 w-4 accent-blue-600"
           />
           Saison aktiv
+        </label>
+        <label className="flex min-h-11 items-center gap-3 text-sm text-slate-300">
+          <input
+            type="checkbox"
+            name="isCurrent"
+            defaultChecked={season?.isCurrent ?? false}
+            className="h-5 w-5 accent-blue-600"
+          />
+          Als globale aktuelle Saison für alle Ligen verwenden
         </label>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <ActionMessage state={state} />

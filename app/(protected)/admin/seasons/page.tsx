@@ -2,17 +2,11 @@ import AppLayout from "@/components/layout/AppLayout";
 import SeasonForm from "@/components/master-data/SeasonForm";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
-import {
-  getMasterDataOptions,
-  getSeasonAdminItems,
-} from "@/lib/master-data/queries";
+import { getSeasonAdminItems } from "@/lib/master-data/queries";
 
 export default async function SeasonAdminPage() {
   await requirePermission(Permission.ManageMasterData);
-  const [seasons, options] = await Promise.all([
-    getSeasonAdminItems(),
-    getMasterDataOptions(),
-  ]);
+  const seasons = await getSeasonAdminItems();
 
   return (
     <AppLayout>
@@ -29,7 +23,7 @@ export default async function SeasonAdminPage() {
           <h2 className="mb-5 text-xl font-semibold text-white">
             Neue Saison
           </h2>
-          <SeasonForm leagues={options.leagues} />
+          <SeasonForm />
         </section>
         <div className="space-y-4">
           {seasons.map((season) => (
@@ -37,9 +31,7 @@ export default async function SeasonAdminPage() {
               <summary className="cursor-pointer list-none">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-wider text-blue-400">
-                      {season.league.code}
-                    </p>
+                    <p className="text-xs uppercase tracking-wider text-blue-400">Globale FRL-Saison</p>
                     <h2 className="mt-1 text-lg font-semibold text-white">
                       {season.name}
                     </h2>
@@ -49,7 +41,7 @@ export default async function SeasonAdminPage() {
                   </div>
                   <div className="text-right text-xs text-slate-500">
                     <p>
-                      {season.archived
+                      {season.isCurrent ? "Aktuelle Saison" : season.archived
                         ? "Archiviert"
                         : season.active
                           ? "Aktiv"
@@ -60,7 +52,7 @@ export default async function SeasonAdminPage() {
                 </div>
               </summary>
               <div className="mt-5 border-t border-slate-800 pt-5">
-                <SeasonForm leagues={options.leagues} season={season} />
+                <SeasonForm season={season} />
               </div>
             </details>
           ))}

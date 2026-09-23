@@ -84,14 +84,15 @@ test("the navigation guard remains cookie-only and live refresh remains deferred
   assert.match(deferredRefresh, /requestIdleCallback/);
 });
 
-test("list routes keep compact characters while detail routes may use full body", () => {
+test("driver surfaces use optimized responsive image avatars", () => {
   const drivers = source("app/(protected)/drivers/page.tsx");
   const teams = source("app/(protected)/teams/page.tsx");
   const driverDetail = source("app/(protected)/drivers/[id]/page.tsx");
 
-  assert.match(drivers, /variant="head"/);
-  assert.match(teams, /variant="head"/);
-  assert.doesNotMatch(drivers, /variant="fullBody"/);
-  assert.doesNotMatch(teams, /variant="fullBody"/);
-  assert.match(driverDetail, /variant="fullBody"/);
+  assert.match(drivers, /DriverAvatar/);
+  assert.match(teams, /DriverAvatar/);
+  assert.match(driverDetail, /DriverAvatar/);
+  assert.doesNotMatch(drivers, /DriverCharacter/);
+  assert.doesNotMatch(teams, /DriverCharacter/);
+  assert.doesNotMatch(driverDetail, /DriverCharacter/);
 });

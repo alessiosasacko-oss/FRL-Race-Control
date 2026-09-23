@@ -11,7 +11,7 @@ export type GraphicDriver = {
   teamName: string;
   teamColor: string;
   teamLogoDataUrl: string | null;
-  character: unknown;
+  imageDataUrl: string | null;
 };
 
 export type ResultGraphicRenderData = {
@@ -45,27 +45,17 @@ function safeColor(value: string): string {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : "#168BFF";
 }
 
-function characterPalette(configuration: unknown) {
-  const record = configuration && typeof configuration === "object" ? configuration as Record<string, unknown> : {};
-  return {
-    skin: typeof record.skinTone === "string" && /^#[0-9a-f]{6}$/i.test(record.skinTone) ? record.skinTone : "#C98F65",
-    hair: typeof record.hairColor === "string" && /^#[0-9a-f]{6}$/i.test(record.hairColor) ? record.hairColor : "#201A18",
-  };
-}
-
 function leaderPortrait(leader: GraphicDriver | null): string {
   if (!leader) return `<g opacity=".55"><circle cx="1560" cy="410" r="120" fill="#253141"/><path d="M1340 870 Q1360 560 1560 560 Q1760 560 1780 870Z" fill="#1C2837"/></g>`;
-  const palette = characterPalette(leader.character);
   const color = safeColor(leader.teamColor);
   return `<g>
     <text x="1815" y="360" text-anchor="end" font-family="Arial" font-size="270" font-weight="900" fill="#ffffff0a">${leader.number}</text>
     <ellipse cx="1560" cy="900" rx="235" ry="40" fill="#000" opacity=".5"/>
     <path d="M1325 900 Q1335 590 1445 550 L1675 550 Q1785 590 1795 900Z" fill="${color}"/>
     <path d="M1395 900 L1430 620 L1690 620 L1725 900Z" fill="#081321" opacity=".48"/>
-    <circle cx="1560" cy="430" r="126" fill="${palette.skin}"/>
-    <path d="M1437 420 Q1445 274 1560 284 Q1685 275 1686 430 Q1620 350 1437 420Z" fill="${palette.hair}"/>
-    <path d="M1505 438 Q1530 425 1545 438 M1575 438 Q1600 425 1615 438" stroke="#131313" stroke-width="10" fill="none" stroke-linecap="round"/>
-    <path d="M1522 500 Q1560 526 1598 500" stroke="#7b4238" stroke-width="9" fill="none" stroke-linecap="round"/>
+    ${leader.imageDataUrl
+      ? `<defs><clipPath id="leader-photo"><circle cx="1560" cy="430" r="126"/></clipPath></defs><circle cx="1560" cy="430" r="134" fill="${color}"/><image href="${leader.imageDataUrl}" x="1434" y="304" width="252" height="252" preserveAspectRatio="xMidYMid slice" clip-path="url(#leader-photo)"/>`
+      : `<circle cx="1560" cy="430" r="126" fill="#253141"/><circle cx="1560" cy="400" r="49" fill="#8292A6"/><path d="M1468 535 Q1480 454 1560 454 Q1640 454 1652 535Z" fill="#8292A6"/>`}
     <rect x="1455" y="640" width="210" height="74" rx="18" fill="#07111f" opacity=".75"/>
     ${leader.teamLogoDataUrl ? `<image href="${leader.teamLogoDataUrl}" x="1493" y="650" width="134" height="54" preserveAspectRatio="xMidYMid meet"/>` : `<text x="1560" y="687" text-anchor="middle" font-family="Arial" font-size="30" font-weight="900" fill="#fff">${escape(leader.teamName.slice(0, 3).toUpperCase())}</text>`}
   </g>`;

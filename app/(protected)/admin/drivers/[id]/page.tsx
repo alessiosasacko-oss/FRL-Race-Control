@@ -3,9 +3,11 @@ import { Gauge, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import DriverForm from "@/components/master-data/DriverForm";
-import CountryFlag from "@/components/ui/CountryFlag";
 import PageHeader from "@/components/ui/PageHeader";
 import DriverDangerZone from "@/components/users/DriverDangerZone";
+import DriverAvatar from "@/components/drivers/DriverAvatar";
+import DriverCareerStatsEditor from "@/components/drivers/DriverCareerStatsEditor";
+import DriverImageUploader from "@/components/drivers/DriverImageUploader";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
@@ -45,7 +47,7 @@ export default async function DriverAdminDetailPage({
         <section className="surface-panel p-5 sm:p-6">
           <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)]">
             <div className="flex min-w-0 items-start gap-4">
-              <CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="lg" showLabel />
+              <DriverAvatar imageUrl={driver.imageUrl} name={driver.name} size="lg" priority />
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="break-words text-2xl font-black text-white">#{driver.number} {driver.name}</h2>
@@ -86,6 +88,12 @@ export default async function DriverAdminDetailPage({
           <p className="eyebrow">Fahrerprofil</p>
           <h2 className="mt-2 text-xl font-black text-white">Fahrer bearbeiten</h2>
           <div className="mt-5"><DriverForm options={options} driver={driver} /></div>
+        </section>
+
+        <section className="surface-panel p-5 sm:p-6">
+          <p className="eyebrow">Fahrerprofil</p>
+          <h2 className="mt-2 text-xl font-black text-white">Bild und Karrierestatistik</h2>
+          <div className="mt-5 space-y-4"><DriverImageUploader driverId={driver.id} driverName={driver.name} initialImageUrl={driver.imageUrl} /><DriverCareerStatsEditor driverId={driver.id} stats={driver.careerStats} admin /></div>
         </section>
 
         <DriverDangerZone mode="driver" snapshot={deletionSnapshot} actorRoles={actor.roles} />

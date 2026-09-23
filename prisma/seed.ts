@@ -89,10 +89,12 @@ async function seed(): Promise<void> {
   for (const season of seasons) {
     const data = {
       leagueId: season.leagueId,
+      globalKey: `${season.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${season.startsOn.replaceAll("-", "")}`,
       name: season.name,
       startsOn: new Date(`${season.startsOn}T00:00:00.000Z`),
       endsOn: new Date(`${season.endsOn}T00:00:00.000Z`),
       active: season.active,
+      isCurrent: leagues.some((league) => league.currentSeasonId === season.id),
       archivedAt: season.archivedAt
         ? new Date(season.archivedAt)
         : null,

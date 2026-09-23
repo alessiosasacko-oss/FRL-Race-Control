@@ -3,7 +3,9 @@ import { ArrowLeft, BadgeInfo, MessageCircle, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import CountryFlag from "@/components/ui/CountryFlag";
-import DriverCharacter from "@/components/characters/DriverCharacter";
+import DriverAvatar from "@/components/drivers/DriverAvatar";
+import DriverCareerStatsEditor from "@/components/drivers/DriverCareerStatsEditor";
+import DriverImageUploader from "@/components/drivers/DriverImageUploader";
 import TeamLogo from "@/components/teams/TeamLogo";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -30,6 +32,7 @@ export default async function DriverDetailPage({
     user.roles,
     Permission.ManageMasterData,
   );
+  const canEditProfile = canManage || driver.userId === user.id;
 
   return (
     <AppLayout>
@@ -56,8 +59,8 @@ export default async function DriverDetailPage({
           />
           <div className="grid gap-8 p-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:p-8">
             <div>
-              <div className="mb-6 flex min-h-64 items-end justify-center overflow-hidden rounded-2xl bg-[radial-gradient(circle_at_50%_30%,rgba(37,99,235,.28),transparent_48%),#070e1b] lg:min-h-80">
-                <DriverCharacter configuration={driver.character.configuration} teamSuit={driver.teamSuit.configuration} pose={driver.character.normalPose} variant="fullBody" driverNumber={driver.number} driverInitials={driver.name} teamLogoUrl={driver.team?.logoUrl} alt={`Fahrercharakter von ${driver.name}`} className="h-64 max-w-full lg:h-80" showBackground />
+              <div className="mb-6 flex min-h-64 items-center justify-center overflow-hidden rounded-2xl bg-[radial-gradient(circle_at_50%_30%,rgba(37,99,235,.28),transparent_48%),#070e1b] lg:min-h-80">
+                <DriverAvatar imageUrl={driver.imageUrl} name={driver.name} size="profile" priority />
               </div>
               <div className="flex flex-wrap items-start gap-5">
                 <CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="lg" />
@@ -120,12 +123,23 @@ export default async function DriverDetailPage({
                   </dd>
                 </div>
               </dl>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <DriverStat label="Siege" value={driver.standing?.wins ?? 0} />
-                <DriverStat label="Podien" value={driver.standing?.podiums ?? 0} />
-                <DriverStat label="Poles" value={driver.standing?.polePositions ?? 0} />
-                <DriverStat label="Schnellste Runden" value={driver.standing?.fastestLaps ?? 0} />
-              </div>
+              <section className="mt-8" aria-labelledby="career-stats-title">
+                <p className="eyebrow">Gesamte FRL-Laufbahn</p>
+                <h2 id="career-stats-title" className="mt-2 text-2xl font-black text-white">Karrierestatistik</h2>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <DriverStat label="Gefahrene Rennen" value={driver.careerStats.raceStarts} />
+                  <DriverStat label="Siege" value={driver.careerStats.wins} />
+                  <DriverStat label="Podien" value={driver.careerStats.podiums} />
+                  <DriverStat label="Pole Positions" value={driver.careerStats.poles} />
+                  <DriverStat label="Fastest Laps" value={driver.careerStats.fastestLaps} />
+                  <DriverStat label="Punkte" value={driver.careerStats.points} />
+                </div>
+                <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-white/5 bg-slate-950/40 p-4"><dt className="text-xs uppercase tracking-wider text-slate-500">Erster GP</dt><dd className="mt-2 font-semibold text-white">{driver.careerStats.firstGrandPrix ?? "Noch kein Rennen erfasst"}</dd></div>
+                  <div className="rounded-xl border border-white/5 bg-slate-950/40 p-4"><dt className="text-xs uppercase tracking-wider text-slate-500">Vergangene Teams</dt><dd className="mt-2 flex flex-wrap gap-2">{driver.careerStats.pastTeams.length ? driver.careerStats.pastTeams.map((team) => <span key={team} className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-200">{team}</span>) : <span className="text-sm text-slate-400">Keine früheren Teams erfasst</span>}</dd></div>
+                </dl>
+              </section>
+              {canEditProfile ? <div className="mt-5 space-y-4"><DriverImageUploader driverId={driver.id} driverName={driver.name} initialImageUrl={driver.imageUrl} /><DriverCareerStatsEditor driverId={driver.id} stats={driver.careerStats} admin={canManage} /></div> : null}
             </div>
 
             <aside className="space-y-4">

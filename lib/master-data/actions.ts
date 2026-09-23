@@ -48,6 +48,8 @@ import {
 } from "./team-lifecycle";
 import type { MasterDataActionState } from "./types";
 import { ensureInternalTeamSlot } from "./internal-team-slots";
+import { reconcileDriverCareerStats } from "@/lib/drivers/career-stats";
+import { logger } from "@/lib/observability/logger";
 
 function errorState(
   message: string,
@@ -112,7 +114,6 @@ export async function updateLeagueAction(
   const parsed = leagueUpdateSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
-    currentSeasonId: formData.get("currentSeasonId"),
     active: formData.get("active"),
     raceWeekday: formData.get("raceWeekday"),
     raceStartTime: formData.get("raceStartTime"),
@@ -145,22 +146,6 @@ export async function updateLeagueAction(
   const raceStartMinute = startHour * 60 + startMinute;
 
   try {
-    if (parsed.data.currentSeasonId) {
-      const season = await prisma.season.findFirst({
-        where: {
-          id: parsed.data.currentSeasonId,
-          active: true,
-          archivedAt: null,
-          participatingLeagues: { some: { id: leagueId.data } },
-        },
-        select: { id: true },
-      });
-
-      if (!season) {
-        return errorState("Die aktuelle Saison muss zu dieser Liga gehören.");
-      }
-    }
-
     await prisma.$transaction(async (transaction) => {
       const previous = await transaction.league.findUniqueOrThrow({
         where: { id: leagueId.data },
@@ -170,7 +155,6 @@ export async function updateLeagueAction(
         data: {
           name: parsed.data.name,
           description: parsed.data.description,
-          currentSeasonId: parsed.data.currentSeasonId,
           active: parsed.data.active,
           raceWeekday: parsed.data.raceWeekday,
           raceStartMinute,
@@ -268,12 +252,24 @@ export async function updateLeagueAction(
 
 function seasonPayload(formData: FormData) {
   return {
-    leagueId: formData.get("leagueId"),
     name: formData.get("name"),
     startsOn: formData.get("startsOn"),
     endsOn: formData.get("endsOn"),
     active: formData.get("active"),
+    isCurrent: formData.get("isCurrent"),
   };
+}
+
+function seasonGlobalKey(name: string, startsOn: string): string {
+  const nameKey = name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 170);
+  return `${nameKey}-${startsOn.replaceAll("-", "")}`;
 }
 
 export async function createSeasonAction(
@@ -289,18 +285,26 @@ export async function createSeasonAction(
 
   try {
     await prisma.$transaction(async (transaction) => {
+      const leagues = await transaction.league.findMany({
+        where: {
+          active: true,
+          code: { in: ["F1", "F2", "F3", "F4", "F5", "F6"] },
+        },
+        orderBy: [{ displayOrder: "asc" }, { id: "asc" }],
+        select: { id: true },
+      });
+      if (leagues.length === 0) throw new Error("NO_ACTIVE_LEAGUE");
       const season = await transaction.season.create({
         data: {
-          leagueId: parsed.data.leagueId,
+          leagueId: leagues[0].id,
+          globalKey: seasonGlobalKey(parsed.data.name, parsed.data.startsOn),
           name: parsed.data.name,
           startsOn: new Date(`${parsed.data.startsOn}T00:00:00.000Z`),
           endsOn: new Date(`${parsed.data.endsOn}T00:00:00.000Z`),
           active: parsed.data.active,
+          isCurrent: parsed.data.isCurrent,
           participatingLeagues: {
-            connect: await transaction.league.findMany({
-              where: { active: true },
-              select: { id: true },
-            }),
+            connect: leagues,
           },
         },
         include: {
@@ -310,6 +314,16 @@ export async function createSeasonAction(
           },
         },
       });
+      if (season.isCurrent) {
+        await transaction.season.updateMany({
+          where: { id: { not: season.id }, isCurrent: true },
+          data: { isCurrent: false },
+        });
+        await transaction.league.updateMany({
+          where: { active: true },
+          data: { currentSeasonId: season.id },
+        });
+      }
       for (const league of season.participatingLeagues) {
         const recipients = await leagueUserIds(transaction, league.id);
         await createNotifications(
@@ -362,7 +376,7 @@ export async function updateSeasonAction(
   try {
     const current = await prisma.season.findUnique({
       where: { id: seasonId.data },
-      select: { leagueId: true },
+      select: { isCurrent: true },
     });
 
     if (!current) return errorState("Saison wurde nicht gefunden.");
@@ -371,11 +385,12 @@ export async function updateSeasonAction(
       await transaction.season.update({
         where: { id: seasonId.data },
         data: {
-          leagueId: parsed.data.leagueId,
+          globalKey: seasonGlobalKey(parsed.data.name, parsed.data.startsOn),
           name: parsed.data.name,
           startsOn: new Date(`${parsed.data.startsOn}T00:00:00.000Z`),
           endsOn: new Date(`${parsed.data.endsOn}T00:00:00.000Z`),
           active: parsed.data.active,
+          isCurrent: parsed.data.isCurrent,
           archivedAt: parsed.data.active ? null : undefined,
           participatingLeagues: parsed.data.active
             ? {
@@ -388,10 +403,16 @@ export async function updateSeasonAction(
         },
       });
 
-      if (
-        current.leagueId !== parsed.data.leagueId ||
-        !parsed.data.active
-      ) {
+      if (parsed.data.isCurrent) {
+        await transaction.season.updateMany({
+          where: { id: { not: seasonId.data }, isCurrent: true },
+          data: { isCurrent: false },
+        });
+        await transaction.league.updateMany({
+          where: { active: true },
+          data: { currentSeasonId: seasonId.data },
+        });
+      } else if (current.isCurrent || !parsed.data.active) {
         await transaction.league.updateMany({
           where: { currentSeasonId: seasonId.data },
           data: { currentSeasonId: null },
@@ -422,7 +443,7 @@ export async function archiveSeasonAction(
     await prisma.$transaction(async (transaction) => {
       const season = await transaction.season.update({
         where: { id: seasonId.data },
-        data: { active: false, archivedAt: new Date() },
+        data: { active: false, isCurrent: false, archivedAt: new Date() },
         include: {
           participatingLeagues: {
             orderBy: { code: "asc" },
@@ -967,7 +988,7 @@ async function saveDriverAssignment(
   input: DriverAssignmentInput,
   actorId: number,
   driverId: number | null,
-): Promise<void> {
+): Promise<number> {
   const [season, league, organization, existingDriver] = await Promise.all([
     transaction.season.findUnique({
       where: { id: input.seasonId },
@@ -1184,6 +1205,7 @@ async function saveDriverAssignment(
       },
     },
   });
+  return driver.id;
 }
 
 export async function createDriverAction(
@@ -1195,15 +1217,21 @@ export async function createDriverAction(
 
   if (!parsed.success) return validationState(parsed);
   const prisma = getPrismaClient();
+  let driverId: number;
 
   try {
-    await prisma.$transaction(
+    driverId = await prisma.$transaction(
       (transaction) =>
         saveDriverAssignment(transaction, parsed.data, actor.id, null),
       { isolationLevel: "Serializable" },
     );
   } catch (error: unknown) {
     return driverAssignmentError(error, parsed.data);
+  }
+  try {
+    await reconcileDriverCareerStats(driverId);
+  } catch (error: unknown) {
+    logger.error("Driver career-stat reconciliation after assignment failed", error, { driverId });
   }
 
   await revalidateMasterData();
@@ -1240,6 +1268,11 @@ export async function updateDriverAction(
     );
   } catch (error: unknown) {
     return driverAssignmentError(error, parsed.data);
+  }
+  try {
+    await reconcileDriverCareerStats(driverId.data);
+  } catch (error: unknown) {
+    logger.error("Driver career-stat reconciliation after assignment failed", error, { driverId: driverId.data });
   }
 
   await revalidateMasterData();
@@ -1714,7 +1747,7 @@ async function currentTeamSeason(
 ): Promise<{ id: number; name: string } | null> {
   return transaction.season.findFirst({
     where: { active: true, archivedAt: null },
-    orderBy: { startsOn: "desc" },
+    orderBy: [{ isCurrent: "desc" }, { startsOn: "desc" }],
     select: { id: true, name: true },
   });
 }

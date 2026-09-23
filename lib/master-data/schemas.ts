@@ -28,7 +28,6 @@ export const leagueUpdateSchema = z.object({
       (value) => (value === "" || value === null ? null : value),
       z.string().trim().max(5000).nullable(),
     ),
-  currentSeasonId: optionalId,
   active: checkbox,
   raceWeekday: z.coerce.number().int().min(1).max(7),
   raceStartTime: z
@@ -60,15 +59,19 @@ export const leagueUpdateSchema = z.object({
 
 export const seasonSchema = z
   .object({
-    leagueId: entityId,
     name,
     startsOn: z.iso.date(),
     endsOn: z.iso.date(),
     active: checkbox,
+    isCurrent: checkbox,
   })
   .refine((season) => season.endsOn >= season.startsOn, {
     message: "Das Saisonende darf nicht vor dem Start liegen.",
     path: ["endsOn"],
+  })
+  .refine((season) => !season.isCurrent || season.active, {
+    message: "Die globale aktuelle Saison muss aktiv sein.",
+    path: ["isCurrent"],
   });
 
 export const timezoneSchema = z

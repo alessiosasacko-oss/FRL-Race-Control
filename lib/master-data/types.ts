@@ -28,7 +28,6 @@ export type LeagueOption = {
 
 export type SeasonOption = {
   id: number;
-  leagueId: number;
   participatingLeagueIds: number[];
   name: string;
   active: boolean;
@@ -133,7 +132,6 @@ export type LeagueAdminItem = LeagueOption & {
   raceStartMinute: number;
   raceTimezone: string;
   displayOrder: number;
-  seasons: SeasonOption[];
   futureSchedules: Array<{
     id: number;
     raceId: number;
@@ -150,13 +148,12 @@ export type LeagueAdminItem = LeagueOption & {
 
 export type SeasonAdminItem = {
   id: number;
-  leagueId: number;
   name: string;
   startsOn: string;
   endsOn: string;
   active: boolean;
+  isCurrent: boolean;
   archived: boolean;
-  league: LeagueOption;
   participatingLeagues: LeagueOption[];
   counts: { races: number; teams: number };
 };
@@ -201,13 +198,12 @@ export type RaceItem = {
 
 export type DriverItem = {
   id: number;
+  imageUrl: string | null;
   name: string;
   number: number;
   flag: string;
   countryCode: string;
   active: boolean;
-  character: import("@/lib/characters/types").DriverCharacterView;
-  teamSuit: import("@/lib/characters/types").TeamSuitView;
   userId: number | null;
   league: LeagueOption;
   team: {
@@ -235,6 +231,7 @@ export type DriverItem = {
 };
 
 export type DriverDetail = DriverItem & {
+  careerStats: import("@/lib/drivers/career-stats").DriverCareerStatsView;
   standingCount: number;
   standing: {
     position: number;

@@ -7,7 +7,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
 import SectionHeader from "@/components/ui/SectionHeader";
 import CountryFlag from "@/components/ui/CountryFlag";
-import DriverCharacter from "@/components/characters/DriverCharacter";
+import DriverAvatar from "@/components/drivers/DriverAvatar";
 import TeamLogo from "@/components/teams/TeamLogo";
 import { ResultGraphicType, resultGraphicTypeLabels, resultSessionLabels, resultStatusLabels } from "@/domain";
 import { Permission } from "@/lib/auth/permissions";
@@ -223,8 +223,8 @@ function PodiumResult({
           size={22}
         />
       )}
-      <div className="mt-1 flex h-32 items-end justify-center overflow-hidden">
-        <DriverCharacter configuration={result.driver.character.configuration} teamSuit={result.representedTeam.teamSuit.configuration} pose={index === 0 ? result.driver.character.winnerPose : result.driver.character.normalPose} variant={index === 0 ? "winner" : "portrait"} driverNumber={result.driver.number} driverInitials={result.driver.name} teamLogoUrl={result.representedTeam.logoUrl} alt={`Fahrercharakter von ${result.driver.name}`} className="h-36 w-auto" showShadow={false} />
+      <div className="mt-3 flex h-32 items-center justify-center overflow-hidden">
+        <DriverAvatar imageUrl={result.driver.imageUrl} name={result.driver.name} size="lg" />
       </div>
       <p className="mt-4 flex items-center gap-2 text-lg font-bold text-white"><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />{result.driver.name}</p>
       <p className="mt-1 text-sm text-slate-400">
@@ -248,7 +248,7 @@ function ResultRow({ result }: { result: SessionResult }) {
           href={`/drivers/${result.driver.id}`}
           className="font-semibold text-white hover:text-blue-300"
         >
-          <span className="inline-flex items-center gap-2"><DriverCharacter configuration={result.driver.character.configuration} teamSuit={result.representedTeam.teamSuit.configuration} pose={result.driver.character.normalPose} variant="tableThumbnail" alt={`Fahrercharakter von ${result.driver.name}`} className="size-9" showShadow={false} /><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />#{result.driver.number} {result.driver.name}</span>
+          <span className="inline-flex items-center gap-2"><DriverAvatar imageUrl={result.driver.imageUrl} name={result.driver.name} size="sm" /><CountryFlag countryCode={null} fallbackFlag={result.driver.flag} size="sm" />#{result.driver.number} {result.driver.name}</span>
         </Link>
         {result.substitute ? (
           <p className="mt-1 text-xs text-amber-300">
@@ -286,7 +286,7 @@ function MobileResult({ result }: { result: SessionResult }) {
         <span className="font-mono text-2xl font-black text-white">
           {result.finalPosition ?? result.position ?? "–"}
         </span>
-        <DriverCharacter configuration={result.driver.character.configuration} teamSuit={result.representedTeam.teamSuit.configuration} pose={result.driver.character.normalPose} variant="tableThumbnail" alt={`Fahrercharakter von ${result.driver.name}`} className="size-11" showShadow={false} />
+        <DriverAvatar imageUrl={result.driver.imageUrl} name={result.driver.name} size="sm" />
         <div className="min-w-0">
           <Link
             href={`/drivers/${result.driver.id}`}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Flag, Search } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
-import DriverCharacter from "@/components/characters/DriverCharacter";
+import DriverAvatar from "@/components/drivers/DriverAvatar";
 import CountryFlag from "@/components/ui/CountryFlag";
 import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
@@ -51,7 +51,7 @@ export default async function TeamsPage({ searchParams }: TeamsPageProps) {
                       <div key={league.id} className="rounded-xl border border-slate-800 bg-slate-950/35 p-3">
                         <div className="flex items-center justify-between"><strong className="text-white">{league.code}</strong><span className="text-xs text-slate-400">{league.primaryDrivers.length}/2</span></div>
                         <div className="mt-3 space-y-2">
-                          {league.primaryDrivers.map((driver) => <DriverLine key={driver.id} driver={driver} teamLogoUrl={team.logoUrl} />)}
+                          {league.primaryDrivers.map((driver) => <DriverLine key={driver.id} driver={driver} />)}
                           {Array.from({ length: Math.max(0, 2 - league.primaryDrivers.length) }, (_, index) => <p key={index} className="text-xs italic text-slate-600">Freier Stammplatz</p>)}
                           {league.substitutes.length ? <p className="border-t border-slate-800 pt-2 text-[0.65rem] font-bold uppercase tracking-wider text-amber-300">{league.substitutes.length} Ersatzfahrer</p> : null}
                         </div>
@@ -71,6 +71,6 @@ export default async function TeamsPage({ searchParams }: TeamsPageProps) {
 
 type OverviewDriver = Awaited<ReturnType<typeof getGlobalTeamOverview>>["organizations"][number]["leagues"][number]["primaryDrivers"][number];
 
-function DriverLine({ driver, teamLogoUrl }: { driver: OverviewDriver; teamLogoUrl: string | null }) {
-  return <Link href={`/drivers/${driver.id}`} className="flex min-h-12 min-w-0 items-center gap-2 overflow-hidden rounded-lg bg-slate-900/70 px-2 text-xs text-slate-200"><DriverCharacter configuration={driver.character.configuration} teamSuit={driver.teamSuit.configuration} pose={driver.character.normalPose} variant="head" driverNumber={driver.number} driverInitials={driver.name} teamLogoUrl={teamLogoUrl} alt={`Fahrercharakter von ${driver.name}`} className="size-11 shrink-0" showShadow={false} /><span className="min-w-0 flex-1 truncate">#{driver.number} {driver.name}</span><CountryFlag countryCode={driver.countryCode} size="sm" className="shrink-0" /></Link>;
+function DriverLine({ driver }: { driver: OverviewDriver }) {
+  return <Link href={`/drivers/${driver.id}`} className="flex min-h-12 min-w-0 items-center gap-2 overflow-hidden rounded-lg bg-slate-900/70 px-2 text-xs text-slate-200"><DriverAvatar imageUrl={driver.imageUrl} name={driver.name} size="sm" /><span className="min-w-0 flex-1 truncate">#{driver.number} {driver.name}</span><CountryFlag countryCode={driver.countryCode} size="sm" className="shrink-0" /></Link>;
 }

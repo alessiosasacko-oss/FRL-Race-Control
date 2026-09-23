@@ -206,30 +206,6 @@ export default function LeagueForm({
           ) : null}
         </section>
       ) : null}
-      <label className="master-label">
-        Aktuelle Saison
-        <select
-          name="currentSeasonId"
-          defaultValue={league.currentSeasonId ?? ""}
-          className="form-control mt-2"
-        >
-          <option value="">Keine aktuelle Saison</option>
-          {league.seasons.map((season) => (
-            <option
-              key={season.id}
-              value={season.id}
-              disabled={!season.active || season.archived}
-            >
-              {season.name}
-              {season.archived
-                ? " (archiviert)"
-                : season.active
-                  ? ""
-                  : " (inaktiv)"}
-            </option>
-          ))}
-        </select>
-      </label>
       <label className="flex items-center gap-3 text-sm text-slate-300">
         <input
           type="checkbox"

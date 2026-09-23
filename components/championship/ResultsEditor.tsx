@@ -77,7 +77,7 @@ import {
 } from "@/lib/championship/types";
 import ActionMessage from "./ActionMessage";
 import ResultGraphicPreview from "./ResultGraphicPreview";
-import ResultsContextHeader, { ResultsSaveContext } from "./ResultsContextHeader";
+import ResultsContextHeader from "./ResultsContextHeader";
 
 type ResultsEditorProps = {
   data: ResultAdminData;
@@ -544,11 +544,10 @@ export default function ResultsEditor({
     (row) => !row.driverId && isPopulatedResultRow(row),
   );
   const normalizedGaps = useMemo(() => normalizeGaps(rows.map(
-    (row) => parseGapInput(row.gapInput) ?? {
-      milliseconds: null,
-      lapsBehind: 0,
-    },
-  ), gapMode), [gapMode, rows]);
+    (row, index) => session === ResultSession.Qualifying
+      ? { milliseconds: index, lapsBehind: 0 }
+      : parseGapInput(row.gapInput) ?? { milliseconds: null, lapsBehind: 0 },
+  ), session === ResultSession.Qualifying ? ResultGapMode.ToLeader : gapMode), [gapMode, rows, session]);
   const historicalPenalties = useMemo(() => new Map(
     (existingSession?.results ?? []).map((result) => {
       const applications = result.penaltyApplications.filter(
@@ -563,8 +562,10 @@ export default function ResultsEditor({
   const deferredRows = useDeferredValue(rows);
   const { calculationByKey, fastestDrivers, pointsByKey } = useMemo(() => {
     const deferredGaps = normalizeGaps(deferredRows.map(
-      (row) => parseGapInput(row.gapInput) ?? { milliseconds: null, lapsBehind: 0 },
-    ), gapMode);
+      (row, index) => session === ResultSession.Qualifying
+        ? { milliseconds: index, lapsBehind: 0 }
+        : parseGapInput(row.gapInput) ?? { milliseconds: null, lapsBehind: 0 },
+    ), session === ResultSession.Qualifying ? ResultGapMode.ToLeader : gapMode);
     const calculated = calculateFinalClassification(deferredRows.map((row, index) => {
       const imported = historicalPenalties.get(Number(row.driverId)) ?? noHistoricalPenalty;
       return {
@@ -759,7 +760,7 @@ export default function ResultsEditor({
           ? Number(row.startingPosition)
           : null,
         status: row.status,
-        gapInput: row.gapInput,
+        gapInput: session === ResultSession.Qualifying ? (index === 0 ? "Sieger" : `+0.${String(index).padStart(3, "0")}`) : row.gapInput,
         fastestLapInput: row.fastestLapInput,
         qualifyingTimeInput: row.qualifyingTimeInput,
         qualifyingLaps: Number(row.qualifyingLaps || 0),
@@ -775,7 +776,7 @@ export default function ResultsEditor({
         gapToPreviousSeconds: null,
         totalTimeSeconds: null,
         fastestLap: row.legacyFastestLap,
-        polePosition: row.polePosition,
+        polePosition: session === ResultSession.Qualifying ? index === 0 : row.polePosition,
         lapsCompleted: Number(row.lapsCompleted || 0),
         manualOverride: row.manualOverride,
         manualPenaltySeconds: Number(
@@ -860,16 +861,6 @@ export default function ResultsEditor({
               Entwurf speichern
             </button>
             <button
-              form="result-editor-form"
-              name="intent"
-              value="VALIDATE"
-              disabled={validationDisabled}
-              className="wizard-secondary-button min-h-11 justify-center"
-            >
-              <ShieldCheck size={17} />
-              Validieren
-            </button>
-            <button
               type="button"
               disabled={publishDisabled}
               onClick={() => setPublishConfirmationOpen(true)}
@@ -918,7 +909,7 @@ export default function ResultsEditor({
         </section>
       ) : null}
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+      {session !== ResultSession.Qualifying ? <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-white">
             Abstandsmodus
@@ -946,7 +937,7 @@ export default function ResultsEditor({
             </button>
           ))}
         </div>
-      </div>
+      </div> : null}
 
       {hasDuplicateDriver ||
       hasIncompleteDriverRow ||
@@ -966,12 +957,10 @@ export default function ResultsEditor({
         </div>
       ) : null}
 
-      <ResultGraphicPreview
-        raceId={data.selected.race.id}
-        leagueId={data.selected.race.season.league.id}
-        resultSessionId={existingSession?.id ?? null}
-        session={session}
-      />
+      <details className="rounded-2xl border border-slate-800 bg-slate-950/35">
+        <summary className="flex min-h-12 cursor-pointer items-center px-4 py-3 text-sm font-semibold text-slate-300">Zusatzdaten · Ergebnisgrafik</summary>
+        <div className="border-t border-slate-800 p-4"><ResultGraphicPreview raceId={data.selected.race.id} leagueId={data.selected.race.season.league.id} resultSessionId={existingSession?.id ?? null} session={session} /></div>
+      </details>
 
       <form
         id="result-editor-form"
@@ -998,7 +987,7 @@ export default function ResultsEditor({
           className="hidden max-h-[68vh] overflow-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-[var(--shadow-card)] lg:block"
           onKeyDown={handleTableKeyDown}
         >
-          <table className="min-w-[1520px] w-full border-collapse text-sm">
+          <table className="min-w-[980px] w-full border-collapse text-sm">
             <thead className="sticky top-0 z-20 bg-[var(--color-background-elevated)] text-left text-[0.68rem] uppercase tracking-[0.13em] text-[var(--color-text-muted)] shadow-lg">
               <tr>
                 <th className="sticky left-0 z-30 w-20 bg-[var(--color-background-elevated)] px-3 py-3">
@@ -1007,37 +996,14 @@ export default function ResultsEditor({
                 <th className="sticky left-20 z-30 min-w-64 bg-[var(--color-background-elevated)] px-3 py-3">
                   Fahrer
                 </th>
-                <th className="px-3 py-3">Nr.</th>
-                <th className="px-3 py-3">Flagge</th>
                 <th className="min-w-40 px-3 py-3">Team</th>
-                {session === ResultSession.Qualifying ? (
-                  qualifyingFormat === QualifyingFormat.Full ? (
-                    <>
-                      <th className="min-w-32 px-3 py-3">Q1-Zeit</th>
-                      <th className="min-w-20 px-3 py-3">Q1-Rd.</th>
-                      <th className="min-w-32 px-3 py-3">Q2-Zeit</th>
-                      <th className="min-w-20 px-3 py-3">Q2-Rd.</th>
-                      <th className="min-w-32 px-3 py-3">Q3-Zeit</th>
-                      <th className="min-w-20 px-3 py-3">Q3-Rd.</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="min-w-36 px-3 py-3">Beste Zeit</th>
-                      <th className="min-w-24 px-3 py-3">Runden</th>
-                    </>
-                  )
-                ) : (
-                  <th className="min-w-24 px-3 py-3">Start</th>
-                )}
-                {session === ResultSession.Qualifying ? <th className="min-w-28 px-3 py-3">Reifen</th> : null}
                 <th className="min-w-36 px-3 py-3">Status</th>
-                <th className="min-w-36 px-3 py-3">Abstand</th>
-                {session !== ResultSession.Qualifying ? <th className="min-w-36 px-3 py-3">Schnellste Runde</th> : null}
-                <th className="min-w-64 px-3 py-3">Strafen</th>
-                <th className="min-w-28 px-3 py-3">Endposition</th>
+                <th className="min-w-36 px-3 py-3">{session === ResultSession.Qualifying ? "Rundenzeit" : "Zeit / Gap"}</th>
+                {session !== ResultSession.Qualifying ? <th className="min-w-36 px-3 py-3">Fastest Lap</th> : null}
                 <th className="min-w-24 px-3 py-3 text-right">
                   Punkte
                 </th>
+                <th className="min-w-56 px-3 py-3">Zusatzdaten</th>
                 <th className="w-32 px-3 py-3">
                   Sortieren / Entfernen
                 </th>
@@ -1151,13 +1117,15 @@ export default function ResultsEditor({
           </label>
         ) : null}
 
-        <ResultsSaveContext race={data.selected.race} session={session}>
-          <button name="intent" value="DRAFT" disabled={draftDisabled} className="wizard-secondary-button min-h-11 justify-center"><Save size={17} /> Entwurf speichern</button>
-          <button name="intent" value="VALIDATE" disabled={validationDisabled} className="wizard-secondary-button min-h-11 justify-center"><ShieldCheck size={17} /> Validieren</button>
-          <button type="button" disabled={publishDisabled} onClick={() => setPublishConfirmationOpen(true)} className="wizard-primary-button min-h-11 justify-center">{publishLabel}</button>
-        </ResultsSaveContext>
+        <details className="rounded-2xl border border-slate-800 bg-slate-950/35">
+          <summary className="flex min-h-12 cursor-pointer items-center px-4 py-3 text-sm font-semibold text-slate-300">Erweitert · Eingaben prüfen</summary>
+          <div className="flex flex-col gap-3 border-t border-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-400">Prüft die Eingaben ohne sie zu speichern oder zu veröffentlichen.</p>
+            <button name="intent" value="VALIDATE" disabled={validationDisabled} className="wizard-secondary-button min-h-11 justify-center"><ShieldCheck size={17} /> Eingaben prüfen</button>
+          </div>
+        </details>
         <ActionMessage state={contextualState} />
-        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-3 gap-2 rounded-2xl border border-[color-mix(in_srgb,var(--page-accent)_25%,transparent)] bg-[color-mix(in_srgb,var(--color-background-elevated)_95%,transparent)] p-3 shadow-[var(--shadow-card)] backdrop-blur lg:hidden">
+        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-2 gap-2 rounded-2xl border border-[color-mix(in_srgb,var(--page-accent)_25%,transparent)] bg-[color-mix(in_srgb,var(--color-background-elevated)_95%,transparent)] p-3 shadow-[var(--shadow-card)] backdrop-blur lg:hidden">
           <button
             name="intent"
             value="DRAFT"
@@ -1165,14 +1133,6 @@ export default function ResultsEditor({
             className="wizard-secondary-button min-h-12 justify-center px-2 text-xs"
           >
             Speichern
-          </button>
-          <button
-            name="intent"
-            value="VALIDATE"
-            disabled={validationDisabled}
-            className="wizard-secondary-button min-h-12 justify-center px-2 text-xs"
-          >
-            Validieren
           </button>
           <button
             type="button"
@@ -1295,16 +1255,10 @@ export default function ResultsEditor({
       ) : null}
 
       {existingSession ? (
-        <DeleteResultForm
-          raceId={data.selected.race.id}
-          leagueId={data.selected.race.season.league.id}
-          session={session}
-          locked={
-            published ||
-            Boolean(existingSession.lockedAt) ||
-            data.selected.race.status === "COMPLETED"
-          }
-        />
+        <details className="rounded-2xl border border-red-500/20 bg-red-500/5">
+          <summary className="flex min-h-12 cursor-pointer items-center px-4 py-3 text-sm font-semibold text-red-200">Gefahrenbereich · Ergebnis löschen</summary>
+          <div className="p-4 pt-0"><DeleteResultForm raceId={data.selected.race.id} leagueId={data.selected.race.season.league.id} session={session} locked={published || Boolean(existingSession.lockedAt) || data.selected.race.status === "COMPLETED"} /></div>
+        </details>
       ) : null}
     </div>
   );
@@ -1517,76 +1471,6 @@ function PenaltyEditor({
   );
 }
 
-function QualifyingDesktopCells({
-  row,
-  format,
-  onUpdate,
-}: {
-  row: RowState;
-  format: QualifyingFormat | null;
-  onUpdate: (patch: Partial<RowState>) => void;
-}) {
-  const timingCell = (label: string, value: string, field: keyof RowState) => (
-    <td className="px-3 py-3">
-      {label === "Q1-Zeit" ? (
-        <span className={`mb-1 block text-[10px] font-black uppercase tracking-wider ${row.q3TimeInput ? "text-emerald-300" : row.q2TimeInput ? "text-amber-300" : "text-orange-300"}`}>
-          {row.q3TimeInput ? "Q3" : row.q2TimeInput ? "Q2 ausgeschieden" : "Q1 ausgeschieden"}
-        </span>
-      ) : null}
-      <input
-        data-result-cell
-        aria-label={label}
-        value={value}
-        onChange={(event) => onUpdate({ [field]: event.target.value })}
-        placeholder="1:21.456"
-        className="form-control min-w-28"
-      />
-    </td>
-  );
-  const lapsCell = (label: string, value: string, field: keyof RowState) => (
-    <td className="px-3 py-3">
-      <input
-        data-result-cell
-        type="number"
-        min="0"
-        aria-label={label}
-        value={value}
-        onChange={(event) => onUpdate({ [field]: event.target.value })}
-        className="form-control min-w-16"
-      />
-    </td>
-  );
-  return (
-    <>
-      {format === QualifyingFormat.Full ? (
-        <>
-          {timingCell("Q1-Zeit", row.q1TimeInput, "q1TimeInput")}
-          {lapsCell("Q1-Runden", row.q1Laps, "q1Laps")}
-          {timingCell("Q2-Zeit", row.q2TimeInput, "q2TimeInput")}
-          {lapsCell("Q2-Runden", row.q2Laps, "q2Laps")}
-          {timingCell("Q3-Zeit", row.q3TimeInput, "q3TimeInput")}
-          {lapsCell("Q3-Runden", row.q3Laps, "q3Laps")}
-        </>
-      ) : (
-        <>
-          {timingCell("Beste Qualifying-Zeit", row.qualifyingTimeInput, "qualifyingTimeInput")}
-          {lapsCell("Qualifying-Runden", row.qualifyingLaps, "qualifyingLaps")}
-        </>
-      )}
-      <td className="px-3 py-3">
-        <input
-          data-result-cell
-          value={row.tireCompound}
-          onChange={(event) => onUpdate({ tireCompound: event.target.value })}
-          placeholder="Optional"
-          aria-label="Reifenmischung"
-          className="form-control min-w-24"
-        />
-      </td>
-    </>
-  );
-}
-
 function DesktopRowComponent({
   row,
   index,
@@ -1644,6 +1528,7 @@ function DesktopRowComponent({
             {index + 1}
           </span>
         </div>
+        {calculation?.finalPosition && calculation.finalPosition !== index + 1 ? <span className="mt-1 block text-[10px] text-amber-300">Final P{calculation.finalPosition}</span> : null}
       </td>
       <td className="sticky left-20 z-10 bg-slate-950 px-3 py-3">
         <DriverPicker
@@ -1659,45 +1544,7 @@ function DesktopRowComponent({
           </span>
         ) : null}
       </td>
-      <td className="px-3 py-4 font-mono text-slate-300">
-        {driver ? `#${driver.number}` : "–"}
-      </td>
-      <td className="px-3 py-4 text-lg"><CountryFlag countryCode={null} fallbackFlag={driver?.flag} size="sm" /></td>
-      <td className="px-3 py-3">
-        <select
-          data-result-cell
-          value={row.representedTeamId}
-          onChange={(event) =>
-            update({ representedTeamId: event.target.value })
-          }
-          className="form-control min-w-36"
-        >
-          <option value="">Team</option>
-          {data.teams.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.shortName}
-            </option>
-          ))}
-        </select>
-        {team ? (
-          <span className="mt-1 flex min-w-0 items-center gap-2 truncate text-xs text-slate-500"><TeamLogo logoUrl={team.logoUrl} teamName={team.name} shortName={team.shortName} primaryColor={team.color} size="xs" /><span className="truncate">{team.name}</span></span>
-        ) : null}
-      </td>
-      {session === ResultSession.Qualifying ? (
-        <QualifyingDesktopCells row={row} format={qualifyingFormat} onUpdate={update} />
-      ) : <td className="px-3 py-3">
-        <input
-          data-result-cell
-          type="number"
-          min="1"
-          value={row.startingPosition}
-          onChange={(event) =>
-            update({ startingPosition: event.target.value })
-          }
-          aria-label={`Startposition für Position ${index + 1}`}
-          className="form-control min-w-20"
-        />
-      </td>}
+      <td className="px-3 py-3"><span className="flex min-w-0 items-center gap-2 text-slate-300">{team ? <TeamLogo logoUrl={team.logoUrl} teamName={team.name} shortName={team.shortName} primaryColor={team.color} size="xs" /> : null}<span className="truncate">{team?.shortName ?? "Automatisch"}</span></span></td>
       <td className="px-3 py-3">
         <select
           data-result-cell
@@ -1721,11 +1568,11 @@ function DesktopRowComponent({
       <td className="px-3 py-3">
         <input
           data-result-cell
-          value={row.gapInput}
+          value={session === ResultSession.Qualifying ? row.qualifyingTimeInput : row.gapInput}
           onChange={(event) =>
-            update({ gapInput: event.target.value })
+            update(session === ResultSession.Qualifying ? { qualifyingTimeInput: event.target.value } : { gapInput: event.target.value })
           }
-          placeholder={index === 0 ? "Sieger" : "+4.321"}
+          placeholder={session === ResultSession.Qualifying ? "1:21.456" : index === 0 ? "Sieger" : "+4.321"}
           className="form-control"
         />
       </td>
@@ -1747,28 +1594,23 @@ function DesktopRowComponent({
           </span>
         ) : null}
       </td> : null}
-      <td className="px-3 py-3">
-        <PenaltyEditor
-          row={row}
-          imported={imported}
-          onUpdate={update}
-        />
-      </td>
-      <td className="px-3 py-4">
-        <p className="font-mono font-bold text-white">
-          {calculation?.finalPosition
-            ? `P${calculation.finalPosition}`
-            : calculation?.effectiveStatus ?? "–"}
-        </p>
-        <p className="mt-1 text-xs text-slate-500">
-          {calculation?.adjustedTimeMs !== null &&
-          calculation?.adjustedTimeMs !== undefined
-            ? `+${formatTiming(calculation.adjustedTimeMs)}`
-            : ""}
-        </p>
-      </td>
       <td className="px-3 py-4 text-right font-mono font-bold text-white">
         {points}
+      </td>
+      <td className="px-3 py-3">
+        <details className="min-w-52 rounded-lg border border-slate-800 bg-slate-950/50">
+          <summary className="flex min-h-11 cursor-pointer items-center px-3 text-xs font-semibold text-slate-300">Team, Strafen & Details</summary>
+          <div className="space-y-3 border-t border-slate-800 p-3">
+            <label className="master-label">Team überschreiben<select value={row.representedTeamId} onChange={(event) => update({ representedTeamId: event.target.value })} className="form-control mt-1 min-h-11"><option value="">Team wählen</option>{data.teams.map((item) => <option key={item.id} value={item.id}>{item.shortName} · {item.name}</option>)}</select></label>
+            {session === ResultSession.Qualifying ? <>
+              {qualifyingFormat === QualifyingFormat.Full ? <div className="grid gap-2"><AdvancedTiming label="Q1-Zeit" value={row.q1TimeInput} onChange={(value) => update({ q1TimeInput: value })} /><AdvancedTiming label="Q2-Zeit" value={row.q2TimeInput} onChange={(value) => update({ q2TimeInput: value })} /><AdvancedTiming label="Q3-Zeit" value={row.q3TimeInput} onChange={(value) => update({ q3TimeInput: value })} /></div> : null}
+              <label className="master-label">Runden<input type="number" min="0" value={row.qualifyingLaps} onChange={(event) => update({ qualifyingLaps: event.target.value })} className="form-control mt-1 min-h-11" /></label>
+              <label className="master-label">Reifen<input value={row.tireCompound} onChange={(event) => update({ tireCompound: event.target.value })} className="form-control mt-1 min-h-11" /></label>
+            </> : <div className="grid grid-cols-2 gap-2"><label className="master-label">Start<input type="number" min="1" value={row.startingPosition} onChange={(event) => update({ startingPosition: event.target.value })} className="form-control mt-1 min-h-11" /></label><label className="master-label">Runden<input type="number" min="0" value={row.lapsCompleted} onChange={(event) => update({ lapsCompleted: event.target.value })} className="form-control mt-1 min-h-11" /></label></div>}
+            <PenaltyEditor row={row} imported={imported} onUpdate={update} />
+            <label className="master-label">Notiz<textarea value={row.notes} onChange={(event) => update({ notes: event.target.value })} rows={2} className="form-control mt-1" /></label>
+          </div>
+        </details>
       </td>
       <td className="px-3 py-3">
         <div className="flex gap-1">
@@ -1777,7 +1619,7 @@ function DesktopRowComponent({
             onClick={() => onMove(row.key, -1)}
             disabled={index === 0}
             aria-label="Fahrer nach oben"
-            className="min-h-10 min-w-10 rounded-lg border border-slate-700 p-2 disabled:opacity-30"
+            className="min-h-11 min-w-11 rounded-lg border border-slate-700 p-2 disabled:opacity-30"
           >
             <ArrowUp size={16} />
           </button>
@@ -1786,7 +1628,7 @@ function DesktopRowComponent({
             onClick={() => onMove(row.key, 1)}
             disabled={index === rowCount - 1}
             aria-label="Fahrer nach unten"
-            className="min-h-10 min-w-10 rounded-lg border border-slate-700 p-2 disabled:opacity-30"
+            className="min-h-11 min-w-11 rounded-lg border border-slate-700 p-2 disabled:opacity-30"
           >
             <ArrowDown size={16} />
           </button>
@@ -1795,7 +1637,7 @@ function DesktopRowComponent({
             onClick={() => onRemove(row.key)}
             disabled={rowCount === 1}
             aria-label="Fahrer entfernen"
-            className="min-h-10 min-w-10 rounded-lg border border-red-500/30 p-2 text-red-300 disabled:opacity-30"
+            className="min-h-11 min-w-11 rounded-lg border border-red-500/30 p-2 text-red-300 disabled:opacity-30"
           >
             <Trash2 size={16} />
           </button>
@@ -1803,6 +1645,10 @@ function DesktopRowComponent({
       </td>
     </tr>
   );
+}
+
+function AdvancedTiming({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return <label className="master-label">{label}<input value={value} onChange={(event) => onChange(event.target.value)} placeholder="1:21.456" className="form-control mt-1 min-h-11" /></label>;
 }
 
 const DesktopRow = memo(DesktopRowComponent);
@@ -1845,7 +1691,6 @@ function QualifyingMobileFields({
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {field("Beste Zeit", row.qualifyingTimeInput, "qualifyingTimeInput")}
           {field("Runden", row.qualifyingLaps, "qualifyingLaps", "number")}
         </div>
       )}
@@ -1959,13 +1804,13 @@ function MobileRowComponent(props: SharedRowProps) {
             </select>
           </label>
           <label className="master-label">
-            Abstand
+            {session === ResultSession.Qualifying ? "Rundenzeit" : "Zeit / Gap"}
             <input
-              value={row.gapInput}
+              value={session === ResultSession.Qualifying ? row.qualifyingTimeInput : row.gapInput}
               onChange={(event) =>
-                update({ gapInput: event.target.value })
+                update(session === ResultSession.Qualifying ? { qualifyingTimeInput: event.target.value } : { gapInput: event.target.value })
               }
-              placeholder={index === 0 ? "Sieger" : "+4.321"}
+              placeholder={session === ResultSession.Qualifying ? "1:21.456" : index === 0 ? "Sieger" : "+4.321"}
               className="form-control mt-1 min-h-11"
             />
           </label>
@@ -1984,30 +1829,6 @@ function MobileRowComponent(props: SharedRowProps) {
             </p>
           </div>
           <div>
-            <p className="text-xs text-slate-500">
-              Effektive Strafe
-            </p>
-            <p className="mt-1 text-white">
-              {calculation?.effectiveStatus === ResultStatus.Dsq
-                ? "DSQ"
-                : `+${formatTiming(
-                    calculation?.effectivePenaltyMs ?? 0,
-                  )}`}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">
-              Historische Strafe
-            </p>
-            <p className="mt-1 text-blue-200">
-              {imported.disqualified
-                ? "DSQ"
-                : `+${formatTiming(
-                    imported.penaltyMilliseconds,
-                  )}`}
-            </p>
-          </div>
-          <div>
             <p className="text-xs text-slate-500">Punkte</p>
             <p className="mt-1 text-right font-mono font-bold text-white">
               {points}
@@ -2017,7 +1838,7 @@ function MobileRowComponent(props: SharedRowProps) {
       </div>
       <details className="border-t border-slate-800">
         <summary className="min-h-12 cursor-pointer px-4 py-3 text-sm font-semibold text-slate-300">
-          Weitere Angaben
+          Zusatzdaten & Strafen
         </summary>
         <div className="space-y-4 p-4 pt-1">
           <label className="master-label">

@@ -49,7 +49,7 @@ async function organizationIdFrom(context: RouteParams): Promise<number | null> 
 async function refreshTeamLogoViews(): Promise<void> {
   for (const path of [
     "/admin/teams", "/teams", "/drivers", "/championship", "/admin/results",
-    "/dashboard", "/profile/character", "/admin/design/driver-suits",
+    "/dashboard",
   ]) revalidatePath(path);
   revalidatePath("/teams/[id]", "page");
   revalidatePath("/drivers/[id]", "page");

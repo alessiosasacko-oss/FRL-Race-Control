@@ -73,7 +73,7 @@ export default async function AdjustmentsPage({
             >
               {data.seasons.map((season) => (
                 <option key={season.id} value={season.id}>
-                  {season.league.code} · {season.name}
+                  {season.name}
                 </option>
               ))}
             </select>

@@ -16,7 +16,7 @@ import { listQuerySchema } from "./schemas";
 import { formatLocalDateTimeInput } from "./timezone";
 import { publicRacePresentation, resolveRaceHero } from "@/lib/races/visibility";
 import { getTeamDependencySnapshot } from "./team-dependencies";
-import { characterView, suitView } from "@/lib/characters/resolve";
+import { careerStatsView } from "@/lib/drivers/career-stats";
 import type {
   DriverDetail,
   DriverFormOptions,
@@ -55,7 +55,6 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
       orderBy: [{ startsOn: "desc" }, { name: "asc" }],
       select: {
         id: true,
-        leagueId: true,
         name: true,
         active: true,
         archivedAt: true,
@@ -124,7 +123,6 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
     organizations,
     seasons: seasons.map((season) => ({
       id: season.id,
-      leagueId: season.leagueId,
       participatingLeagueIds: season.participatingLeagues.map(
         (league) => league.id,
       ),
@@ -151,7 +149,6 @@ export async function getDriverFormOptions(): Promise<DriverFormOptions> {
       orderBy: [{ startsOn: "desc" }, { name: "asc" }],
       select: {
         id: true,
-        leagueId: true,
         name: true,
         active: true,
         archivedAt: true,
@@ -187,7 +184,6 @@ export async function getDriverFormOptions(): Promise<DriverFormOptions> {
     leagues,
     seasons: seasons.map((season) => ({
       id: season.id,
-      leagueId: season.leagueId,
       participatingLeagueIds: season.participatingLeagues.map(
         (league) => league.id,
       ),
@@ -218,7 +214,6 @@ export async function getMasterDataFilterOptions(): Promise<MasterDataFilterOpti
       orderBy: [{ startsOn: "desc" }, { name: "asc" }],
       select: {
         id: true,
-        leagueId: true,
         name: true,
         active: true,
         archivedAt: true,
@@ -231,7 +226,6 @@ export async function getMasterDataFilterOptions(): Promise<MasterDataFilterOpti
     leagues,
     seasons: seasons.map((season) => ({
       id: season.id,
-      leagueId: season.leagueId,
       participatingLeagueIds: season.participatingLeagues.map(
         (league) => league.id,
       ),
@@ -247,17 +241,6 @@ export async function getLeagueAdminItems(): Promise<LeagueAdminItem[]> {
   const leagues = await prisma.league.findMany({
     orderBy: [{ displayOrder: "asc" }, { code: "asc" }],
     include: {
-      seasons: {
-        orderBy: { startsOn: "desc" },
-        select: {
-          id: true,
-          leagueId: true,
-          name: true,
-          active: true,
-          archivedAt: true,
-          participatingLeagues: { select: { id: true } },
-        },
-      },
       _count: {
         select: { drivers: true, teams: true },
       },
@@ -301,16 +284,6 @@ export async function getLeagueAdminItems(): Promise<LeagueAdminItem[]> {
         .slice(0, 10),
       scheduledAt: schedule.scheduledAt.toISOString(),
     })),
-    seasons: league.seasons.map((season) => ({
-      id: season.id,
-      leagueId: season.leagueId,
-      participatingLeagueIds: season.participatingLeagues.map(
-        (league) => league.id,
-      ),
-      name: season.name,
-      active: season.active,
-      archived: season.archivedAt !== null,
-    })),
     counts: {
       drivers: league._count.drivers,
       teams: league._count.teams,
@@ -323,7 +296,6 @@ export async function getSeasonAdminItems(): Promise<SeasonAdminItem[]> {
   const seasons = await prisma.season.findMany({
     orderBy: [{ startsOn: "desc" }, { name: "asc" }],
     include: {
-      league: { select: { id: true, code: true, name: true } },
       participatingLeagues: {
         select: { id: true, code: true, name: true },
         orderBy: { code: "asc" },
@@ -334,13 +306,12 @@ export async function getSeasonAdminItems(): Promise<SeasonAdminItem[]> {
 
   return seasons.map((season) => ({
     id: season.id,
-    leagueId: season.leagueId,
     name: season.name,
     startsOn: season.startsOn.toISOString().slice(0, 10),
     endsOn: season.endsOn.toISOString().slice(0, 10),
     active: season.active,
+    isCurrent: season.isCurrent,
     archived: season.archivedAt !== null,
-    league: season.league,
     participatingLeagues: season.participatingLeagues,
     counts: {
       races: season._count.races,
@@ -555,6 +526,7 @@ export async function getDriverById(
         select: { position: true, points: true, wins: true, podiums: true, polePositions: true, fastestLaps: true },
       },
       _count: { select: { standings: true } },
+      careerStats: true,
     },
   });
 
@@ -564,6 +536,7 @@ export async function getDriverById(
     ...mapDriverItem(driver),
     standingCount: driver._count.standings,
     standing: driver.standings[0] ?? null,
+    careerStats: careerStatsView(driver.careerStats),
   };
 }
 
@@ -586,11 +559,6 @@ const driverItemInclude = {
           contrastColor: true,
           logoUrl: true,
           active: true,
-          suitTemplates: {
-            where: { active: true, archivedAt: null },
-            orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
-            select: { id: true, organizationId: true, name: true, configuration: true },
-          },
         },
       },
       season: {
@@ -632,11 +600,6 @@ const driverItemInclude = {
           contrastColor: true,
           logoUrl: true,
           active: true,
-          suitTemplates: {
-            where: { active: true, archivedAt: null },
-            orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
-            select: { id: true, organizationId: true, name: true, configuration: true },
-          },
         },
       },
     },
@@ -646,7 +609,6 @@ const driverItemInclude = {
       id: true,
       displayName: true,
       discordId: true,
-      driverCharacter: { select: { id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true } },
     },
   },
 } satisfies Prisma.DriverInclude;
@@ -676,7 +638,6 @@ function mapDriverItem(driver: DriverItemRecord): DriverItem {
     ? {
         season: {
           id: canonicalAssignment.season.id,
-          leagueId: canonicalAssignment.season.leagueId,
           participatingLeagueIds:
             canonicalAssignment.season.participatingLeagues.map(
               (league) => league.id,
@@ -696,7 +657,6 @@ function mapDriverItem(driver: DriverItemRecord): DriverItem {
           ...fallbackAssignment,
           season: {
             id: fallbackAssignment.season.id,
-            leagueId: fallbackAssignment.season.leagueId,
             participatingLeagueIds:
               fallbackAssignment.season.participatingLeagues.map(
                 (league) => league.id,
@@ -735,17 +695,14 @@ function mapDriverItem(driver: DriverItemRecord): DriverItem {
   }
 
   const visibleOrganization = assignment?.organization ?? null;
-  const character = characterView(driver.user?.driverCharacter);
-  const selectedSuit = visibleOrganization?.suitTemplates.find((template) => template.id === character.suitVariantId) ?? null;
   return {
     id: driver.id,
+    imageUrl: driver.imageUrl,
     name: driver.name,
     number: driver.number,
     flag: driver.flag,
     countryCode: driver.countryCode,
     active: driver.active,
-    character,
-    teamSuit: suitView(selectedSuit, visibleOrganization),
     userId: driver.userId,
     league: assignment?.league ?? driver.league,
     team: visibleOrganization
@@ -775,7 +732,7 @@ export async function getTeamOrganizationItems(
   const [currentSeason, leagues] = await Promise.all([
     prisma.season.findFirst({
       where: { active: true, archivedAt: null },
-      orderBy: { startsOn: "desc" },
+      orderBy: [{ isCurrent: "desc" }, { startsOn: "desc" }],
       select: { id: true, name: true },
     }),
     prisma.league.findMany({

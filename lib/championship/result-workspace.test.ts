@@ -184,11 +184,27 @@ test("result context uses the shared country flag and protects mystery metadata"
   assert.match(contextSource, /Geschütztes Mystery Race/);
 });
 
-test("save area repeats the complete result context", () => {
-  assert.match(contextSource, /Du speicherst/);
-  assert.match(editorSource, /ResultsSaveContext/);
+test("the simplified editor keeps a single responsive save action set", () => {
+  assert.doesNotMatch(editorSource, /ResultsSaveContext/);
+  assert.match(editorSource, /Entwurf speichern/);
+  assert.match(editorSource, /Veröffentlichen/);
   assert.match(editorSource, /erfolgreich gespeichert/);
   assert.match(editorSource, /erfolgreich veröffentlicht/);
+});
+
+test("session-specific primary fields keep race data out of qualifying", () => {
+  assert.match(editorSource, /session === ResultSession\.Qualifying/);
+  assert.match(editorSource, /qualifyingTimeInput/);
+  assert.match(editorSource, /session !== ResultSession\.Qualifying/);
+  assert.match(editorSource, /fastestLapInput/);
+  assert.match(editorSource, /Zusatzdaten/);
+});
+
+test("result entry uses mobile cards below lg and a compact desktop table", () => {
+  assert.match(editorSource, /lg:hidden/);
+  assert.match(editorSource, /className="hidden[^"]*lg:block"/);
+  assert.match(editorSource, /min-w-\[980px\]/);
+  assert.doesNotMatch(editorSource, /min-w-\[1[5-9]\d{2}px\]/);
 });
 
 test("admin selectors expose professional league, race and session labels", () => {

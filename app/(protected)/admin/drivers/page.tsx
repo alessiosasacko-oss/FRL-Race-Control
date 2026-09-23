@@ -3,6 +3,7 @@ import { Pencil, Power, Trash2 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import LiveMutationSignal from "@/components/live/LiveMutationSignal";
 import DriverForm from "@/components/master-data/DriverForm";
+import DriverAvatar from "@/components/drivers/DriverAvatar";
 import CountryFlag from "@/components/ui/CountryFlag";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -55,7 +56,9 @@ export default async function DriverAdminPage({ searchParams }: DriverAdminPageP
             <details key={driver.id} className="master-card">
               <summary className="cursor-pointer list-none">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <DriverAvatar imageUrl={driver.imageUrl} name={driver.name} size="md" />
+                    <div className="min-w-0">
                     <h2 className="font-semibold text-white">
                       <span className="inline-flex items-center gap-2"><CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="sm" />#{driver.number} {driver.name}</span>
                     </h2>
@@ -63,6 +66,7 @@ export default async function DriverAdminPage({ searchParams }: DriverAdminPageP
                       {driver.league.code} · {driver.team?.name ?? "Ohne Team"}
                       {driver.assignment ? ` · ${driver.assignment.season.name} · ${driver.assignment.lineupStatus === "PRIMARY" ? "Stammfahrer" : "Ersatzfahrer"}` : ""}
                     </p>
+                    </div>
                   </div>
                   <span className={driver.active ? "text-green-300" : "text-slate-500"}>
                     {driver.active ? "Aktiv" : "Inaktiv"}

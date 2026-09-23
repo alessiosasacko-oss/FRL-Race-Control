@@ -414,6 +414,7 @@ model User {
   attendanceAuditEntries   AttendanceAudit[]          @relation("AttendanceAuditActor")
   championshipAdjustments  ChampionshipAdjustment[]
   championshipAudits       ChampionshipAudit[]
+  careerStatsChanges       DriverCareerStatsAudit[] @relation("CareerStatsAuditActor")
   publishedResultSessions  RaceResultSession[]        @relation("ResultPublisher")
   resultPenaltyChanges     ResultPenaltyApplication[] @relation("ResultPenaltyActor")
   notifications            Notification[]
@@ -553,6 +554,7 @@ model Driver {
   number                   Int
   flag                     String                   @db.VarChar(16)
   countryCode              String                   @db.Char(2)
+  imageUrl                 String?                  @db.Text
   active                   Boolean                  @default(true)
   user                     User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
   team                     Team?                    @relation(fields: [teamId], references: [id], onDelete: SetNull)
@@ -569,6 +571,8 @@ model Driver {
   fiaDecisions             Decision[]
   seasonAssignments        DriverSeasonAssignment[]
   financeTransactions      TeamFinanceTransaction[]
+  careerStats              DriverCareerStats?
+  careerStatsAudits        DriverCareerStatsAudit[]
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime                 @updatedAt
 
@@ -725,9 +729,11 @@ model Season {
   id                       Int                       @id @default(autoincrement())
   leagueId                 Int
   name                     String                    @db.VarChar(160)
+  globalKey                String                    @unique @db.VarChar(190)
   startsOn                 DateTime                  @db.Date
   endsOn                   DateTime                  @db.Date
   active                   Boolean                   @default(true)
+  isCurrent                Boolean                   @default(false)
   archivedAt               DateTime?
   league                   League                    @relation("LeagueSeasons", fields: [leagueId], references: [id], onDelete: Restrict)
   participatingLeagues     League[]                  @relation("SeasonParticipation")
@@ -753,6 +759,7 @@ model Season {
   @@index([leagueId, active])
   @@index([leagueId, archivedAt])
   @@index([startsOn, endsOn])
+  @@index([isCurrent, active, archivedAt])
 }
 
 model Race {
@@ -1081,6 +1088,48 @@ model DriverCharacter {
   updatedAt     DateTime          @updatedAt
 
   @@index([suitVariantId])
+}
+
+model DriverCareerStats {
+  id                           Int      @id @default(autoincrement())
+  driverId                     Int      @unique
+  autoRaceStarts               Int      @default(0)
+  autoWins                     Int      @default(0)
+  autoPodiums                  Int      @default(0)
+  autoPoles                    Int      @default(0)
+  autoFastestLaps              Int      @default(0)
+  autoPoints                   Float    @default(0)
+  manualRaceStartsAdjustment   Int      @default(0)
+  manualWinsAdjustment         Int      @default(0)
+  manualPodiumsAdjustment      Int      @default(0)
+  manualPolesAdjustment        Int      @default(0)
+  manualFastestLapsAdjustment  Int      @default(0)
+  manualPointsAdjustment       Float    @default(0)
+  autoFirstGrandPrix           String?  @db.VarChar(240)
+  manualFirstGrandPrix         String?  @db.VarChar(240)
+  autoPastTeams                Json     @default("[]")
+  manualPastTeams              Json     @default("[]")
+  reconciledAt                 DateTime?
+  driver                       Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+
+  @@index([reconciledAt])
+}
+
+model DriverCareerStatsAudit {
+  id            Int      @id @default(autoincrement())
+  driverId      Int
+  actorId       Int
+  action        String   @db.VarChar(48)
+  previousState Json
+  newState      Json
+  driver        Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  actor         User     @relation("CareerStatsAuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+  createdAt     DateTime @default(now())
+
+  @@index([driverId, createdAt])
+  @@index([actorId, createdAt])
 }
 
 model TeamSuitTemplate {

@@ -24,6 +24,8 @@ import { getPrismaClient } from "@/lib/db/prisma";
 import { touchAppDataRevisionSafely } from "@/lib/live/revisions";
 import { recordWebhookEvent } from "@/lib/integrations/events";
 import { publicRaceTrack } from "@/lib/races/visibility";
+import { reconcileDriverCareerStatsMany } from "@/lib/drivers/career-stats";
+import { logger } from "@/lib/observability/logger";
 import {
   championshipAdjustmentInputSchema,
   deleteResultSubmissionSchema,
@@ -356,6 +358,7 @@ export async function deleteResultsAction(
     include: { race: true, results: true },
   });
   if (!session) return errorState("Ergebnis wurde nicht gefunden.");
+  const affectedDriverIds = session.results.map((result) => result.driverId);
   if (
     (session.lockedAt || session.race.status === "COMPLETED") &&
     !parsed.data.confirmLockedEdit
@@ -394,6 +397,12 @@ export async function deleteResultsAction(
     });
   } catch {
     return databaseError();
+  }
+
+  try {
+    await reconcileDriverCareerStatsMany(affectedDriverIds);
+  } catch (error: unknown) {
+    logger.error("Driver career-stat reconciliation after result deletion failed", error, { driverIds: affectedDriverIds, raceId: session.raceId });
   }
 
   await revalidateSports(session.raceId);

@@ -65,11 +65,15 @@ async function frlLogoDataUrl() {
   }
 }
 
-async function hydrateLogos<T extends { teamLogoUrl: string | null }>(rows: readonly T[]) {
-  const unique = [...new Set(rows.flatMap((row) => row.teamLogoUrl ? [row.teamLogoUrl] : []))];
+async function hydrateAssets<T extends { teamLogoUrl: string | null; imageUrl: string | null }>(rows: readonly T[]) {
+  const unique = [...new Set(rows.flatMap((row) => [row.teamLogoUrl, row.imageUrl].filter((url): url is string => Boolean(url))))];
   const loaded = await Promise.all(unique.map(async (url) => [url, await safeGraphicAssetDataUrl(url).catch(() => null)] as const));
   const byUrl = new Map(loaded);
-  return rows.map((row) => ({ ...row, teamLogoDataUrl: row.teamLogoUrl ? byUrl.get(row.teamLogoUrl) ?? null : null }));
+  return rows.map((row) => ({
+    ...row,
+    teamLogoDataUrl: row.teamLogoUrl ? byUrl.get(row.teamLogoUrl) ?? null : null,
+    imageDataUrl: row.imageUrl ? byUrl.get(row.imageUrl) ?? null : null,
+  }));
 }
 
 export async function getResultGraphicRenderData(input: {
@@ -89,11 +93,11 @@ export async function getResultGraphicRenderData(input: {
       ? raceResults.sessions.find((session) => session.id === input.resultSessionId)
       : raceResults.sessions.find((session) => session.session === (isQualifying ? ResultSession.Qualifying : ResultSession.Race));
     if (!targetSession) throw new Error("RESULT_GRAPHIC_SESSION_NOT_FOUND");
-    const hydrated = await hydrateLogos(targetSession.results.map((result) => ({
+    const hydrated = await hydrateAssets(targetSession.results.map((result) => ({
       position: result.finalPosition ?? result.position ?? 0,
       name: result.driver.name,
       number: result.driver.number,
-      character: result.driver.character.configuration,
+      imageUrl: result.driver.imageUrl,
       teamName: result.representedTeam.name,
       teamColor: result.representedTeam.color,
       teamLogoUrl: result.representedTeam.logoUrl,
@@ -106,7 +110,7 @@ export async function getResultGraphicRenderData(input: {
       status: result.status,
     })));
     const leaderRow = hydrated.find((row) => row.position === 1) ?? hydrated[0] ?? null;
-    const leader: GraphicDriver | null = leaderRow ? { name: leaderRow.name, number: leaderRow.number, teamName: leaderRow.teamName, teamColor: leaderRow.teamColor, teamLogoDataUrl: leaderRow.teamLogoDataUrl, character: leaderRow.character } : null;
+    const leader: GraphicDriver | null = leaderRow ? { name: leaderRow.name, number: leaderRow.number, teamName: leaderRow.teamName, teamColor: leaderRow.teamColor, teamLogoDataUrl: leaderRow.teamLogoDataUrl, imageDataUrl: leaderRow.imageDataUrl } : null;
     return {
       title: isQualifying ? "QUALIFYING CLASSIFICATION" : "RACE CLASSIFICATION",
       subtitle: "",
@@ -125,12 +129,12 @@ export async function getResultGraphicRenderData(input: {
   const championship = await getChampionshipPageData({ q: "", leagueId: input.leagueId, seasonId: raceResults.race.season.id, table: "drivers" });
   const driverGraphic = input.type === ResultGraphicType.DriverChampionship;
   const baseRows = driverGraphic
-    ? championship.drivers.map((standing) => ({ position: standing.position, name: standing.driver.name, number: standing.driver.number, character: standing.driver.character.configuration, teamName: standing.driver.team?.name ?? "Ohne Team", teamColor: standing.driver.team?.color ?? "#168BFF", teamLogoUrl: standing.driver.team?.logoUrl ?? null, primary: `${standing.points} PTS`, secondary: `${standing.wins} S · ${standing.podiums} P` }))
+    ? championship.drivers.map((standing) => ({ position: standing.position, name: standing.driver.name, number: standing.driver.number, imageUrl: standing.driver.imageUrl, teamName: standing.driver.team?.name ?? "Ohne Team", teamColor: standing.driver.team?.color ?? "#168BFF", teamLogoUrl: standing.driver.team?.logoUrl ?? null, primary: `${standing.points} PTS`, secondary: `${standing.wins} S · ${standing.podiums} P` }))
     : championship.teams.map((standing) => {
         const driver = championship.drivers.find((candidate) => candidate.driver.team?.id === standing.team.id);
-        return { position: standing.position, name: standing.team.name, number: driver?.driver.number ?? 0, character: driver?.driver.character.configuration ?? null, teamName: standing.team.name, teamColor: standing.team.color, teamLogoUrl: standing.team.logoUrl, primary: `${standing.points} PTS`, secondary: `${standing.wins} S · ${standing.podiums} P` };
+        return { position: standing.position, name: standing.team.name, number: driver?.driver.number ?? 0, imageUrl: driver?.driver.imageUrl ?? null, teamName: standing.team.name, teamColor: standing.team.color, teamLogoUrl: standing.team.logoUrl, primary: `${standing.points} PTS`, secondary: `${standing.wins} S · ${standing.podiums} P` };
       });
-  const hydrated = await hydrateLogos(baseRows);
+  const hydrated = await hydrateAssets(baseRows);
   const first = hydrated[0] ?? null;
   return {
     title: driverGraphic ? "DRIVERS’ CHAMPIONSHIP" : "CONSTRUCTORS’ CHAMPIONSHIP",
@@ -141,7 +145,7 @@ export async function getResultGraphicRenderData(input: {
     draft: input.draft,
     frlLogoDataUrl: frlLogo,
     leaderLabel: driverGraphic ? "LEADER" : "LEADERS",
-    leader: first ? { name: first.name, number: first.number, teamName: first.teamName, teamColor: first.teamColor, teamLogoDataUrl: first.teamLogoDataUrl, character: first.character } : null,
+    leader: first ? { name: first.name, number: first.number, teamName: first.teamName, teamColor: first.teamColor, teamLogoDataUrl: first.teamLogoDataUrl, imageDataUrl: first.imageDataUrl } : null,
     rows: hydrated.map((row) => ({ position: row.position, name: row.name, teamName: row.teamName, teamColor: row.teamColor, teamLogoDataUrl: row.teamLogoDataUrl, primary: row.primary, secondary: row.secondary })),
   };
 }

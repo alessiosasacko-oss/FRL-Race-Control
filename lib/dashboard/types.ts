@@ -1,14 +1,12 @@
 import type { NotificationItem as NotificationView } from "@/lib/notifications/types";
-import type { DriverCharacterView, TeamSuitView } from "@/lib/characters/types";
 
 export type DashboardData = {
   identity: {
     displayName: string;
     avatarUrl: string | null;
-    character: DriverCharacterView;
-    teamSuit: TeamSuitView;
     driver: {
       id: number;
+      imageUrl: string | null;
       name: string;
       number: number;
       flag: string;

@@ -72,7 +72,7 @@ export default async function ScoringAdminPage({
             >
               {data.seasons.map((season) => (
                 <option key={season.id} value={season.id}>
-                  {season.league.code} · {season.name}
+                  {season.name}
                 </option>
               ))}
             </select>

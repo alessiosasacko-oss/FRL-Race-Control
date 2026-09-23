@@ -83,22 +83,15 @@ export async function globalSearch(
         orderBy: { scheduledAt: "desc" },
         take: 5,
         include: {
-          season: {
-            include: { league: { select: { code: true } } },
-          },
+          season: { select: { name: true } },
         },
       }),
       prisma.season.findMany({
         where: {
-          OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { league: { code: { contains: q, mode: "insensitive" } } },
-            { league: { name: { contains: q, mode: "insensitive" } } },
-          ],
+          name: { contains: q, mode: "insensitive" },
         },
         orderBy: { startsOn: "desc" },
         take: 5,
-        include: { league: { select: { code: true, name: true } } },
       }),
     ]);
 
@@ -123,7 +116,7 @@ export async function globalSearch(
         id: `race-${race.id}`,
         kind: "race" as const,
         title: track.name,
-        subtitle: `${race.season.league.code} · ${race.season.name} · Runde ${race.round}`,
+        subtitle: `${race.season.name} · Runde ${race.round}`,
         href: `/results/${race.id}`,
       };
     }),
@@ -131,8 +124,8 @@ export async function globalSearch(
       id: `season-${season.id}`,
       kind: "season" as const,
       title: season.name,
-      subtitle: `${season.league.code} · ${season.league.name}`,
-      href: `/championship?leagueId=${season.leagueId}&seasonId=${season.id}`,
+      subtitle: "Globale FRL-Saison",
+      href: `/championship?seasonId=${season.id}`,
     })),
   ];
 }

@@ -3,7 +3,7 @@ import { ArrowRight, Users } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import CountryFlag from "@/components/ui/CountryFlag";
 import ListFilters from "@/components/master-data/ListFilters";
-import DriverCharacter from "@/components/characters/DriverCharacter";
+import DriverAvatar from "@/components/drivers/DriverAvatar";
 import TeamLogo from "@/components/teams/TeamLogo";
 import PageHeader from "@/components/ui/PageHeader";
 import {
@@ -62,7 +62,7 @@ export default async function DriversPage({
               className="group grid min-h-24 grid-cols-[3rem_3.5rem_minmax(0,1fr)_2.75rem] items-center gap-3 border-b border-slate-800/80 px-4 py-4 transition last:border-b-0 hover:bg-blue-500/[0.06] lg:grid-cols-[4rem_5rem_minmax(12rem,1.4fr)_minmax(10rem,1fr)_7rem_3rem] lg:gap-4 lg:px-5"
             >
               <span className="font-mono text-2xl font-black text-white">{String(driver.number).padStart(2, "0")}</span>
-              <span className="flex size-14 items-end justify-center overflow-hidden border border-white/10 bg-slate-950/70 lg:size-16"><DriverCharacter configuration={driver.character.configuration} teamSuit={driver.teamSuit.configuration} pose={driver.character.normalPose} variant="head" driverNumber={driver.number} driverInitials={driver.name} alt={`Fahrercharakter von ${driver.name}`} className="size-14 lg:size-16" showShadow={false} /></span>
+              <DriverAvatar imageUrl={driver.imageUrl} name={driver.name} size="lg" />
               <span className="min-w-0"><span className="flex items-center gap-2"><CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="sm" /><span className="truncate font-bold text-white">{driver.name}</span></span><span className="mt-1 block text-xs font-bold uppercase tracking-[0.12em] text-blue-300">FRL {driver.league.code}</span></span>
               <span className="col-start-3 flex min-w-0 items-center gap-2 text-sm text-slate-400 lg:col-start-auto">{driver.team ? <TeamLogo logoUrl={driver.team.logoUrl} teamName={driver.team.name} shortName={driver.team.shortName} primaryColor={driver.team.color} size="xs" /> : null}<span className="truncate">{driver.team?.name ?? "Ohne Team"}</span></span>
               <span className={`col-start-3 text-xs font-bold uppercase tracking-wider lg:col-start-auto ${driver.active ? "text-emerald-300" : "text-slate-500"}`}>{driver.active ? "Aktiv" : "Inaktiv"}</span>

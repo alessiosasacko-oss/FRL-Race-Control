@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Gauge, Medal, Pencil } from "lucide-react";
+import { Gauge, Medal, UserRound } from "lucide-react";
 import CountryFlag from "@/components/ui/CountryFlag";
-import DriverCharacter from "@/components/characters/DriverCharacter";
+import DriverAvatar from "@/components/drivers/DriverAvatar";
 import TeamLogo from "@/components/teams/TeamLogo";
 import type { DashboardData } from "@/lib/dashboard/types";
 
@@ -41,14 +41,12 @@ export default function DriverHero({ data }: { data: DashboardData }) {
           <HeroMetric label="Rückstand" value={standing ? (standing.gapToLeader === 0 ? "WM-FÜHRENDER" : `${standing.gapToLeader} Pkt.`) : "Keine Wertung"} />
         </div>
         {standing ? <p className="mt-3 text-xs font-semibold text-slate-400">{standing.wins} Siege · {standing.podiums} Podien</p> : null}
-        <Link href="/profile/character" className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-          <Pencil size={16} /> {data.identity.character.customized ? "Charakter bearbeiten" : "Charakter erstellen"}
-        </Link>
+        {driver ? <Link href={`/drivers/${driver.id}`} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"><UserRound size={16} /> Fahrerprofil öffnen</Link> : null}
       </div>
 
       <div className="absolute bottom-0 right-0 flex h-52 w-full items-end justify-end pr-4 sm:h-60 sm:pr-8 lg:right-8 lg:h-[88%] lg:w-[38%] lg:justify-center lg:pr-0">
         <div className="absolute bottom-4 size-40 rounded-full blur-3xl sm:size-56" style={{ backgroundColor: `${teamColor}44` }} />
-        <DriverCharacter configuration={data.identity.character.configuration} teamSuit={data.identity.teamSuit.configuration} pose={data.identity.character.normalPose} variant="dashboardHero" driverNumber={driver?.number} driverInitials={driver?.name} teamLogoUrl={driver?.team?.logoUrl} alt={`Fahrercharakter von ${driver?.name ?? data.identity.displayName}`} className="relative mb-1 h-52 w-auto drop-shadow-2xl sm:h-60 lg:h-full lg:max-h-[25rem]" showBackground />
+        <DriverAvatar imageUrl={driver?.imageUrl ?? data.identity.avatarUrl} name={driver?.name ?? data.identity.displayName} size="profile" priority className="relative mb-4 drop-shadow-2xl" />
       </div>
       <div className="absolute bottom-5 right-4 z-20 flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/75 px-3 py-2 text-xs font-semibold text-slate-300 backdrop-blur sm:right-8">
         {standing?.position === 1 ? <Medal size={15} className="text-amber-300" /> : <Gauge size={15} className="text-cyan-300" />}

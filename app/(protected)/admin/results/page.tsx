@@ -238,12 +238,10 @@ export default async function ResultsAdminPage({
               session={session}
             />
             {session === ResultSession.Race ? (
-              <Suspense fallback={<div className="master-card mt-5 text-sm text-slate-400">Finanzvorschau wird geladen…</div>}>
-                <ResultFinanceSection
-                  raceId={selected.race.id}
-                  leagueId={selected.race.season.league.id}
-                />
-              </Suspense>
+              <details className="mt-5 rounded-2xl border border-slate-800 bg-slate-950/35">
+                <summary className="flex min-h-12 cursor-pointer items-center px-4 py-3 text-sm font-semibold text-slate-300">Zusatzdaten · Schäden und Finanzen</summary>
+                <div className="border-t border-slate-800 p-4"><Suspense fallback={<div className="text-sm text-slate-400">Finanzvorschau wird geladen…</div>}><ResultFinanceSection raceId={selected.race.id} leagueId={selected.race.season.league.id} /></Suspense></div>
+              </details>
             ) : null}
           </section>
         ) : (

@@ -1,5 +1,4 @@
 import "server-only";
-import { characterView, suitView } from "@/lib/characters/resolve";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { getRecentNotifications } from "@/lib/notifications/queries";
 import { publicRacePresentation } from "@/lib/races/visibility";
@@ -23,12 +22,8 @@ export async function getDashboardData(
     where: { id: userId },
     select: {
       displayName: true, avatarUrl: true,
-      driverCharacter: { select: {
-        id: true, configuration: true, normalPose: true, winnerPose: true, version: true, suitVariantId: true,
-        suitVariant: { select: { id: true, organizationId: true, name: true, configuration: true } },
-      } },
       driver: { select: {
-        id: true, name: true, number: true, flag: true,
+        id: true, name: true, number: true, flag: true, imageUrl: true,
         league: { select: { id: true, code: true, name: true, currentSeasonId: true } },
         team: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true, seasonId: true, season: { select: { id: true, name: true } }, organization: { select: { id: true, name: true, shortName: true, color: true, logoUrl: true } } } },
         seasonAssignments: { where: { active: true, season: { active: true, archivedAt: null } }, orderBy: { seasonId: "desc" }, take: 1, select: { lineupStatus: true, organization: { select: { id: true, name: true, shortName: true, color: true, secondaryColor: true, contrastColor: true, logoUrl: true } } } },
@@ -81,16 +76,10 @@ export async function getDashboardData(
     }), null),
   ]);
 
-  const character = characterView(user.driverCharacter);
-  const organization = user.driver?.seasonAssignments[0]?.organization ?? null;
-  const characterSuit = user.driverCharacter?.suitVariant ?? null;
-  const selectedSuit = characterSuit?.organizationId === organization?.id
-    ? characterSuit
-    : null;
   const publicTrack = nextRace ? publicRacePresentation(nextRace) : null;
   const winner = latestResult?.results[0] ?? null;
   const data: DashboardData = {
-    identity: { displayName: user.displayName, avatarUrl: user.avatarUrl, character, teamSuit: suitView(selectedSuit, organization), driver: user.driver ? { id: user.driver.id, name: user.driver.name, number: user.driver.number, flag: user.driver.flag, lineupStatus: user.driver.seasonAssignments[0]?.lineupStatus ?? "PRIMARY", team: user.driver.team ? { id: user.driver.team.organization?.id ?? user.driver.team.id, name: user.driver.team.organization?.name ?? user.driver.team.name, shortName: user.driver.team.organization?.shortName ?? user.driver.team.shortName, color: user.driver.team.organization?.color ?? user.driver.team.color, logoUrl: user.driver.team.organization?.logoUrl ?? user.driver.team.logoUrl } : null, league: { id: user.driver.league.id, code: user.driver.league.code, name: user.driver.league.name } } : null, season: seasonProgress ? { id: seasonProgress.id, name: seasonProgress.name } : user.driver?.team?.season ?? null },
+    identity: { displayName: user.displayName, avatarUrl: user.avatarUrl, driver: user.driver ? { id: user.driver.id, imageUrl: user.driver.imageUrl, name: user.driver.name, number: user.driver.number, flag: user.driver.flag, lineupStatus: user.driver.seasonAssignments[0]?.lineupStatus ?? "PRIMARY", team: user.driver.team ? { id: user.driver.team.organization?.id ?? user.driver.team.id, name: user.driver.team.organization?.name ?? user.driver.team.name, shortName: user.driver.team.organization?.shortName ?? user.driver.team.shortName, color: user.driver.team.organization?.color ?? user.driver.team.color, logoUrl: user.driver.team.organization?.logoUrl ?? user.driver.team.logoUrl } : null, league: { id: user.driver.league.id, code: user.driver.league.code, name: user.driver.league.name } } : null, season: seasonProgress ? { id: seasonProgress.id, name: seasonProgress.name } : user.driver?.team?.season ?? null },
     nextRace: nextRace ? { id: nextRace.id, name: publicTrack?.name ?? "Mystery Track", circuit: publicTrack?.circuit ?? "Mystery Track", countryCode: publicTrack?.countryCode ?? null, round: nextRace.round, scheduledAt: (nextSchedule?.scheduledAt ?? nextRace.scheduledAt).toISOString(), timezone: nextSchedule?.timezone ?? nextRace.timezone, sprint: nextRace.sprint, mystery: nextRace.mystery, revealed: publicTrack?.revealed ?? false, hero: publicTrack?.hero ?? null } : null,
     championship: { driver: driverStanding ? { position: driverStanding.position, points: driverStanding.points, gapToLeader: Math.max(0, (championship?.driverStandings[0]?.points ?? driverStanding.points) - driverStanding.points), lastRacePoints: (lastResult?.racePoints ?? 0) + (lastResult?.bonusPoints ?? 0), wins: driverStanding.wins, podiums: driverStanding.podiums } : null, team: teamStanding ? { position: teamStanding.position, points: teamStanding.points, gapToLeader: Math.max(0, (championship?.teamStandings[0]?.points ?? teamStanding.points) - teamStanding.points) } : null, topDrivers: championship?.driverStandings.map((standing) => ({ position: standing.position, name: standing.driver.name, flag: standing.driver.flag, points: standing.points })) ?? [], topTeams: championship?.teamStandings.map((standing) => ({ position: standing.position, name: standing.team.organization?.name ?? standing.team.name, color: standing.team.organization?.color ?? standing.team.color, logoUrl: standing.team.organization?.logoUrl ?? standing.team.logoUrl, points: standing.points })) ?? [] },
     seasonProgress: seasonProgress ? { completed: seasonProgress.races.filter((race) => race.status === "COMPLETED").length, total: seasonProgress.races.length } : null,
