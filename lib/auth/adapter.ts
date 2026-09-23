@@ -12,12 +12,31 @@ import type {
 } from "@/generated/prisma/client";
 import { entityIdSchema, roleSchema, type Role } from "@/domain";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { retiredNotificationTypes } from "@/lib/notifications/types";
 
 export type CanonicalAdapterUser = AdapterUser & {
   displayName: string;
   roles: Role[];
   active: boolean;
+  themePreference: string | null;
+  unreadNotificationCount: number;
 };
+
+type AdapterUserRecord = Pick<
+  DatabaseUser,
+  | "id"
+  | "email"
+  | "emailVerified"
+  | "displayName"
+  | "avatarUrl"
+  | "roles"
+  | "active"
+>;
+
+type AdapterSessionRecord = Pick<
+  DatabaseSession,
+  "sessionToken" | "userId" | "expires"
+>;
 
 function parseUserId(userId: string): number {
   const parsedUserId = entityIdSchema.safeParse(Number(userId));
@@ -29,7 +48,13 @@ function parseUserId(userId: string): number {
   return parsedUserId.data;
 }
 
-function toAdapterUser(user: DatabaseUser): CanonicalAdapterUser {
+function toAdapterUser(
+  user: AdapterUserRecord,
+  shellData?: {
+    themePreference: string | null;
+    unreadNotificationCount: number;
+  },
+): CanonicalAdapterUser {
   if (!user.email) {
     throw new Error(`Canonical user ${user.id} has no authentication email.`);
   }
@@ -43,6 +68,8 @@ function toAdapterUser(user: DatabaseUser): CanonicalAdapterUser {
     displayName: user.displayName,
     roles: roleSchema.array().parse(user.roles),
     active: user.active,
+    themePreference: shellData?.themePreference ?? null,
+    unreadNotificationCount: shellData?.unreadNotificationCount ?? 0,
   };
 }
 
@@ -63,7 +90,7 @@ function toAdapterAccount(account: DatabaseAccount): AdapterAccount {
   };
 }
 
-function toAdapterSession(session: DatabaseSession): AdapterSession {
+function toAdapterSession(session: AdapterSessionRecord): AdapterSession {
   return {
     sessionToken: session.sessionToken,
     userId: String(session.userId),
@@ -253,7 +280,35 @@ export function canonicalPrismaAdapter(): Adapter {
     async getSessionAndUser(sessionToken) {
       const session = await getPrismaClient().session.findUnique({
         where: { sessionToken },
-        include: { user: true },
+        relationLoadStrategy: "join",
+        select: {
+          sessionToken: true,
+          userId: true,
+          expires: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              emailVerified: true,
+              displayName: true,
+              avatarUrl: true,
+              roles: true,
+              active: true,
+              settings: { select: { theme: true } },
+              _count: {
+                select: {
+                  notifications: {
+                    where: {
+                      readAt: null,
+                      archivedAt: null,
+                      type: { notIn: [...retiredNotificationTypes] },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       });
 
       if (!session) {
@@ -262,7 +317,10 @@ export function canonicalPrismaAdapter(): Adapter {
 
       return {
         session: toAdapterSession(session),
-        user: toAdapterUser(session.user),
+        user: toAdapterUser(session.user, {
+          themePreference: session.user.settings?.theme ?? null,
+          unreadNotificationCount: session.user._count.notifications,
+        }),
       };
     },
 

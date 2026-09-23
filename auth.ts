@@ -67,6 +67,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         displayName: user.displayName,
         roles: user.roles,
         active: user.active,
+        themePreference: user.themePreference,
+        unreadNotificationCount: user.unreadNotificationCount,
       };
 
       return session;

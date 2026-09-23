@@ -19,6 +19,8 @@ export type FinanceListQuery = {
   raceId?: number;
   driverId?: number;
   type?: PrismaFinanceTransactionType;
+  loadDiscordChannels: boolean;
+  loadPreviews: boolean;
   page: number;
 };
 
@@ -26,6 +28,10 @@ function positiveInteger(value: string | string[] | undefined): number | undefin
   const input = Array.isArray(value) ? value[0] : value;
   const number = Number(input);
   return Number.isInteger(number) && number > 0 ? number : undefined;
+}
+
+function enabledFlag(value: string | string[] | undefined): boolean {
+  return (Array.isArray(value) ? value[0] : value) === "1";
 }
 
 export function parseFinanceListQuery(input: Record<string, string | string[] | undefined>): FinanceListQuery {
@@ -40,6 +46,8 @@ export function parseFinanceListQuery(input: Record<string, string | string[] | 
     raceId: positiveInteger(input.raceId),
     driverId: positiveInteger(input.driverId),
     type,
+    loadDiscordChannels: enabledFlag(input.loadDiscordChannels),
+    loadPreviews: enabledFlag(input.loadPreviews),
     page: positiveInteger(input.page) ?? 1,
   };
 }
@@ -150,7 +158,7 @@ export async function getFinanceAdminData(query: FinanceListQuery) {
     type: query.type,
   };
 
-  const [organizations, accounts, races, drivers, transactions, transactionCount, ruleSet, guild, publishSetting, settlements] = await Promise.all([
+  const [organizations, accounts, races, drivers, transactions, transactionCount, ruleSet, guild, publishSetting] = await Promise.all([
     prisma.teamOrganization.findMany({
       where: { teams: { some: { ...whereContext } } },
       orderBy: { name: "asc" },
@@ -167,15 +175,24 @@ export async function getFinanceAdminData(query: FinanceListQuery) {
     leagueId && seasonId ? prisma.financeRuleSet.findFirst({ where: { leagueId, seasonId, active: true }, orderBy: { version: "desc" } }) : null,
     prisma.discordGuildSettings.findFirst({ where: { enabled: true }, orderBy: { id: "asc" }, select: { id: true, guildId: true, guildName: true, roleMappings: { where: { enabled: true }, orderBy: { discordRoleName: "asc" }, select: { discordRoleId: true, discordRoleName: true, role: true } } } }),
     leagueId ? prisma.financePublishSetting.findUnique({ where: { leagueId } }) : null,
-    leagueId && seasonId ? prisma.raceFinanceSettlement.findMany({ where: { leagueId, seasonId }, orderBy: { updatedAt: "desc" }, select: { raceId: true, revision: true, status: true, updatedAt: true } }) : [],
   ]);
-  const channelState = guild ? await getDiscordChannelCatalogState(guild.guildId) : { status: "error" as const, message: "Kein aktiver Discord-Server konfiguriert.", catalog: null };
+  const channelState = guild && query.loadDiscordChannels
+    ? await getDiscordChannelCatalogState(guild.guildId)
+    : guild
+      ? {
+          status: "error" as const,
+          message: "Discord-Kanäle werden erst auf Abruf geladen, damit die Finance-Seite nicht auf Discord warten muss.",
+          catalog: null,
+        }
+      : { status: "error" as const, message: "Kein aktiver Discord-Server konfiguriert.", catalog: null };
   const selectedRaceId = races.some((race) => race.id === query.raceId) ? query.raceId : races[0]?.id;
-  const [racePreview, seasonPreview, discordPreview] = await Promise.all([
-    selectedRaceId && leagueId ? previewRaceFinance(selectedRaceId, leagueId).catch(() => null) : null,
-    seasonId && leagueId ? previewSeasonFinance(seasonId, leagueId).catch(() => null) : null,
-    selectedRaceId && leagueId && publishSetting ? buildFinanceDiscordPreview(selectedRaceId, leagueId).catch(() => null) : null,
-  ]);
+  const [racePreview, seasonPreview, discordPreview] = query.loadPreviews
+    ? await Promise.all([
+        selectedRaceId && leagueId ? previewRaceFinance(selectedRaceId, leagueId).catch(() => null) : null,
+        seasonId && leagueId ? previewSeasonFinance(seasonId, leagueId).catch(() => null) : null,
+        selectedRaceId && leagueId && publishSetting ? buildFinanceDiscordPreview(selectedRaceId, leagueId).catch(() => null) : null,
+      ])
+    : [null, null, null];
 
   return {
     leagues,
@@ -193,7 +210,6 @@ export async function getFinanceAdminData(query: FinanceListQuery) {
     guild,
     channelState,
     publishSetting,
-    settlements: settlements.map((settlement) => ({ ...settlement, updatedAt: settlement.updatedAt.toISOString() })),
     racePreview,
     seasonPreview,
     discordPreview,

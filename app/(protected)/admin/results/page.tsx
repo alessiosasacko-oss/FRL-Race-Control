@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import ResultsEditor from "@/components/championship/ResultsEditor";
 import ResultFinancePanel from "@/components/finance/ResultFinancePanel";
@@ -60,12 +61,6 @@ export default async function ResultsAdminPage({
       ? filterOptionsResult.value
       : { leagues: [], seasons: [] };
   const selected = data.selected;
-  const financePanel = selected && session === ResultSession.Race
-    ? await getResultFinancePanelData(
-        selected.race.id,
-        selected.race.season.league.id,
-      )
-    : null;
   const sessionOptions = selected
     ? [ResultSession.Qualifying, ...(selected.race.sprint ? [ResultSession.Sprint] : []), ResultSession.Race]
     : [];
@@ -242,14 +237,13 @@ export default async function ResultsAdminPage({
               data={data}
               session={session}
             />
-            {session === ResultSession.Race && financePanel ? (
-              <ResultFinancePanel
-                raceId={selected.race.id}
-                leagueId={selected.race.season.league.id}
-                publicationStatus={financePanel.session?.publicationStatus ?? null}
-                results={financePanel.session?.results ?? []}
-                preview={financePanel.preview}
-              />
+            {session === ResultSession.Race ? (
+              <Suspense fallback={<div className="master-card mt-5 text-sm text-slate-400">Finanzvorschau wird geladen…</div>}>
+                <ResultFinanceSection
+                  raceId={selected.race.id}
+                  leagueId={selected.race.season.league.id}
+                />
+              </Suspense>
             ) : null}
           </section>
         ) : (
@@ -259,5 +253,24 @@ export default async function ResultsAdminPage({
         )}
       </div>
     </AppLayout>
+  );
+}
+
+async function ResultFinanceSection({
+  raceId,
+  leagueId,
+}: {
+  raceId: number;
+  leagueId: number;
+}) {
+  const financePanel = await getResultFinancePanelData(raceId, leagueId);
+  return (
+    <ResultFinancePanel
+      raceId={raceId}
+      leagueId={leagueId}
+      publicationStatus={financePanel.session?.publicationStatus ?? null}
+      results={financePanel.session?.results ?? []}
+      preview={financePanel.preview}
+    />
   );
 }

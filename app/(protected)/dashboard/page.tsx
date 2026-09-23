@@ -9,7 +9,7 @@ import type { DashboardWidgetData } from "@/lib/dashboard/types";
 
 export default async function DashboardPage() {
   const user = await requireAuthenticatedUser();
-  const dataPromise = getDashboardData(user.id);
+  const dataPromise = getDashboardData(user.id, user.unreadNotificationCount);
   const layoutPromise = getPersonalDashboardLayout(
     user.id,
     user.roles,

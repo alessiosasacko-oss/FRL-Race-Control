@@ -15,6 +15,8 @@ export type AuthenticatedUser = {
   email: string;
   avatarUrl: string | null;
   roles: Role[];
+  themePreference: string | null;
+  unreadNotificationCount: number;
 };
 
 export const getCurrentUser = cache(
@@ -35,6 +37,8 @@ export const getCurrentUser = cache(
       email: session.user.email ?? "",
       avatarUrl: session.user.image ?? null,
       roles: session.user.roles,
+      themePreference: session.user.themePreference,
+      unreadNotificationCount: session.user.unreadNotificationCount,
     };
   },
 );

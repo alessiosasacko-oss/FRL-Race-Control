@@ -1,7 +1,7 @@
 import "server-only";
 import { characterView, suitView } from "@/lib/characters/resolve";
 import { getPrismaClient } from "@/lib/db/prisma";
-import { getRecentNotifications, getUnreadNotificationCount } from "@/lib/notifications/queries";
+import { getRecentNotifications } from "@/lib/notifications/queries";
 import { publicRacePresentation } from "@/lib/races/visibility";
 import type { DashboardData } from "./types";
 
@@ -13,7 +13,10 @@ async function optionalDashboardData<T>(label: string, load: () => PromiseLike<T
   }
 }
 
-export async function getDashboardData(userId: number): Promise<DashboardData> {
+export async function getDashboardData(
+  userId: number,
+  knownUnreadNotificationCount: number,
+): Promise<DashboardData> {
   const startedAt = performance.now();
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
@@ -62,7 +65,7 @@ export async function getDashboardData(userId: number): Promise<DashboardData> {
     seasonId && leagueId ? optionalDashboardData("latest published result", () => prisma.raceResultSession.findFirst({ where: { leagueId, session: "RACE", publicationStatus: "PUBLISHED", race: { seasonId } }, orderBy: { publishedAt: "desc" }, select: { publishedAt: true, race: { select: { id: true, name: true } }, results: { orderBy: [{ finalPosition: { sort: "asc", nulls: "last" } }, { position: "asc" }], take: 1, select: { finalPosition: true, position: true, racePoints: true, bonusPoints: true } } } }), null) : null,
     seasonId ? optionalDashboardData("season progress", () => prisma.season.findUnique({ where: { id: seasonId }, select: { id: true, name: true, races: { select: { status: true } } } }), null) : null,
     optionalDashboardData("notifications", () => getRecentNotifications(userId, 5), []),
-    optionalDashboardData("notification count", () => getUnreadNotificationCount(userId), 0),
+    Promise.resolve(knownUnreadNotificationCount),
     driverId && seasonId ? optionalDashboardData("driver standing", () => prisma.driverStanding.findFirst({ where: { driverId, championship: { seasonId, leagueId: leagueId ?? undefined } } }), null) : null,
     teamId && seasonId ? optionalDashboardData("team standing", () => prisma.teamStanding.findFirst({ where: { teamId, championship: { seasonId, leagueId: leagueId ?? undefined } } }), null) : null,
     optionalDashboardData("team finance", () => prisma.teamOrganization.findFirst({

@@ -94,33 +94,59 @@ function allowedMode(
   return config.defaultMode;
 }
 
+async function resolveThemeWithPreference(
+  preference: string | null | undefined,
+): Promise<ResolvedTheme> {
+  const theme = await getPublishedTheme();
+  if (!theme) {
+    return {
+      id: null,
+      config: defaultDesignTheme,
+      mode: defaultDesignTheme.defaultMode,
+      source: "fallback",
+    };
+  }
+  const config = parseStoredTheme(theme);
+  return {
+    id: theme.id,
+    config,
+    mode: allowedMode(config, preference),
+    source: "published",
+  };
+}
+
+export const getResolvedThemeForPreference = cache(
+  async (preference: string | null | undefined): Promise<ResolvedTheme> => {
+    try {
+      return await resolveThemeWithPreference(preference);
+    } catch (error: unknown) {
+      console.warn("[design] Published theme unavailable; using FRL defaults.", {
+        errorName: error instanceof Error ? error.name : "UnknownError",
+        prismaCode:
+          typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+            ? error.code
+            : null,
+      });
+      return {
+        id: null,
+        config: defaultDesignTheme,
+        mode: defaultDesignTheme.defaultMode,
+        source: "fallback",
+      };
+    }
+  },
+);
+
 export const getResolvedTheme = cache(
   async (userId?: number): Promise<ResolvedTheme> => {
     try {
-      const [theme, settings] = await Promise.all([
-        getPublishedTheme(),
-        userId
-          ? getPrismaClient().userSettings.findUnique({
-              where: { userId },
-              select: { theme: true },
-            })
-          : Promise.resolve(null),
-      ]);
-      if (!theme) {
-        return {
-          id: null,
-          config: defaultDesignTheme,
-          mode: defaultDesignTheme.defaultMode,
-          source: "fallback",
-        };
-      }
-      const config = parseStoredTheme(theme);
-      return {
-        id: theme.id,
-        config,
-        mode: allowedMode(config, settings?.theme),
-        source: "published",
-      };
+      const settings = userId
+        ? await getPrismaClient().userSettings.findUnique({
+            where: { userId },
+            select: { theme: true },
+          })
+        : null;
+      return await resolveThemeWithPreference(settings?.theme);
     } catch (error: unknown) {
       console.warn("[design] Published theme unavailable; using FRL defaults.", {
         errorName: error instanceof Error ? error.name : "UnknownError",

@@ -8,6 +8,8 @@ declare module "next-auth" {
       displayName: string;
       roles: Role[];
       active: boolean;
+      themePreference: string | null;
+      unreadNotificationCount: number;
     } & NonNullable<DefaultSession["user"]>;
   }
 
@@ -15,6 +17,8 @@ declare module "next-auth" {
     displayName: string;
     roles: Role[];
     active: boolean;
+    themePreference: string | null;
+    unreadNotificationCount: number;
   }
 }
 
