@@ -4,11 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { CSSProperties } from "react";
 import AppBackground from "@/components/design/AppBackground";
-import {
-  themeCssVariables,
-  type DesignThemeConfig,
-  type ThemeMode,
-} from "@/lib/design/theme";
+import type { DesignThemeConfig, ThemeMode } from "@/lib/design/theme";
+import { themeCssVariables } from "@/lib/design/presentation";
 
 type ThemeStyle = CSSProperties & Record<`--${string}`, string>;
 

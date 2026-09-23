@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const publicRoutes = new Set(["/", "/login"]);
+const publicRoutes = new Set([
+  "/",
+  "/login",
+  "/offline",
+  "/manifest.webmanifest",
+  "/sw.js",
+]);
 const sessionCookieNames = [
   "authjs.session-token",
   "__Secure-authjs.session-token",

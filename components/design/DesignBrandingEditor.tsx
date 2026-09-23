@@ -27,13 +27,13 @@ import {
   designPresetLabels,
   designThemeConfigSchema,
   themeContrastWarnings,
-  themeCssVariables,
   themePresets,
   type DesignPreset,
   type DesignThemeConfig,
   type PageAccents,
   type ThemeTokens,
 } from "@/lib/design/theme";
+import { themeCssVariables } from "@/lib/design/presentation";
 import {
   initialDesignActionState,
   type DesignActionState,

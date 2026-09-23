@@ -1,5 +1,5 @@
 import { requireAuthenticatedUser } from "@/lib/auth/session";
-import AppAutoRefresh from "@/components/live/AppAutoRefresh";
+import DeferredAppAutoRefresh from "@/components/live/DeferredAppAutoRefresh";
 import AppShell from "@/components/layout/AppShell";
 
 type ProtectedLayoutProps = {
@@ -14,7 +14,7 @@ export default async function ProtectedLayout({
   return (
     <AppShell user={user}>
       {children}
-      <AppAutoRefresh />
+      <DeferredAppAutoRefresh />
     </AppShell>
   );
 }

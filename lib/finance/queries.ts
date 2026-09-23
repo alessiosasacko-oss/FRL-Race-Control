@@ -112,13 +112,28 @@ const transactionSelection = {
 
 export async function getFinanceAdminData(query: FinanceListQuery) {
   const prisma = getPrismaClient();
-  const leagues = await prisma.league.findMany({ orderBy: [{ displayOrder: "asc" }, { code: "asc" }], select: { id: true, code: true, name: true, currentSeasonId: true } });
+  const [leagues, availableSeasons] = await Promise.all([
+    prisma.league.findMany({ orderBy: [{ displayOrder: "asc" }, { code: "asc" }], select: { id: true, code: true, name: true, currentSeasonId: true } }),
+    prisma.season.findMany({
+      orderBy: [{ startsOn: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        active: true,
+        archivedAt: true,
+        participatingLeagues: { select: { id: true } },
+      },
+    }),
+  ]);
   const selectedLeague = leagues.find((league) => league.id === query.leagueId) ?? leagues[0] ?? null;
-  const seasons = await prisma.season.findMany({
-    where: selectedLeague ? { participatingLeagues: { some: { id: selectedLeague.id } } } : undefined,
-    orderBy: [{ startsOn: "desc" }, { name: "asc" }],
-    select: { id: true, name: true, active: true, archivedAt: true },
-  });
+  const seasons = availableSeasons
+    .filter((season) => !selectedLeague || season.participatingLeagues.some((league) => league.id === selectedLeague.id))
+    .map((season) => ({
+      id: season.id,
+      name: season.name,
+      active: season.active,
+      archivedAt: season.archivedAt,
+    }));
   const selectedSeason = seasons.find((season) => season.id === query.seasonId)
     ?? seasons.find((season) => season.id === selectedLeague?.currentSeasonId)
     ?? seasons[0]
@@ -232,17 +247,19 @@ export async function getAuthorizedTeamFinanceData(user: AuthenticatedUser, requ
 
 export async function getResultFinancePanelData(raceId: number, leagueId: number) {
   const prisma = getPrismaClient();
-  const session = await prisma.raceResultSession.findUnique({
-    where: { raceId_leagueId_session: { raceId, leagueId, session: ResultSession.RACE } },
-    select: {
-      publicationStatus: true,
-      results: {
-        orderBy: [{ finalPosition: { sort: "asc", nulls: "last" } }, { position: "asc" }],
-        select: { id: true, status: true, finalPosition: true, driver: { select: { name: true } }, representedTeam: { select: { name: true } }, financeDetail: { select: { frontWingDamage: true, underfloorDamage: true, sidepodDamage: true, rearWingDamage: true } } },
+  const [session, preview] = await Promise.all([
+    prisma.raceResultSession.findUnique({
+      where: { raceId_leagueId_session: { raceId, leagueId, session: ResultSession.RACE } },
+      select: {
+        publicationStatus: true,
+        results: {
+          orderBy: [{ finalPosition: { sort: "asc", nulls: "last" } }, { position: "asc" }],
+          select: { id: true, status: true, finalPosition: true, driver: { select: { name: true } }, representedTeam: { select: { name: true } }, financeDetail: { select: { frontWingDamage: true, underfloorDamage: true, sidepodDamage: true, rearWingDamage: true } } },
+        },
       },
-    },
-  });
-  const preview = await previewRaceFinance(raceId, leagueId).catch(() => null);
+    }),
+    previewRaceFinance(raceId, leagueId).catch(() => null),
+  ]);
   return { session, preview };
 }
 

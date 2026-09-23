@@ -1,6 +1,7 @@
 import { RefreshCw, ShieldCheck } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import SettingsForms from "@/components/settings/SettingsForms";
+import PwaInstallPanel from "@/components/pwa/PwaInstallPanel";
 import { roleLabels } from "@/domain";
 import { reconnectDiscordAccount } from "@/lib/auth/actions";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
@@ -22,6 +23,7 @@ export default async function SettingsPage() {
           </p>
         </div>
         <SettingsForms data={data} />
+        <PwaInstallPanel />
         <section className="master-card">
           <div className="flex items-start gap-3">
             <span className="rounded-xl bg-green-500/15 p-3 text-green-400">

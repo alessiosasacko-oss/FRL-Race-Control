@@ -46,7 +46,7 @@ export function parseMasterDataListQuery(
 export async function getMasterDataOptions(): Promise<MasterDataOptions> {
   const prisma = getPrismaClient();
   const [leagues, seasons, users, drivers, organizations] =
-    await prisma.$transaction([
+    await Promise.all([
     prisma.league.findMany({
       orderBy: { code: "asc" },
       select: { id: true, code: true, name: true },
@@ -137,7 +137,7 @@ export async function getMasterDataOptions(): Promise<MasterDataOptions> {
 
 export async function getDriverFormOptions(): Promise<DriverFormOptions> {
   const prisma = getPrismaClient();
-  const [leagues, seasons, organizations, users] = await prisma.$transaction([
+  const [leagues, seasons, organizations, users] = await Promise.all([
     prisma.league.findMany({
       where: {
         active: true,

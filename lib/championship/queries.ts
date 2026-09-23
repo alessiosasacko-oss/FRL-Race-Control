@@ -168,7 +168,7 @@ export async function getChampionshipPageData(
   query: SportsListQuery,
 ): Promise<ChampionshipPageData> {
   const prisma = getPrismaClient();
-  const [leagues, seasons] = await prisma.$transaction([
+  const [leagues, seasons] = await Promise.all([
     prisma.league.findMany({
       orderBy: { code: "asc" },
       select: { id: true, code: true, name: true, currentSeasonId: true },
@@ -703,7 +703,7 @@ export async function getResultAdminData(
   const selectedRaceContext = eligibleRaces.find(
     (race) => race.id === selectedRaceId,
   );
-  const [weekendSessions, scoringConfiguration, driverCandidates, teams] = await prisma.$transaction([
+  const [weekendSessions, scoringConfiguration, driverCandidates, teams] = await Promise.all([
     prisma.raceResultSession.findMany({
       where: { raceId: selectedRaceId },
       select: {
@@ -942,7 +942,7 @@ export async function getAdjustmentAdminData(
       (item) => item.id === leagueId,
     ) ?? selectedSeason?.league;
   const [drivers, teams, races, adjustments] =
-    await prisma.$transaction([
+    await Promise.all([
       prisma.driver.findMany({
         where: { leagueId: selectedLeague?.id },
         orderBy: { name: "asc" },

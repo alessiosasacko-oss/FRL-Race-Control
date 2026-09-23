@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { Permission } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -15,6 +15,7 @@ import {
   themeContrastWarnings,
 } from "@/lib/design/theme";
 import type { DesignActionState } from "@/lib/design/types";
+import { DESIGN_THEME_CACHE_TAG } from "@/lib/design/queries";
 
 function errorState(
   message: string,
@@ -53,6 +54,7 @@ function configData(config: typeof defaultDesignTheme) {
 }
 
 async function revalidateDesign(): Promise<void> {
+  updateTag(DESIGN_THEME_CACHE_TAG);
   revalidatePath("/", "layout");
   revalidatePath("/admin/design");
   await touchAppDataRevisionSafely(getPrismaClient(), ["design"]);

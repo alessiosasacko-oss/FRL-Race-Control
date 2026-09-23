@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   defaultDesignTheme,
@@ -34,6 +35,36 @@ export type ResolvedTheme = {
   source: "published" | "fallback";
 };
 
+export const DESIGN_THEME_CACHE_TAG = "published-design-theme";
+
+const publishedThemeSelect = {
+  id: true,
+  name: true,
+  preset: true,
+  defaultMode: true,
+  allowDarkMode: true,
+  allowLightMode: true,
+  allowSystemMode: true,
+  allowUserModeOverride: true,
+  darkTokens: true,
+  lightTokens: true,
+  pageAccents: true,
+  componentSettings: true,
+  navigationSettings: true,
+  backgroundSettings: true,
+} as const;
+
+const getPublishedTheme = unstable_cache(
+  async (): Promise<StoredTheme | null> =>
+    getPrismaClient().designTheme.findFirst({
+      where: { isActive: true, isDraft: false },
+      orderBy: { publishedAt: "desc" },
+      select: publishedThemeSelect,
+    }),
+  [DESIGN_THEME_CACHE_TAG],
+  { revalidate: 300, tags: [DESIGN_THEME_CACHE_TAG] },
+);
+
 export function parseStoredTheme(theme: StoredTheme): DesignThemeConfig {
   return designThemeConfigSchema.parse({
     name: theme.name,
@@ -66,30 +97,10 @@ function allowedMode(
 export const getResolvedTheme = cache(
   async (userId?: number): Promise<ResolvedTheme> => {
     try {
-      const prisma = getPrismaClient();
       const [theme, settings] = await Promise.all([
-        prisma.designTheme.findFirst({
-          where: { isActive: true, isDraft: false },
-          orderBy: { publishedAt: "desc" },
-          select: {
-            id: true,
-            name: true,
-            preset: true,
-            defaultMode: true,
-            allowDarkMode: true,
-            allowLightMode: true,
-            allowSystemMode: true,
-            allowUserModeOverride: true,
-            darkTokens: true,
-            lightTokens: true,
-            pageAccents: true,
-            componentSettings: true,
-            navigationSettings: true,
-            backgroundSettings: true,
-          },
-        }),
+        getPublishedTheme(),
         userId
-          ? prisma.userSettings.findUnique({
+          ? getPrismaClient().userSettings.findUnique({
               where: { userId },
               select: { theme: true },
             })

@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
-import { backgroundPresentation, type BackgroundSettings } from "@/lib/design/theme";
+import type { BackgroundSettings } from "@/lib/design/theme";
+import { backgroundPresentation } from "@/lib/design/presentation";
 
 type BackgroundStyle = CSSProperties & Record<`--${string}`, string>;
 

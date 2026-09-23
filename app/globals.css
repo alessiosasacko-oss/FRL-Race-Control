@@ -60,6 +60,7 @@ body {
   min-width: 320px;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  min-height: 100svh;
 }
 
 body::before {
@@ -563,6 +564,30 @@ summary {
     width: 100%;
     max-width: 100%;
     height: auto;
+  }
+
+  .app-mobile-nav {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .app-sidebar[role="dialog"] {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  dialog {
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .theme-root,
+  .app-shell {
+    min-height: calc(100svh - env(safe-area-inset-top));
   }
 }
 

@@ -442,7 +442,7 @@ export async function getTeamPrincipalChampionshipData(
       updatedAt: null,
     };
   }
-  const [standings, weekends] = await database.$transaction([
+  const [standings, weekends] = await Promise.all([
     database.globalTeamStanding.findMany({
       where: { seasonId: selectedSeason.id },
       orderBy: { position: "asc" },

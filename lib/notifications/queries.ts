@@ -74,7 +74,7 @@ export async function getNotificationPageData(
         ]
       : undefined,
   };
-  const [total, unreadCount] = await prisma.$transaction([
+  const [total, unreadCount] = await Promise.all([
     prisma.notification.count({ where }),
     prisma.notification.count({
       where: { userId, readAt: null, archivedAt: null, type: { notIn: [...retiredNotificationTypes] } },

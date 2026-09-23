@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Gauge, Layers3, Trophy } from "lucide-react";
-import DiscordSignInButton from "@/components/auth/DiscordSignInButton";
 import Layout from "@/components/layout/Layout";
-import { getCurrentUser } from "@/lib/auth/session";
+
+export const revalidate = 300;
 
 const capabilities = [
   { icon: CalendarDays, title: "Rennkalender", text: "Alle Termine, Rennwochenenden und Streckeninformationen an einem Ort." },
@@ -11,8 +11,6 @@ const capabilities = [
 ] as const;
 
 export default async function Home() {
-  const user = await getCurrentUser();
-
   return (
     <Layout>
       <div className="space-y-16 pb-14 pt-6 sm:space-y-20 sm:pt-10 lg:pb-20 lg:pt-14">
@@ -27,12 +25,8 @@ export default async function Home() {
               </h1>
               <p className="mt-7 max-w-xl border-l border-slate-700 pl-4 text-base leading-7 text-slate-300 sm:text-lg">Kalender, Klassifikationen und Meisterschaften. Ein operatives System für den gesamten FRL-Grid.</p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
-              {user ? (
-                <Link href="/dashboard" className="wizard-primary-button min-h-12 w-full sm:w-auto">Zum Dashboard <ArrowRight size={18} /></Link>
-              ) : (
-                <DiscordSignInButton />
-              )}
-              <Link href="/login" className="wizard-secondary-button min-h-12 w-full sm:w-auto">Race Control öffnen</Link>
+              <Link prefetch={false} href="/dashboard" className="wizard-primary-button min-h-12 w-full sm:w-auto">Race Control öffnen <ArrowRight size={18} /></Link>
+              <Link href="/login" className="wizard-secondary-button min-h-12 w-full sm:w-auto">Mit Discord anmelden</Link>
               </div>
             </div>
             <aside className="relative min-w-0 border-t border-white/10 bg-black/20 px-5 py-8 sm:px-6 lg:border-l lg:border-t-0 lg:px-8 lg:py-12">

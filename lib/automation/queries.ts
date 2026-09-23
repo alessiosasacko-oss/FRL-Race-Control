@@ -40,7 +40,7 @@ export async function getAutomationDashboardData(): Promise<AutomationDashboardD
     failedAnnouncements,
     pendingWebhooks,
     resultGraphicDeliveries,
-  ] = await prisma.$transaction([
+  ] = await Promise.all([
     prisma.discordGuildSettings.findMany({
       orderBy: { guildName: "asc" },
       include: {
