@@ -614,8 +614,10 @@ LEFT JOIN standing_fallback ON standing_fallback."driverId" = driver."id"
 LEFT JOIN first_grand_prix ON first_grand_prix."driverId" = driver."id"
 LEFT JOIN past_teams ON past_teams."driverId" = driver."id";
 
-DROP TABLE "_migration_20260923120000_race_merge_map";
-DROP TABLE "_migration_20260923120000_season_merge_map";
-DROP TABLE "_migration_20260923120000_season_candidates";
+-- The helper relations are migration-private and may be absent after an
+-- interrupted/retried execution. Make only this internal cleanup idempotent.
+DROP TABLE IF EXISTS "_migration_20260923120000_race_merge_map";
+DROP TABLE IF EXISTS "_migration_20260923120000_season_merge_map";
+DROP TABLE IF EXISTS "_migration_20260923120000_season_candidates";
 
 COMMIT;
