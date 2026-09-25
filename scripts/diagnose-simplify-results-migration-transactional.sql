@@ -5,6 +5,7 @@
 -- Keep the whole globalization and backfill atomic and do not rely on a
 -- transaction-scoped TEMP TABLE surviving between statements.
 BEGIN;
+SELECT 'STAGE 01 preflight' AS migration_stage;
 
 -- A previous production attempt failed immediately after creating the first
 -- helper table. Accept either a pristine database or precisely that harmless
@@ -183,6 +184,8 @@ END
 $migration_preflight$;
 
 -- These conditional creates are safe only after the strict preflight above.
+SELECT 'STAGE 02 additive columns' AS migration_stage;
+
 ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "imageUrl" TEXT;
 ALTER TABLE "Season" ADD COLUMN IF NOT EXISTS "globalKey" VARCHAR(190);
 ALTER TABLE "Season" ADD COLUMN IF NOT EXISTS "isCurrent" BOOLEAN NOT NULL DEFAULT false;
@@ -195,6 +198,8 @@ CREATE TABLE IF NOT EXISTS "SeasonGlobalizationReview" (
     "reason" VARCHAR(500) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+SELECT 'STAGE 03 season candidates' AS migration_stage;
 
 CREATE TABLE "_migration_20260923120000_season_candidates" AS
 SELECT
@@ -209,6 +214,8 @@ DELETE FROM "_migration_20260923120000_season_candidates" WHERE "legacyId" = "ca
 -- Only exact name/date identities without unique-key collisions are merged.
 -- This deliberately avoids fuzzy name matching (for example two unrelated
 -- seasons both called "Season 1") and preserves every ambiguous record.
+SELECT 'STAGE 04 season merge map' AS migration_stage;
+
 CREATE TABLE "_migration_20260923120000_season_merge_map" AS
 SELECT candidate.*
 FROM "_migration_20260923120000_season_candidates" AS candidate
@@ -324,6 +331,8 @@ FROM "_migration_20260923120000_season_candidates" AS candidate
 LEFT JOIN "_migration_20260923120000_season_merge_map" AS mergeable ON mergeable."legacyId" = candidate."legacyId"
 WHERE mergeable."legacyId" IS NULL;
 
+SELECT 'STAGE 05 race merge map' AS migration_stage;
+
 CREATE TABLE "_migration_20260923120000_race_merge_map" AS
 SELECT old_race."id" AS "legacyId", new_race."id" AS "canonicalId"
 FROM "_migration_20260923120000_season_merge_map" season_map
@@ -332,6 +341,8 @@ JOIN "Race" new_race ON new_race."seasonId" = season_map."canonicalId"
   AND new_race."round" = old_race."round"
   AND lower(trim(new_race."name")) = lower(trim(old_race."name"))
   AND new_race."weekendDate" = old_race."weekendDate";
+
+SELECT 'STAGE 06 race relation updates' AS migration_stage;
 
 UPDATE "FiaTicket" child SET "raceId" = map."canonicalId" FROM "_migration_20260923120000_race_merge_map" map WHERE child."raceId" = map."legacyId";
 UPDATE "RaceAttendance" child SET "raceId" = map."canonicalId" FROM "_migration_20260923120000_race_merge_map" map WHERE child."raceId" = map."legacyId";
@@ -349,6 +360,8 @@ UPDATE "RaceVisual" child SET "raceId" = map."canonicalId" FROM "_migration_2026
 
 DELETE FROM "Race" race USING "_migration_20260923120000_race_merge_map" map WHERE race."id" = map."legacyId";
 UPDATE "Race" race SET "seasonId" = map."canonicalId" FROM "_migration_20260923120000_season_merge_map" map WHERE race."seasonId" = map."legacyId";
+
+SELECT 'STAGE 07 season relation updates' AS migration_stage;
 
 INSERT INTO "_SeasonParticipation" ("A", "B")
 SELECT participation."A", map."canonicalId"
@@ -372,6 +385,8 @@ UPDATE "RaceFinanceSettlement" child SET "seasonId" = map."canonicalId" FROM "_m
 UPDATE "SeasonFinanceSettlement" child SET "seasonId" = map."canonicalId" FROM "_migration_20260923120000_season_merge_map" map WHERE child."seasonId" = map."legacyId";
 
 DELETE FROM "Season" season USING "_migration_20260923120000_season_merge_map" map WHERE season."id" = map."legacyId";
+
+SELECT 'STAGE 08 global season keys' AS migration_stage;
 
 -- Every global season is selectable in every active FRL league. Existing
 -- inactive/historical participation links remain untouched.
@@ -464,6 +479,8 @@ ALTER TABLE "Season" ALTER COLUMN "globalKey" SET NOT NULL;
 CREATE UNIQUE INDEX "Season_globalKey_key" ON "Season"("globalKey");
 CREATE INDEX "Season_isCurrent_active_archivedAt_idx" ON "Season"("isCurrent", "active", "archivedAt");
 
+SELECT 'STAGE 09 current season' AS migration_stage;
+
 WITH selected AS (
   SELECT season."id"
   FROM "Season" season
@@ -488,6 +505,8 @@ SET "currentSeasonId" = (
   LIMIT 1
 )
 WHERE "active" = true;
+
+SELECT 'STAGE 10 career tables' AS migration_stage;
 
 CREATE TABLE "DriverCareerStats" (
     "id" SERIAL NOT NULL,
@@ -525,6 +544,8 @@ CREATE TABLE "DriverCareerStatsAudit" (
     CONSTRAINT "DriverCareerStatsAudit_pkey" PRIMARY KEY ("id")
 );
 
+SELECT 'STAGE 11 career constraints and indexes' AS migration_stage;
+
 CREATE UNIQUE INDEX "DriverCareerStats_driverId_key" ON "DriverCareerStats"("driverId");
 CREATE INDEX "DriverCareerStats_reconciledAt_idx" ON "DriverCareerStats"("reconciledAt");
 CREATE INDEX "DriverCareerStatsAudit_driverId_createdAt_idx" ON "DriverCareerStatsAudit"("driverId", "createdAt");
@@ -537,6 +558,8 @@ ALTER TABLE "DriverCareerStatsAudit" ADD CONSTRAINT "DriverCareerStatsAudit_acto
 -- Materialize all existing published history once. Result rows win for a
 -- season; a standing contributes points only when that driver has no
 -- published race/sprint rows for the same season.
+SELECT 'STAGE 12 career backfill' AS migration_stage;
+
 WITH result_stats AS (
   SELECT
     result."driverId",
@@ -614,8 +637,10 @@ LEFT JOIN standing_fallback ON standing_fallback."driverId" = driver."id"
 LEFT JOIN first_grand_prix ON first_grand_prix."driverId" = driver."id"
 LEFT JOIN past_teams ON past_teams."driverId" = driver."id";
 
+SELECT 'STAGE 13 cleanup' AS migration_stage;
+
 DROP TABLE "_migration_20260923120000_race_merge_map";
 DROP TABLE "_migration_20260923120000_season_merge_map";
 DROP TABLE "_migration_20260923120000_season_candidates";
 
-COMMIT;
+ROLLBACK;
