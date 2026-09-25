@@ -136,11 +136,26 @@ export const driverSchema = z.object({
   number: z.coerce.number().int().min(1).max(999),
   countryCode: countryCodeSchema,
   userId: optionalId,
-  seasonId: entityId,
-  leagueId: entityId,
+  seasonId: optionalId,
+  leagueId: optionalId,
   organizationId: optionalId,
   lineupStatus: z.enum(DriverLineupStatus),
   active: checkbox,
+}).superRefine((driver, context) => {
+  if ((driver.seasonId === null) !== (driver.leagueId === null)) {
+    context.addIssue({
+      code: "custom",
+      path: [driver.seasonId === null ? "leagueId" : "seasonId"],
+      message: "Saison und Liga müssen gemeinsam gewählt werden.",
+    });
+  }
+  if (driver.seasonId === null && driver.organizationId !== null) {
+    context.addIssue({
+      code: "custom",
+      path: ["organizationId"],
+      message: "Eine Teamzuordnung benötigt Saison und Liga.",
+    });
+  }
 });
 
 export const teamSchema = z.object({

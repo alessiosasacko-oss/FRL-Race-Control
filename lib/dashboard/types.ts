@@ -12,7 +12,7 @@ export type DashboardData = {
       flag: string;
       lineupStatus: string;
       team: { id: number; name: string; shortName: string; color: string; logoUrl: string | null } | null;
-      league: { id: number; code: string; name: string };
+      league: { id: number; code: string; name: string } | null;
     } | null;
     season: { id: number; name: string } | null;
   };

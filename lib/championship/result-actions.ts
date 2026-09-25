@@ -772,7 +772,9 @@ export async function saveResultsAction(
         {
           type: NotificationType.RaceResult,
           priority: NotificationPriority.High,
-          title: `${track.name}: Ergebnis veröffentlicht`,
+          title: parsed.data.session === ResultSession.Sprint
+            ? `${track.name}: Sprint-Ergebnis veröffentlicht`
+            : `${track.name}: Ergebnis veröffentlicht`,
           message:
             "Das Ergebnis wurde veröffentlicht und die Meisterschaft aktualisiert.",
           href: `/results/${race.id}`,
@@ -780,7 +782,7 @@ export async function saveResultsAction(
           dedupeKey: `race-result:${race.id}:${parsed.data.leagueId}:${parsed.data.session}:${resultSession.revision}`,
         },
         {
-          allowDiscord: false,
+          allowDiscord: parsed.data.session === ResultSession.Sprint,
           discordPurpose:
             parsed.data.session === ResultSession.Sprint
               ? DiscordChannelPurpose.SprintResults

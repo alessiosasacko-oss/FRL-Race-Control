@@ -129,7 +129,7 @@ export async function getTeamDependencySnapshot(
     activeDriverMap.set(driver.id, {
       id: driver.id,
       name: driver.name,
-      leagueCode: driver.league.code,
+      leagueCode: driver.league?.code ?? "ohne aktuelle Liga",
     });
   }
   for (const assignment of seasonAssignments) {

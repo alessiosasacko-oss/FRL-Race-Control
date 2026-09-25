@@ -100,7 +100,7 @@ export async function globalSearch(
       id: `driver-${driver.id}`,
       kind: "driver" as const,
       title: `#${driver.number} ${driver.name}`,
-      subtitle: `${driver.team?.name ?? "Ohne Team"} · ${driver.league.code}`,
+      subtitle: `${driver.team?.name ?? "Ohne Team"} · ${driver.league?.code ?? "Ohne aktuelle Liga"}`,
       href: `/drivers/${driver.id}`,
     })),
     ...teams.map((team) => ({

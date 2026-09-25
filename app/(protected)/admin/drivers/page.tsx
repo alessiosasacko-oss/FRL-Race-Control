@@ -63,7 +63,7 @@ export default async function DriverAdminPage({ searchParams }: DriverAdminPageP
                       <span className="inline-flex items-center gap-2"><CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="sm" />#{driver.number} {driver.name}</span>
                     </h2>
                     <p className="mt-1 text-sm text-slate-400">
-                      {driver.league.code} · {driver.team?.name ?? "Ohne Team"}
+                      {driver.league?.code ?? "Ohne aktuelle Liga"} · {driver.team?.name ?? "Ohne Team"}
                       {driver.assignment ? ` · ${driver.assignment.season.name} · ${driver.assignment.lineupStatus === "PRIMARY" ? "Stammfahrer" : "Ersatzfahrer"}` : ""}
                     </p>
                     </div>

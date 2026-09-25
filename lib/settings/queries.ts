@@ -61,7 +61,7 @@ export async function getSettingsPageData(
           flag: user.driver.flag,
           countryCode: user.driver.countryCode,
           team: user.driver.team?.name ?? null,
-          league: user.driver.league.code,
+          league: user.driver.league?.code ?? "Ohne aktuelle Liga",
         }
       : null,
     settings: {

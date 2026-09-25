@@ -549,7 +549,7 @@ model Driver {
   id                       Int                      @id @default(autoincrement())
   userId                   Int?                     @unique
   teamId                   Int?
-  leagueId                 Int
+  leagueId                 Int?
   name                     String                   @db.VarChar(160)
   number                   Int
   flag                     String                   @db.VarChar(16)
@@ -558,7 +558,7 @@ model Driver {
   active                   Boolean                  @default(true)
   user                     User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
   team                     Team?                    @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  league                   League                   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  league                   League?                  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   standings                DriverStanding[]
   ticketLinks              FiaTicketDriver[]
   attendanceEntries        RaceAttendance[]         @relation("ExpectedAttendanceDriver")

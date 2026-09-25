@@ -66,7 +66,7 @@ export default async function ProfilePage() {
                     {data.driver.team?.name ?? "Ohne Team"}
                   </span>
                   <span>·</span>
-                  <span>{data.driver.league.code}</span>
+                  <span>{data.driver.league?.code ?? "Ohne aktuelle Liga"}</span>
                 </div>
               ) : (
                 <p className="mt-3 text-slate-300">

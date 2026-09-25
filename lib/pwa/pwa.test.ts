@@ -64,6 +64,17 @@ test("service worker updates reload only after explicit user confirmation", () =
   assert.match(lifecycle, /SKIP_WAITING/);
 });
 
+test("settings always exposes the PWA installation area with every browser state", () => {
+  const panel = source("components/pwa/PwaInstallPanel.tsx");
+  const settings = source("app/(protected)/settings/page.tsx");
+  assert.match(settings, /PwaInstallPanel/);
+  assert.match(panel, /FRL Race Control App/);
+  assert.match(panel, /App installieren/);
+  assert.match(panel, /FRL Race Control läuft bereits als installierte App/);
+  assert.match(panel, /Dein Browser zeigt den Installationsdialog gerade nicht an/);
+  assert.doesNotMatch(panel, /if \(!prompt && !showIosGuide && !installed\) return null/);
+});
+
 test("PWA shell routes remain public while protected data stays behind proxy", () => {
   const proxy = source("proxy.ts");
   for (const path of ["/offline", "/manifest.webmanifest", "/sw.js"]) {

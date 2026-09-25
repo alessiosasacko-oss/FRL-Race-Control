@@ -22,8 +22,11 @@ let cachedKey = "";
 function config() {
   const url = process.env.SUPABASE_URL?.trim();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  const bucket = process.env.SUPABASE_DRIVER_IMAGE_BUCKET?.trim() || "driver-images";
-  if (!url || !serviceRoleKey) throw new DriverImageStorageError("DRIVER_IMAGE_STORAGE_NOT_CONFIGURED");
+  const bucket = process.env.SUPABASE_DRIVER_IMAGE_BUCKET?.trim()
+    || process.env.SUPABASE_STORAGE_BUCKET?.trim();
+  if (!url || !serviceRoleKey || !bucket) {
+    throw new DriverImageStorageError("DRIVER_IMAGE_STORAGE_NOT_CONFIGURED");
+  }
   return { url, serviceRoleKey, bucket };
 }
 
@@ -65,13 +68,26 @@ async function processImage(file: File) {
   }
 }
 
+async function publicBucket() {
+  const storage = config();
+  const result = await client().storage.getBucket(storage.bucket);
+  if (result.error || !result.data) {
+    throw new DriverImageStorageError("DRIVER_IMAGE_BUCKET_UNAVAILABLE", {
+      cause: result.error ?? undefined,
+    });
+  }
+  if (!result.data.public) {
+    throw new DriverImageStorageError("DRIVER_IMAGE_BUCKET_PRIVATE");
+  }
+  return client().storage.from(storage.bucket);
+}
+
 export async function uploadDriverImage(file: File, driverId: number) {
   const { original, thumbnail } = await processImage(file);
-  const storage = config();
   const uuid = crypto.randomUUID();
-  const storagePath = `${driverId}/${uuid}.webp`;
-  const thumbnailPath = `${driverId}/${uuid}-thumb.webp`;
-  const bucket = client().storage.from(storage.bucket);
+  const storagePath = `drivers/${driverId}/${uuid}.webp`;
+  const thumbnailPath = `drivers/${driverId}/${uuid}-thumb.webp`;
+  const bucket = await publicBucket();
   const uploaded = await bucket.upload(storagePath, original, {
     cacheControl: "31536000",
     contentType: "image/webp",
@@ -97,9 +113,15 @@ export function ownedDriverImagePaths(imageUrl: string | null, driverId: number)
     const parsed = new URL(imageUrl);
     const expectedOrigin = new URL(storage.url).origin;
     const bucketPrefix = `/storage/v1/object/public/${encodeURIComponent(storage.bucket)}/`;
-    if (parsed.origin !== expectedOrigin || !parsed.pathname.startsWith(`${bucketPrefix}${driverId}/`)) return [];
+    if (parsed.origin !== expectedOrigin || !parsed.pathname.startsWith(bucketPrefix)) return [];
     const path = decodeURIComponent(parsed.pathname.slice(bucketPrefix.length));
-    if (!path.startsWith(`${driverId}/`) || !path.endsWith(".webp") || path.includes("..")) return [];
+    const currentPath = `drivers/${driverId}/`;
+    const legacyPath = `${driverId}/`;
+    if (
+      (!path.startsWith(currentPath) && !path.startsWith(legacyPath))
+      || !path.endsWith(".webp")
+      || path.includes("..")
+    ) return [];
     return [path, path.replace(/\.webp$/, "-thumb.webp")];
   } catch {
     return [];

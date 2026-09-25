@@ -25,7 +25,7 @@ export default function DriverHero({ data }: { data: DashboardData }) {
             <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-300">
               <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">#{driver.number}</span>
               <CountryFlag countryCode={null} fallbackFlag={driver.flag} size="sm" />
-              <span>{driver.league.code}</span>
+              <span>{driver.league?.code ?? "Ohne aktuelle Liga"}</span>
               <span aria-hidden="true">·</span>
               {driver.team ? <TeamLogo logoUrl={driver.team.logoUrl} teamName={driver.team.name} shortName={driver.team.shortName} primaryColor={driver.team.color} size="xs" /> : null}
               <span>{driver.team?.name ?? "Ohne Team"}</span>

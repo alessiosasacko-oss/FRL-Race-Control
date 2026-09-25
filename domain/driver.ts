@@ -14,7 +14,7 @@ export const driverSchema = z
     flag: z.string().trim().min(1).max(16),
     countryCode: countryCodeSchema,
     teamId: entityIdSchema.nullable(),
-    leagueId: entityIdSchema,
+    leagueId: entityIdSchema.nullable(),
     active: z.boolean(),
   })
   .strict();

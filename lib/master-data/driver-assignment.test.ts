@@ -116,3 +116,21 @@ test("21. the 390px form remains contained and touch safe", () => {
   assert.match(form, /min-h-11 w-full sm:w-auto/);
   assert.doesNotMatch(form, /min-w-\[/);
 });
+
+test("22. a Driver can remain a global identity without a current season assignment", () => {
+  assert.match(schema, /seasonId: optionalId/);
+  assert.match(schema, /leagueId: optionalId/);
+  assert.match(form, /Aktuelle Saison-, Liga- und Teamzuordnung verwalten/);
+  assert.match(actions, /const assignment = input\.seasonId !== null && input\.leagueId !== null/);
+  assert.match(actions, /where: \{ driverId: driver\.id, active: true \}/);
+});
+
+test("23. general driver lists do not require a season assignment", () => {
+  const getDrivers = queries.slice(
+    queries.indexOf("export async function getDriverItems"),
+    queries.indexOf("export async function getDriverById"),
+  );
+  assert.doesNotMatch(getDrivers, /seasonId: query\.seasonId/);
+  assert.match(getDrivers, /seasonAssignments:[\s\S]*organization:[\s\S]*contains: query\.q/);
+  assert.match(source("prisma/schema.prisma"), /leagueId\s+Int\?/);
+});

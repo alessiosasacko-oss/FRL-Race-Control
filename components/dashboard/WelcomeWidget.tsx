@@ -40,7 +40,7 @@ export default function WelcomeWidget({
           <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-slate-500">
             <Gauge size={13} className="text-cyan-400" />
             {identity.driver
-              ? `${identity.driver.team?.name ?? "Ohne Team"} · ${identity.driver.league.code}`
+              ? `${identity.driver.team?.name ?? "Ohne Team"} · ${identity.driver.league?.code ?? "Ohne aktuelle Liga"}`
               : "Noch kein Fahrerprofil"}
             {identity.season ? ` · ${identity.season.name}` : ""}
           </p>

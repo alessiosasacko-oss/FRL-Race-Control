@@ -183,7 +183,7 @@ export async function getUserAdminDetail(userId: number) {
   const currentAssignment = user.driver?.seasonAssignments.find((assignment) => assignment.active) ?? null;
   const access = effectiveUserAccess({
     roles: user.roles as Role[],
-    leagueCode: currentAssignment?.league.code ?? user.driver?.league.code,
+    leagueCode: currentAssignment?.league.code ?? user.driver?.league?.code,
     teamName: currentAssignment?.organization?.name ?? user.driver?.team?.name,
     hasDriverProfile: Boolean(user.driver),
   });

@@ -11,6 +11,8 @@ export const runtime = "nodejs";
 
 const messages: Record<string, string> = {
   DRIVER_IMAGE_STORAGE_NOT_CONFIGURED: "Der Fahrerbild-Speicher ist noch nicht konfiguriert.",
+  DRIVER_IMAGE_BUCKET_UNAVAILABLE: "Der konfigurierte Fahrerbild-Speicher ist nicht verfügbar.",
+  DRIVER_IMAGE_BUCKET_PRIVATE: "Der konfigurierte Fahrerbild-Speicher muss für Fahrerbilder öffentlich erreichbar sein.",
   UNSUPPORTED_DRIVER_IMAGE_TYPE: "Nur PNG, WebP und JPEG sind erlaubt.",
   INVALID_DRIVER_IMAGE_SIZE: "Diese Datei ist zu groß. Maximal 3 MB.",
   DRIVER_IMAGE_EXTENSION_MISMATCH: "Dateiendung und tatsächlicher Bildtyp stimmen nicht überein.",
@@ -49,6 +51,22 @@ async function refresh(driverId: number) {
   await touchAppDataRevisionSafely(getPrismaClient(), ["drivers", "results", "championship", "teams", "users"]);
 }
 
+function uploadFailureDetails(error: unknown) {
+  if (!(error instanceof DriverImageStorageError)) {
+    return { errorName: error instanceof Error ? error.name : "UnknownError" };
+  }
+  const cause = error.cause;
+  const status = typeof cause === "object" && cause !== null && "statusCode" in cause
+    && typeof cause.statusCode === "number"
+    ? cause.statusCode
+    : null;
+  return {
+    errorName: error.name,
+    causeName: cause instanceof Error ? cause.name : null,
+    status,
+  };
+}
+
 export async function POST(request: Request, context: RouteParams) {
   const auth = await contextFor(request, context);
   if ("response" in auth) return auth.response;
@@ -65,7 +83,12 @@ export async function POST(request: Request, context: RouteParams) {
   } catch (error: unknown) {
     if (upload) try { await removeDriverImageFiles([upload.storagePath, upload.thumbnailPath]); } catch { /* best-effort cleanup */ }
     const code = error instanceof DriverImageError || error instanceof DriverImageStorageError ? error.code : "UNKNOWN";
-    console.error("[driver-image] Upload failed.", { actorId: auth.user.id, driverId: auth.driver.id, code });
+    console.error("[driver-image] Upload failed.", {
+      actorId: auth.user.id,
+      driverId: auth.driver.id,
+      code,
+      ...uploadFailureDetails(error),
+    });
     return Response.json({ message: messages[code] ?? "Das Fahrerbild konnte nicht gespeichert werden." }, { status: code === "UNKNOWN" ? 500 : 400 });
   }
   try { await removeDriverImageFiles(ownedDriverImagePaths(auth.driver.imageUrl, auth.driver.id)); } catch (error: unknown) {

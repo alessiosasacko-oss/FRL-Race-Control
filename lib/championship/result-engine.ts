@@ -268,7 +268,7 @@ export function matchesDriverSearch(
 }
 
 export function driverBelongsToResultContext(input: {
-  driverLeagueId: number;
+  driverLeagueId: number | null;
   selectedLeagueId: number;
   substitute: boolean;
   expectedDriverLeagueId: number | null;

@@ -36,3 +36,20 @@ test("driver image thumbnails use the immutable upload companion", () => {
   assert.equal(driverImageThumbnailUrl("/legacy/driver.png"), "/legacy/driver.png");
   assert.equal(driverImageThumbnailUrl(null), null);
 });
+
+test("driver image thumbnails support the persistent driver storage namespace", () => {
+  assert.equal(
+    driverImageThumbnailUrl("https://project.supabase.co/storage/v1/object/public/frl-assets/drivers/12/123e4567-e89b-12d3-a456-426614174000.webp"),
+    "https://project.supabase.co/storage/v1/object/public/frl-assets/drivers/12/123e4567-e89b-12d3-a456-426614174000-thumb.webp",
+  );
+});
+
+test("driver uploads use a configured public Supabase bucket rather than local storage", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const storage = await readFile("lib/storage/driver-image-storage.ts", "utf8");
+  assert.match(storage, /SUPABASE_DRIVER_IMAGE_BUCKET/);
+  assert.match(storage, /SUPABASE_STORAGE_BUCKET/);
+  assert.match(storage, /storage\.getBucket/);
+  assert.match(storage, /drivers\/\$\{driverId\}/);
+  assert.doesNotMatch(storage, /writeFile|process\.cwd\(\)|public\/uploads/);
+});

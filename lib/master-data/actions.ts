@@ -989,23 +989,26 @@ async function saveDriverAssignment(
   actorId: number,
   driverId: number | null,
 ): Promise<number> {
+  const assignment = input.seasonId !== null && input.leagueId !== null
+    ? { seasonId: input.seasonId, leagueId: input.leagueId }
+    : null;
   const [season, league, organization, existingDriver] = await Promise.all([
-    transaction.season.findUnique({
-      where: { id: input.seasonId },
+    assignment ? transaction.season.findUnique({
+      where: { id: assignment.seasonId },
       select: {
         id: true,
         active: true,
         archivedAt: true,
         participatingLeagues: {
-          where: { id: input.leagueId },
+          where: { id: assignment.leagueId },
           select: { id: true },
         },
       },
-    }),
-    transaction.league.findUnique({
-      where: { id: input.leagueId },
+    }) : Promise.resolve(null),
+    assignment ? transaction.league.findUnique({
+      where: { id: assignment.leagueId },
       select: { id: true, code: true, active: true },
-    }),
+    }) : Promise.resolve(null),
     input.organizationId
       ? transaction.teamOrganization.findUnique({
           where: { id: input.organizationId },
@@ -1030,18 +1033,21 @@ async function saveDriverAssignment(
   ]);
 
   if (driverId && !existingDriver) throw new Error("DRIVER_NOT_FOUND");
-  if (!season || !season.active || season.archivedAt) {
+  if (assignment && (!season || !season.active || season.archivedAt)) {
     throw new Error("SEASON_INACTIVE");
   }
   if (
-    !league ||
-    !league.active ||
-    !["F1", "F2", "F3", "F4", "F5", "F6"].includes(league.code) ||
-    season.participatingLeagues.length === 0
+    assignment && (
+      !league ||
+      !league.active ||
+      !["F1", "F2", "F3", "F4", "F5", "F6"].includes(league.code) ||
+      !season ||
+      season.participatingLeagues.length === 0
+    )
   ) {
     throw new Error("ASSIGNMENT_INCONSISTENT");
   }
-  if (input.organizationId && !organization) {
+  if (input.organizationId && (!assignment || !organization)) {
     throw new Error("ASSIGNMENT_INCONSISTENT");
   }
   if (organization && (!organization.active || organization.archivedAt)) {
@@ -1049,14 +1055,14 @@ async function saveDriverAssignment(
   }
 
   const [numberConflict, selectedUser] = await Promise.all([
-    transaction.driver.findFirst({
+    assignment ? transaction.driver.findFirst({
       where: {
-        leagueId: league.id,
+        leagueId: assignment.leagueId,
         number: input.number,
         id: driverId ? { not: driverId } : undefined,
       },
       select: { id: true },
-    }),
+    }) : Promise.resolve(null),
     input.userId
       ? transaction.user.findUnique({
           where: { id: input.userId },
@@ -1068,7 +1074,7 @@ async function saveDriverAssignment(
       : Promise.resolve(null),
   ]);
   if (numberConflict) {
-    throw new Error(`DRIVER_NUMBER_CONFLICT:${league.code}`);
+    throw new Error(`DRIVER_NUMBER_CONFLICT:${league?.code ?? "UNKNOWN"}`);
   }
   if (input.userId && (!selectedUser || !selectedUser.active)) {
     throw new Error("USER_UNAVAILABLE");
@@ -1081,7 +1087,7 @@ async function saveDriverAssignment(
   }
 
   if (
-    input.active &&
+    assignment && season && league && input.active &&
     input.lineupStatus === DriverLineupStatus.Primary &&
     organization
   ) {
@@ -1101,7 +1107,7 @@ async function saveDriverAssignment(
   }
 
   let internalTeamSlot: { id: number } | null = null;
-  if (organization) {
+  if (assignment && season && league && organization) {
     try {
       internalTeamSlot = await ensureInternalTeamSlot(transaction, {
         organizationId: organization.id,
@@ -1125,7 +1131,7 @@ async function saveDriverAssignment(
         data: {
           userId: input.userId,
           teamId: internalTeamSlot?.id ?? null,
-          leagueId: league.id,
+          leagueId: assignment?.leagueId ?? null,
           name: input.name,
           number: input.number,
           flag: input.countryCode,
@@ -1138,7 +1144,7 @@ async function saveDriverAssignment(
         data: {
           userId: input.userId,
           teamId: internalTeamSlot?.id ?? null,
-          leagueId: league.id,
+          leagueId: assignment?.leagueId ?? null,
           name: input.name,
           number: input.number,
           flag: input.countryCode,
@@ -1148,36 +1154,43 @@ async function saveDriverAssignment(
         select: { id: true },
       });
 
-  await transaction.driverSeasonAssignment.updateMany({
-    where: {
-      driverId: driver.id,
-      seasonId: { not: season.id },
-      active: true,
-      ...(input.active
-        ? { season: { active: true, archivedAt: null } }
-        : {}),
-    },
-    data: { active: false },
-  });
-  await transaction.driverSeasonAssignment.upsert({
-    where: {
-      driverId_seasonId: { driverId: driver.id, seasonId: season.id },
-    },
-    create: {
-      driverId: driver.id,
-      seasonId: season.id,
-      leagueId: league.id,
-      organizationId: organization?.id ?? null,
-      lineupStatus: input.lineupStatus,
-      active: input.active,
-    },
-    update: {
-      leagueId: league.id,
-      organizationId: organization?.id ?? null,
-      lineupStatus: input.lineupStatus,
-      active: input.active,
-    },
-  });
+  if (assignment && season && league) {
+    await transaction.driverSeasonAssignment.updateMany({
+      where: {
+        driverId: driver.id,
+        seasonId: { not: season.id },
+        active: true,
+        ...(input.active
+          ? { season: { active: true, archivedAt: null } }
+          : {}),
+      },
+      data: { active: false },
+    });
+    await transaction.driverSeasonAssignment.upsert({
+      where: {
+        driverId_seasonId: { driverId: driver.id, seasonId: season.id },
+      },
+      create: {
+        driverId: driver.id,
+        seasonId: season.id,
+        leagueId: league.id,
+        organizationId: organization?.id ?? null,
+        lineupStatus: input.lineupStatus,
+        active: input.active,
+      },
+      update: {
+        leagueId: league.id,
+        organizationId: organization?.id ?? null,
+        lineupStatus: input.lineupStatus,
+        active: input.active,
+      },
+    });
+  } else {
+    await transaction.driverSeasonAssignment.updateMany({
+      where: { driverId: driver.id, active: true },
+      data: { active: false },
+    });
+  }
   await writeSystemAudit(transaction, {
     actorId,
     action: existingDriver ? "DRIVER_UPDATED" : "DRIVER_CREATED",
@@ -1194,8 +1207,8 @@ async function saveDriverAssignment(
           }
         : null,
       next: {
-        seasonId: season.id,
-        leagueId: league.id,
+        seasonId: assignment?.seasonId ?? null,
+        leagueId: assignment?.leagueId ?? null,
         organizationId: organization?.id ?? null,
         lineupStatus: input.lineupStatus,
         internalTeamSlotId: internalTeamSlot?.id ?? null,

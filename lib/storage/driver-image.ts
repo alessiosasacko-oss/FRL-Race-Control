@@ -67,6 +67,6 @@ export function validateDriverImageFile(
 
 export function driverImageThumbnailUrl(imageUrl: string | null | undefined): string | null {
   if (!imageUrl) return null;
-  const generatedOriginal = /\/\d+\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp(?=\?|$)/i;
+  const generatedOriginal = /\/(?:drivers\/)?\d+\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp(?=\?|$)/i;
   return generatedOriginal.test(imageUrl) ? imageUrl.replace(/\.webp(?=\?|$)/i, "-thumb.webp") : imageUrl;
 }

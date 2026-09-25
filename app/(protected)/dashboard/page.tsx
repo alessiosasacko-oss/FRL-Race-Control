@@ -37,7 +37,7 @@ export default async function DashboardPage() {
         pinnedContent={
           <>
             <DriverHero data={data} />
-            <NextRaceWidget race={data.nextRace} league={data.identity.driver?.league.code ?? null} />
+            <NextRaceWidget race={data.nextRace} league={data.identity.driver?.league?.code ?? null} />
           </>
         }
         initialLayout={layout}

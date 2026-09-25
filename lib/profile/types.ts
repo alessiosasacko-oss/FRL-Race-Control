@@ -21,7 +21,7 @@ export type ProfileData = {
       id: number;
       code: string;
       name: string;
-    };
+    } | null;
   } | null;
   statistics: {
     races: number;

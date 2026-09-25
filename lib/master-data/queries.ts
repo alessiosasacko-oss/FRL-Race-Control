@@ -673,13 +673,13 @@ function mapDriverItem(driver: DriverItemRecord): DriverItem {
     diagnostics.push(
       legacySlotIsConsistent
         ? "Für den konsistenten technischen Teamplatz fehlt eine DriverSeasonAssignment. Die Auswahl wird beim Speichern ergänzt."
-        : `Legacy-Widerspruch: Fahrer-Liga ${driver.league.code}, technischer Teamplatz ${driver.team.league.code}. Es wurde keine Liga geraten.`,
+        : `Legacy-Widerspruch: Fahrer-Liga ${driver.league?.code ?? "ohne aktuelle Liga"}, technischer Teamplatz ${driver.team.league.code}. Es wurde keine Liga geraten.`,
     );
   }
   if (canonicalAssignment) {
     if (driver.leagueId !== canonicalAssignment.leagueId) {
       diagnostics.push(
-        `Legacy-Widerspruch: Driver.leagueId verweist auf ${driver.league.code}, die aktuelle Zuordnung auf ${canonicalAssignment.league.code}.`,
+        `Legacy-Widerspruch: Driver.leagueId verweist auf ${driver.league?.code ?? "keine Liga"}, die aktuelle Zuordnung auf ${canonicalAssignment.league.code}.`,
       );
     }
     const slotMatchesAssignment = canonicalAssignment.organizationId

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useLiveActionState as useActionState } from "@/components/live/useLiveActionState";
 import {
   createDriverAction,
@@ -34,9 +35,8 @@ export default function DriverForm({
   const availableUsers = options.users.filter(
     (user) => user.driverId === null || user.driverId === driver?.id,
   );
-  const defaultSeasonId =
-    assignment?.season.id ?? options.seasons[0]?.id;
-  const configurationReady =
+  const [hasAssignment, setHasAssignment] = useState(Boolean(assignment));
+  const assignmentOptionsAvailable =
     options.seasons.length > 0 && options.leagues.length > 0;
 
   return (
@@ -72,10 +72,11 @@ export default function DriverForm({
           Saison
           <select
             name="seasonId"
-            defaultValue={defaultSeasonId}
-            required
+            defaultValue={assignment?.season.id ?? ""}
+            disabled={!hasAssignment}
             className="form-control mt-2"
           >
+            <option value="">Keine aktuelle Saisonzuordnung</option>
             {options.seasons.map((season) => (
               <option key={season.id} value={season.id}>
                 {season.name}
@@ -87,8 +88,8 @@ export default function DriverForm({
           Liga
           <select
             name="leagueId"
-            defaultValue={assignment?.league.id ?? driver?.league.id ?? options.leagues[0]?.id}
-            required
+            defaultValue={assignment?.league.id ?? driver?.league?.id ?? ""}
+            disabled={!hasAssignment}
             className="form-control mt-2"
           >
             {options.leagues.map((league) => (
@@ -103,6 +104,7 @@ export default function DriverForm({
           <select
             name="organizationId"
             defaultValue={assignment?.organization?.id ?? driver?.team?.id ?? ""}
+            disabled={!hasAssignment}
             className="form-control mt-2"
           >
             <option value="">Kein Team</option>
@@ -118,6 +120,7 @@ export default function DriverForm({
           <select
             name="lineupStatus"
             defaultValue={assignment?.lineupStatus ?? DriverLineupStatus.Primary}
+            disabled={!hasAssignment}
             className="form-control mt-2"
           >
             <option value={DriverLineupStatus.Primary}>Stammfahrer</option>
@@ -141,9 +144,20 @@ export default function DriverForm({
           </select>
         </label>
       </div>
-      {!configurationReady ? (
+      <label className="flex min-h-11 items-center gap-3 text-sm text-slate-300">
+        <input
+          type="checkbox"
+          name="hasAssignment"
+          checked={hasAssignment}
+          onChange={(event) => setHasAssignment(event.target.checked)}
+          disabled={!assignmentOptionsAvailable}
+          className="h-4 w-4 accent-blue-600"
+        />
+        Aktuelle Saison-, Liga- und Teamzuordnung verwalten
+      </label>
+      {!assignmentOptionsAvailable ? (
         <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
-          Zum Speichern werden mindestens eine aktive Saison und eine aktive FRL-Liga benötigt.
+          Es sind gerade keine aktiven Saisons oder FRL-Ligen verfügbar. Das globale Fahrerprofil kann trotzdem gespeichert werden.
         </p>
       ) : null}
       <label className="flex min-h-11 items-center gap-3 text-sm text-slate-300">
@@ -157,7 +171,7 @@ export default function DriverForm({
       </label>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <ActionMessage state={state} />
-        <button disabled={pending || !configurationReady} className="wizard-primary-button min-h-11 w-full sm:w-auto">
+        <button disabled={pending} className="wizard-primary-button min-h-11 w-full sm:w-auto">
           {pending
             ? "Speichert…"
             : driver

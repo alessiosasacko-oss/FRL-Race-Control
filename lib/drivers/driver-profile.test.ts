@@ -17,6 +17,8 @@ test("driver image route enforces ownership or master-data permission", () => {
   assert.match(route, /validOrigin/);
   assert.match(route, /uploadDriverImage/);
   assert.match(source("lib/storage/driver-image-storage.ts"), /validateDriverImageFile/);
+  assert.match(route, /uploadFailureDetails/);
+  assert.match(source("lib/storage/driver-image-storage.ts"), /DRIVER_IMAGE_BUCKET_UNAVAILABLE/);
 });
 
 test("productive driver surfaces use uploaded images with an initials fallback", () => {

@@ -44,7 +44,7 @@ export type UserOption = {
 
 export type DriverOption = {
   id: number;
-  leagueId: number;
+  leagueId: number | null;
   teamId: number | null;
   name: string;
   number: number;
@@ -205,7 +205,7 @@ export type DriverItem = {
   countryCode: string;
   active: boolean;
   userId: number | null;
-  league: LeagueOption;
+  league: LeagueOption | null;
   team: {
     id: number;
     name: string;

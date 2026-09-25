@@ -66,7 +66,7 @@ export default async function DriverDetailPage({
                 <CountryFlag countryCode={driver.countryCode} fallbackFlag={driver.flag} size="lg" />
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-widest text-blue-400">
-                    {driver.league.code} · Fahrer #{driver.number}
+                    {driver.league?.code ?? "Ohne aktuelle Liga"} · Fahrer #{driver.number}
                   </p>
                   <h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
                     {driver.name}
@@ -101,7 +101,7 @@ export default async function DriverDetailPage({
                     Liga
                   </dt>
                   <dd className="mt-2 font-semibold text-white">
-                    {driver.league.name}
+                    {driver.league?.name ?? "Aktuell keiner Liga zugeordnet"}
                   </dd>
                 </div>
                 <div className="rounded-xl bg-slate-950/60 p-4">
