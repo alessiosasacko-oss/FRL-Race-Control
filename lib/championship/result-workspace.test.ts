@@ -169,8 +169,8 @@ test("the overview groups league states by race weekend", () => {
   assert.match(pageSource, /weekendLeagueResults/);
 });
 
-test("the sticky result context makes league, round, track and session explicit", () => {
-  assert.match(contextSource, /sticky top-/);
+test("the result context stays in normal document flow while making league, round, track and session explicit", () => {
+  assert.doesNotMatch(contextSource, /\bsticky\b|\bfixed\b|\btop-/);
   assert.match(contextSource, /FRL \{race\.season\.league\.code\}/);
   assert.match(contextSource, /ROUND \{round\}/);
   assert.match(contextSource, /race\.circuit/);

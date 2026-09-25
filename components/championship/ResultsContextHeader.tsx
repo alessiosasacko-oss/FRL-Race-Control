@@ -26,7 +26,7 @@ const sessionTone: Record<ResultSession, string> = {
 export default function ResultsContextHeader({ race, session, raceDate, published, dirty, pending, lastSavedLabel, actions }: ResultsContextHeaderProps) {
   const round = String(race.round).padStart(2, "0");
   return (
-    <section aria-label="Aktueller Ergebniskontext" className="sticky top-[4.5rem] z-40 overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--page-accent)_34%,transparent)] bg-[color-mix(in_srgb,var(--color-background-elevated)_96%,transparent)] shadow-[var(--shadow-card)] backdrop-blur-xl lg:top-3">
+    <section aria-label="Aktueller Ergebniskontext" className="overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--page-accent)_34%,transparent)] bg-[color-mix(in_srgb,var(--color-background-elevated)_96%,transparent)] shadow-[var(--shadow-card)] backdrop-blur-xl">
       <div className="grid min-w-0 gap-3 p-3 sm:p-4 lg:grid-cols-[8rem_minmax(0,1fr)_13rem] lg:items-stretch">
         <div className="grid grid-cols-[1fr_auto] gap-2 lg:grid-cols-1">
           <div className="grid min-h-16 place-items-center rounded-xl border border-blue-300/40 bg-[linear-gradient(145deg,#2563eb,#123a9c)] px-3 text-center shadow-lg shadow-blue-950/35 lg:min-h-20">
