@@ -85,9 +85,16 @@ async function publicBucket() {
 }
 
 export async function uploadDriverImage(file: File, driverId: number, purpose: "profile" | "result" = "profile") {
+  return uploadImageAtNamespace(file, purpose === "result" ? `drivers/${driverId}/result` : `drivers/${driverId}`, purpose);
+}
+
+export async function uploadTeamDriverRender(file: File, organizationId: number, slot: 1 | 2) {
+  return uploadImageAtNamespace(file, `team-driver-renders/${organizationId}/driver-${slot}`, "result");
+}
+
+async function uploadImageAtNamespace(file: File, namespace: string, purpose: "profile" | "result") {
   const { original, thumbnail } = await processDriverImage(file, purpose);
   const uuid = crypto.randomUUID();
-  const namespace = purpose === "result" ? `drivers/${driverId}/result` : `drivers/${driverId}`;
   const storagePath = `${namespace}/${uuid}.webp`;
   const thumbnailPath = `${namespace}/${uuid}-thumb.webp`;
   const bucket = await publicBucket();
@@ -107,6 +114,19 @@ export async function uploadDriverImage(file: File, driverId: number, purpose: "
     throw new DriverImageStorageError("DRIVER_IMAGE_UPLOAD_FAILED", { cause: thumbUploaded.error });
   }
   return { imageUrl: bucket.getPublicUrl(storagePath).data.publicUrl, storagePath, thumbnailPath };
+}
+
+export function ownedTeamDriverRenderPaths(imageUrl: string | null, organizationId: number, slot: 1 | 2): string[] {
+  if (!imageUrl) return [];
+  const storage = config();
+  try {
+    const url = new URL(imageUrl);
+    const prefix = `/storage/v1/object/public/${encodeURIComponent(storage.bucket)}/`;
+    if (url.origin !== new URL(storage.url).origin || !url.pathname.startsWith(prefix)) return [];
+    const key = decodeURIComponent(url.pathname.slice(prefix.length));
+    if (!new RegExp(`^team-driver-renders/${organizationId}/driver-${slot}/[a-f0-9-]+\\.webp$`).test(key)) return [];
+    return [key, key.replace(/\.webp$/, "-thumb.webp")];
+  } catch { return []; }
 }
 
 export function ownedDriverImagePaths(imageUrl: string | null, driverId: number): string[] {

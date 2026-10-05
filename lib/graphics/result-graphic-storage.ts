@@ -6,8 +6,8 @@ import sharp from "sharp";
 let cached: SupabaseClient | null = null;
 let cacheKey = "";
 
-export async function hydrateGraphicAssets<T extends { teamLogoUrl: string | null; imageUrl: string | null; renderImageUrl?: string | null }>(rows: readonly T[], load: (url: string) => Promise<string | null> = safeGraphicAssetDataUrl) {
-  const unique = [...new Set(rows.flatMap((row) => [row.teamLogoUrl, row.imageUrl, row.renderImageUrl].filter((url): url is string => Boolean(url))))];
+export async function hydrateGraphicAssets<T extends { teamLogoUrl: string | null; imageUrl: string | null; renderImageUrl?: string | null; teamRenderImageUrl?: string | null }>(rows: readonly T[], load: (url: string) => Promise<string | null> = safeGraphicAssetDataUrl) {
+  const unique = [...new Set(rows.flatMap((row) => [row.teamRenderImageUrl, row.renderImageUrl, row.imageUrl, row.teamLogoUrl].filter((url): url is string => Boolean(url))))];
   const byUrl = new Map<string, string | null>();
   const deadline = Date.now() + 12_000;
   // Bound concurrent downloads and decoding; a missing asset must not fail a result.
@@ -18,7 +18,7 @@ export async function hydrateGraphicAssets<T extends { teamLogoUrl: string | nul
     }));
   }
   return rows.map((row) => {
-    const render = row.renderImageUrl ? byUrl.get(row.renderImageUrl) : null;
+    const render = (row.teamRenderImageUrl ? byUrl.get(row.teamRenderImageUrl) : null) || (row.renderImageUrl ? byUrl.get(row.renderImageUrl) : null);
     return { ...row, teamLogoDataUrl: row.teamLogoUrl ? byUrl.get(row.teamLogoUrl) ?? null : null,
       imageDataUrl: render || (row.imageUrl ? byUrl.get(row.imageUrl) ?? null : null),
       imageKind: render ? "render" as const : "profile" as const };

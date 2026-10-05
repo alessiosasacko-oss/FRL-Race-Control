@@ -38,6 +38,8 @@ export async function getTeamDependencySnapshot(
       logoUrl: true,
       secondaryColor: true,
       contrastColor: true,
+      driverOneGraphicImageUrl: true,
+      driverTwoGraphicImageUrl: true,
       teams: {
         select: {
           id: true,
@@ -162,6 +164,8 @@ export async function getTeamDependencySnapshot(
     brandingAssets: new Set(
       [
         organization.logoUrl,
+        organization.driverOneGraphicImageUrl,
+        organization.driverTwoGraphicImageUrl,
         ...organization.teams.flatMap((team) => [
           team.logoUrl,
           team.backgroundGradient,

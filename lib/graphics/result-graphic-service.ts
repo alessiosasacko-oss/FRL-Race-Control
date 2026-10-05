@@ -26,6 +26,7 @@ import {
 import { hydrateGraphicAssets, uploadResultGraphic } from "./result-graphic-storage";
 import { type GraphicTemplate } from "./templates/catalog";
 import { composeSessionGraphic, prepareSessionGraphic, selectGraphicSession } from "./result-graphic-data";
+import { resultTeamRenderImage } from "./team-render-slots";
 
 export function graphicTypesForSession(session: ResultSession): ResultGraphicType[] {
   if (session === ResultSession.Qualifying) return [ResultGraphicType.QualifyingClassification];
@@ -84,7 +85,20 @@ export async function getResultGraphicRenderData(input: {
       where: { id: { in: driverIds } }, select: { id: true, resultGraphicImageUrl: true },
     });
     const renderByDriver = new Map(renders.map((driver) => [driver.id, driver.resultGraphicImageUrl]));
-    const hydrated = await hydrateGraphicAssets(prepared.rows.map((row) => ({ ...row, imageUrl: driverIds.includes(row.driverId) ? row.imageUrl : null, renderImageUrl: renderByDriver.get(row.driverId) ?? null })));
+    const snapshots = await getPrismaClient().raceResult.findMany({
+      where: { resultSessionId: targetSession.id, driverId: { in: driverIds } },
+      select: { driverId: true, graphicSlot: true, graphicOrganizationId: true },
+    });
+    const organizationIds = [...new Set(snapshots.flatMap((row) => row.graphicOrganizationId === null ? [] : [row.graphicOrganizationId]))];
+    const organizations = await getPrismaClient().teamOrganization.findMany({
+      where: { id: { in: organizationIds } },
+      select: { id: true, driverOneGraphicImageUrl: true, driverTwoGraphicImageUrl: true },
+    });
+    const hydrated = await hydrateGraphicAssets(prepared.rows.map((row) => ({ ...row,
+      imageUrl: driverIds.includes(row.driverId) ? row.imageUrl : null,
+      teamRenderImageUrl: resultTeamRenderImage(snapshots.find((snapshot) => snapshot.driverId === row.driverId), organizations),
+      renderImageUrl: renderByDriver.get(row.driverId) ?? null,
+    })));
     return composeSessionGraphic(raceResults, targetSession, input.type, prepared, hydrated, frlLogo);
   }
 

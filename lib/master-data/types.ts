@@ -82,6 +82,8 @@ export type TeamOrganizationOption = {
 };
 
 export type TeamOrganizationItem = TeamOrganizationOption & {
+  driverOneGraphicImageUrl: string | null;
+  driverTwoGraphicImageUrl: string | null;
   secondaryColor: string | null;
   contrastColor: string | null;
   logoUrl: string | null;
@@ -105,6 +107,7 @@ export type TeamOrganizationItem = TeamOrganizationOption & {
     code: string;
     name: string;
     primaryDrivers: Array<{
+      graphicSlot: number | null;
       id: number;
       userId: number | null;
       name: string;

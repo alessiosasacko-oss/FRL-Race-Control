@@ -591,6 +591,8 @@ model DriverSeasonAssignment {
   organizationId Int?
   lineupStatus   DriverLineupStatus @default(PRIMARY)
   active         Boolean            @default(true)
+  graphicSlot    Int?
+  graphicSlotSince DateTime?
   driver         Driver             @relation(fields: [driverId], references: [id], onDelete: Cascade)
   season         Season             @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   league         League             @relation(fields: [leagueId], references: [id], onDelete: Restrict)
@@ -648,6 +650,8 @@ model TeamOrganization {
   secondaryColor    String?                  @db.Char(7)
   contrastColor     String?                  @db.Char(7)
   logoUrl           String?                  @db.Text
+  driverOneGraphicImageUrl String?            @db.Text
+  driverTwoGraphicImageUrl String?            @db.Text
   active            Boolean                  @default(true)
   archivedAt        DateTime?
   teams             Team[]
@@ -1024,6 +1028,9 @@ model RaceResult {
   resultSessionId      Int
   driverId             Int
   representedTeamId    Int
+  graphicSlot          Int?
+  graphicOrganizationId Int?
+  graphicSlotCaptured  Boolean                    @default(false)
   expectedDriverId     Int?
   position             Int?
   startingPosition     Int?

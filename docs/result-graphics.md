@@ -23,15 +23,81 @@ Discord-Nachricht und verändert keine Ergebnisdaten.
   beschriftet. Fehlende Zeiten bleiben „—“.
 - Die WM-Grafiken zeigen den aktuellen Saisonstand, keinen historischen Snapshot.
 
-## Fahrerbilder
+## Team-Slot-Fahrerbilder
+
+Primäre Grafikbilder werden unter **Admin → Teams → Graphics Studio Fahrerbilder**
+einmal je globalem Team gepflegt: **Fahrer 1 Render** und **Fahrer 2 Render**.
+Dieselben zwei Bilder gelten für alle Ligen. Pro Liga/aktiver Saison ordnet der
+Admin die vorhandenen PRIMARY-Stammfahrer explizit den Nummern 1 und 2 zu.
+Die bisherige PRIMARY/SUBSTITUTE-Logik bleibt unverändert; PRIMARY bedeutete
+bisher ausdrücklich nicht „Fahrer 1“. Es wird nicht nach Name, Nummer oder
+Ergebnisposition geraten. Neu zugewiesene Fahrer erhalten zunächst den Fallback,
+bis ihre Slot-Nummer in der Teamverwaltung festgelegt wird.
+
+Die Nummerierung ist ein Feld der bestehenden `DriverSeasonAssignment`, kein
+zweites Lineup-System. Ein eindeutiger partieller DB-Index verhindert doppelte
+Slots je Team/Saison/Liga. Ein DB-Trigger setzt Slot und Gültigkeitsbeginn bei
+Team-/Liga-/Saisonwechsel, Deaktivierung oder Wechsel zum Ersatzfahrer zurück,
+unabhängig davon, welcher bestehende Admin-Workflow die Zuordnung ändert.
+
+Bei der ersten Veröffentlichung wird je Ergebnis `graphicSlot` zusammen mit
+`graphicOrganizationId` und `graphicSlotCaptured` gespeichert. Maßgeblich sind
+`RaceResult.representedTeamId`, die damalige Saison/Liga und bei Ersatzfahrern
+`expectedDriverId`, niemals das aktuelle `Driver.teamId`. Eine Zuordnung muss
+bereits zum ligaabhängigen Renntermin gültig gewesen sein. Unbekannte Slots
+werden ebenfalls als abgeschlossen markiert, damit sie später nicht zufällig
+aus einer neuen Teamzuordnung gefüllt werden. Bei nachträglicher Änderung der
+vertretenen Identität wird ein bestehender Snapshot sicher auf Fallback gesetzt.
+Reine Ergebnis-/Punkte-Korrekturen behalten ihren Snapshot.
+
+Bestehende Ergebnisse werden von der Migration **nicht** anhand aktueller
+Fahrerlisten nummeriert. Sie bleiben beim Fallback. Neue Zuordnungen wirken
+nicht rückwirkend. Die Team-/Slot-Identität ist eingefroren, die Bilddatei selbst
+nicht: ein erneuter Export verwendet das aktuell gepflegte Bild dieses alten
+Teams und Slots. Bereits exportierte PNGs ändern sich nicht.
+
+Priorität bei jedem erneuten Rendern:
+Team-Slot-Render → persönliches `Driver.resultGraphicImageUrl` → Profilbild →
+Initialen-Platzhalter. Ein fehlgeschlagener Asset-Download verwendet dieselbe
+Fallback-Kette. Grid, Winner, Pole, Front Row, Fastest Lap, Podium sowie beide
+Classifications verwenden den gemeinsamen Resolver.
+
+Uploads sind nur für `ManageMasterData` erlaubt, mit Origin-Prüfung, Audit und
+optimistischer Konfliktprüfung. Dateien bleiben im bestehenden persistenten
+Fahrerbild-Bucket (`SUPABASE_DRIVER_IMAGE_BUCKET` / `SUPABASE_STORAGE_BUCKET`)
+unter `team-driver-renders/{organizationId}/driver-{1|2}/{uuid}.webp` inklusive
+Thumbnail. UUIDs verhindern Cache-Probleme beim Ersetzen. Alte Dateien werden
+erst nach erfolgreicher DB-Änderung entfernt; fehlgeschlagene Änderungen räumen
+ihre neuen Uploads auf. Keine Service-Role-Schlüssel im Browser.
+
+Additive Migration: `20261006120000_team_driver_render_slots`.
+Neue Felder: zwei Bild-URLs auf `TeamOrganization`, `graphicSlot` und
+`graphicSlotSince` auf `DriverSeasonAssignment`, sowie die drei oben genannten
+Snapshot-Felder auf `RaceResult`. Die Migration enthält auch die dokumentierten
+Trigger und den partiellen Index; diese sind Teil der Anwendung und dürfen bei
+künftigen Schemaänderungen nicht entfallen. Nur in isoliertem In-Memory-Postgres
+getestet, nicht gegen Supabase oder eine bestehende Datenbank ausgeführt.
+Vor Deployment muss die Migration im regulären Deployment-Prozess angewendet
+werden. Kein automatischer Backfill oder Recovery alter Ergebnisse.
+
+Validierung der Team-Slots: echte Migration und Trigger in isoliertem PGlite,
+inklusive Fahrerwechsel, Ersatzfahrer, historischen/verspäteten Ergebnissen,
+Korrekturen, Eindeutigkeit und Fallback-Kette. Die echte React-Komponente wurde
+mit lokal simulierten Endpunkten bei 360/390/430/768/1024/1440/1920 px geprüft:
+keine horizontale Überbreite, Controls mindestens 48 px, Upload/Ersetzen/Entfernen,
+Slot-Tausch, Doppelbelegungs-Sperre und Tastaturbedienung. Ein authentifizierter
+Supabase-Upload bleibt ein Deployment-Smoke-Test; es wurden keine echten
+Storage-Dateien oder Production-Zuordnungen verändert.
+
+## Persönlicher Fahrerbild-Fallback
 
 Unter **Admin → Fahrer → Fahrer bearbeiten → Bild und Karrierestatistik**
 gibt es zusätzlich zum Profilbild **Result Graphic Image / Driver Render**.
 Nur Benutzer mit der bestehenden Stammdatenberechtigung dürfen dieses Bild
 hochladen, ersetzen oder entfernen.
 
-Priorität: dediziertes Grafikbild → Profilbild → neutraler Platzhalter mit
-Initialen und Teamfarbe. Auch ein nicht erreichbares Grafikbild fällt auf das
+Das persönliche Grafikbild bleibt für Ergebnisse ohne verfügbares Team-Slot-Bild
+erhalten. Auch ein nicht erreichbares persönliches Grafikbild fällt auf das
 Profilbild zurück. Neue Render-Vorgänge lesen die aktuellen Bildreferenzen;
 bereits exportierte PNGs bleiben unverändert.
 

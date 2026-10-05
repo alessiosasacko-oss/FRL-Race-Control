@@ -769,6 +769,7 @@ export async function getTeamOrganizationItems(
             select: {
               leagueId: true,
               lineupStatus: true,
+              graphicSlot: true,
               driver: {
                 select: {
                   id: true,
@@ -814,6 +815,8 @@ export async function getTeamOrganizationItems(
       currentSeasonId: currentSeason?.id ?? null,
       currentSeasonName: currentSeason?.name ?? null,
       principal: currentSeasonAssignment?.principal ?? null,
+      driverOneGraphicImageUrl: organization.driverOneGraphicImageUrl,
+      driverTwoGraphicImageUrl: organization.driverTwoGraphicImageUrl,
       seasons: organization.seasons.map((season) => ({
         seasonId: season.seasonId,
         seasonName: season.season.name,
@@ -825,7 +828,7 @@ export async function getTeamOrganizationItems(
             assignment.leagueId === league.id && assignment.driver.active,
         );
         const mapDriver = (assignment: (typeof assignments)[number]) =>
-          assignment.driver;
+          ({ ...assignment.driver, graphicSlot: assignment.graphicSlot });
         return {
           ...league,
           primaryDrivers: assignments

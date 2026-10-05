@@ -4,6 +4,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import TeamLifecycleActions from "@/components/master-data/TeamLifecycleActions";
 import TeamOrganizationForm from "@/components/master-data/TeamOrganizationForm";
 import TeamLogoUploader from "@/components/master-data/TeamLogoUploader";
+import TeamDriverRenders from "@/components/master-data/TeamDriverRenders";
 import TeamLogo from "@/components/teams/TeamLogo";
 import CountryFlag from "@/components/ui/CountryFlag";
 import { Permission } from "@/lib/auth/permissions";
@@ -126,6 +127,7 @@ function TeamCard({
         {!team.archivedAt ? (
           <div className="mt-6">
             <TeamLogoUploader organizationId={team.id} teamName={team.name} shortName={team.shortName} primaryColor={team.color} initialLogoUrl={team.logoUrl} />
+            <TeamDriverRenders team={team} />
           </div>
         ) : null}
 
@@ -168,7 +170,7 @@ function TeamCard({
 function AdminDriverLink({
   driver,
 }: {
-  driver: TeamOrganizationItem["leagues"][number]["primaryDrivers"][number];
+  driver: Omit<TeamOrganizationItem["leagues"][number]["primaryDrivers"][number], "graphicSlot">;
 }) {
   const href = driver.userId ? `/admin/users/${driver.userId}` : `/drivers/${driver.id}`;
   return (
