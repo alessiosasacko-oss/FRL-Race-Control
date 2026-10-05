@@ -957,10 +957,7 @@ export default function ResultsEditor({
         </div>
       ) : null}
 
-      <details className="rounded-2xl border border-slate-800 bg-slate-950/35">
-        <summary className="flex min-h-12 cursor-pointer items-center px-4 py-3 text-sm font-semibold text-slate-300">Zusatzdaten · Ergebnisgrafik</summary>
-        <div className="border-t border-slate-800 p-4"><ResultGraphicPreview raceId={data.selected.race.id} leagueId={data.selected.race.season.league.id} resultSessionId={existingSession?.id ?? null} session={session} /></div>
-      </details>
+      <ResultGraphicPreview raceId={data.selected.race.id} leagueId={data.selected.race.season.league.id} resultSessionId={existingSession?.id ?? null} session={session} revision={existingSession?.revision} />
 
       <form
         id="result-editor-form"

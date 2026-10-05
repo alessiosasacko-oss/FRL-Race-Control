@@ -33,14 +33,19 @@ async function contextFor(request: Request, context: RouteParams) {
   if (!validOrigin(request)) return { response: Response.json({ message: "Ungültige Anfrage." }, { status: 403 }) } as const;
   const user = await getCurrentUser();
   if (!user) return { response: Response.json({ message: "Anmeldung erforderlich." }, { status: 401 }) } as const;
+  const purpose = new URL(request.url).searchParams.get("purpose") === "result" ? "result" : "profile";
+  if (purpose === "result" && !hasPermission(user.roles, Permission.ManageMasterData)) {
+    return { response: Response.json({ message: "Nur Admins dürfen Grafikbilder verwalten." }, { status: 403 }) } as const;
+  }
+  const imageField = purpose === "result" ? "resultGraphicImageUrl" : "imageUrl";
   const driverId = Number((await context.params).id);
   if (!Number.isInteger(driverId) || driverId <= 0) return { response: Response.json({ message: "Ungültiger Fahrer." }, { status: 400 }) } as const;
-  const driver = await getPrismaClient().driver.findUnique({ where: { id: driverId }, select: { id: true, userId: true, name: true, imageUrl: true } });
+  const driver = await getPrismaClient().driver.findUnique({ where: { id: driverId }, select: { id: true, userId: true, name: true, imageUrl: true, resultGraphicImageUrl: true } });
   if (!driver) return { response: Response.json({ message: "Fahrer wurde nicht gefunden." }, { status: 404 }) } as const;
   if (driver.userId !== user.id && !hasPermission(user.roles, Permission.ManageMasterData)) {
     return { response: Response.json({ message: "Du darfst nur dein eigenes Fahrerbild ändern." }, { status: 403 }) } as const;
   }
-  return { user, driver } as const;
+  return { user, driver, purpose, imageField, previousImageUrl: driver[imageField] } as const;
 }
 
 async function refresh(driverId: number) {
@@ -75,10 +80,11 @@ export async function POST(request: Request, context: RouteParams) {
   if (!(image instanceof File)) return Response.json({ message: "Keine Bilddatei ausgewählt." }, { status: 400 });
   let upload: Awaited<ReturnType<typeof uploadDriverImage>> | null = null;
   try {
-    upload = await uploadDriverImage(image, auth.driver.id);
+    upload = await uploadDriverImage(image, auth.driver.id, auth.purpose);
     await getPrismaClient().$transaction(async (transaction) => {
-      await transaction.driver.update({ where: { id: auth.driver.id }, data: { imageUrl: upload!.imageUrl } });
-      await writeSystemAudit(transaction, { actorId: auth.user.id, action: auth.driver.imageUrl ? "DRIVER_IMAGE_REPLACED" : "DRIVER_IMAGE_UPLOADED", entityType: "Driver", entityId: auth.driver.id, metadata: { driverName: auth.driver.name } });
+      const changed = await transaction.driver.updateMany({ where: { id: auth.driver.id, [auth.imageField]: auth.previousImageUrl }, data: { [auth.imageField]: upload!.imageUrl } });
+      if (changed.count !== 1) throw new Error("DRIVER_IMAGE_CONCURRENT_UPDATE");
+      await writeSystemAudit(transaction, { actorId: auth.user.id, action: auth.previousImageUrl ? "DRIVER_IMAGE_REPLACED" : "DRIVER_IMAGE_UPLOADED", entityType: "Driver", entityId: auth.driver.id, metadata: { driverName: auth.driver.name, purpose: auth.purpose } });
     });
   } catch (error: unknown) {
     if (upload) try { await removeDriverImageFiles([upload.storagePath, upload.thumbnailPath]); } catch { /* best-effort cleanup */ }
@@ -91,7 +97,7 @@ export async function POST(request: Request, context: RouteParams) {
     });
     return Response.json({ message: messages[code] ?? "Das Fahrerbild konnte nicht gespeichert werden." }, { status: code === "UNKNOWN" ? 500 : 400 });
   }
-  try { await removeDriverImageFiles(ownedDriverImagePaths(auth.driver.imageUrl, auth.driver.id)); } catch (error: unknown) {
+  try { await removeDriverImageFiles(ownedDriverImagePaths(auth.previousImageUrl, auth.driver.id)); } catch (error: unknown) {
     console.error("[driver-image] Previous image cleanup failed.", { actorId: auth.user.id, driverId: auth.driver.id, errorName: error instanceof Error ? error.name : "UnknownError" });
   }
   await refresh(auth.driver.id);
@@ -102,10 +108,10 @@ export async function DELETE(request: Request, context: RouteParams) {
   const auth = await contextFor(request, context);
   if ("response" in auth) return auth.response;
   await getPrismaClient().$transaction(async (transaction) => {
-    await transaction.driver.update({ where: { id: auth.driver.id }, data: { imageUrl: null } });
-    await writeSystemAudit(transaction, { actorId: auth.user.id, action: "DRIVER_IMAGE_REMOVED", entityType: "Driver", entityId: auth.driver.id, metadata: { driverName: auth.driver.name } });
+    await transaction.driver.updateMany({ where: { id: auth.driver.id, [auth.imageField]: auth.previousImageUrl }, data: { [auth.imageField]: null } });
+    await writeSystemAudit(transaction, { actorId: auth.user.id, action: "DRIVER_IMAGE_REMOVED", entityType: "Driver", entityId: auth.driver.id, metadata: { driverName: auth.driver.name, purpose: auth.purpose } });
   });
-  try { await removeDriverImageFiles(ownedDriverImagePaths(auth.driver.imageUrl, auth.driver.id)); } catch (error: unknown) {
+  try { await removeDriverImageFiles(ownedDriverImagePaths(auth.previousImageUrl, auth.driver.id)); } catch (error: unknown) {
     console.error("[driver-image] Removed image cleanup failed.", { actorId: auth.user.id, driverId: auth.driver.id, errorName: error instanceof Error ? error.name : "UnknownError" });
   }
   await refresh(auth.driver.id);

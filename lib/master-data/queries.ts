@@ -698,6 +698,7 @@ function mapDriverItem(driver: DriverItemRecord): DriverItem {
   return {
     id: driver.id,
     imageUrl: driver.imageUrl,
+    resultGraphicImageUrl: driver.resultGraphicImageUrl,
     name: driver.name,
     number: driver.number,
     flag: driver.flag,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import { ImagePlus, Trash2, UploadCloud } from "lucide-react";
 import DriverAvatar from "./DriverAvatar";
 import { dispatchAppDataChanged } from "@/lib/live/data-events";
@@ -8,7 +9,9 @@ import { DRIVER_IMAGE_MAX_BYTES } from "@/lib/storage/driver-image";
 
 type UploadState = { tone: "idle" | "success" | "error"; message: string };
 
-export default function DriverImageUploader({ driverId, driverName, initialImageUrl }: { driverId: number; driverName: string; initialImageUrl: string | null }) {
+export default function DriverImageUploader({ driverId, driverName, initialImageUrl, purpose = "profile" }: { driverId: number; driverName: string; initialImageUrl: string | null; purpose?: "profile" | "result" }) {
+  const endpoint = `/api/drivers/${driverId}/image${purpose === "result" ? "?purpose=result" : ""}`;
+  const headingId = `driver-image-${driverId}-${purpose}`;
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState(initialImageUrl);
@@ -38,7 +41,7 @@ export default function DriverImageUploader({ driverId, driverName, initialImage
     const body = new FormData();
     body.set("image", file);
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/api/drivers/${driverId}/image`);
+    xhr.open("POST", endpoint);
     xhr.responseType = "json";
     xhr.upload.addEventListener("progress", (event) => event.lengthComputable && setProgress(Math.round((event.loaded / event.total) * 100)));
     xhr.addEventListener("loadend", () => {
@@ -61,7 +64,7 @@ export default function DriverImageUploader({ driverId, driverName, initialImage
     if (!imageUrl || busy || !window.confirm("Fahrerbild wirklich entfernen?")) return;
     setBusy(true);
     try {
-      const response = await fetch(`/api/drivers/${driverId}/image`, { method: "DELETE" });
+      const response = await fetch(endpoint, { method: "DELETE" });
       const payload = await response.json() as { message?: string };
       if (!response.ok) throw new Error(payload.message ?? "Das Fahrerbild konnte nicht entfernt werden.");
       setImageUrl(null);
@@ -73,13 +76,13 @@ export default function DriverImageUploader({ driverId, driverName, initialImage
   }
 
   return (
-    <section className="min-w-0 rounded-2xl border border-slate-800 bg-slate-950/35 p-4 sm:p-5" aria-labelledby={`driver-image-${driverId}`}>
-      <div className="flex min-w-0 items-center gap-4">
-        <DriverAvatar imageUrl={imageUrl} name={driverName} size="lg" priority />
-        <div className="min-w-0"><h3 id={`driver-image-${driverId}`} className="font-black text-white">Fahrerbild</h3><p className="mt-1 text-xs leading-5 text-slate-400">Optional · PNG, WebP oder JPEG · maximal 3 MB · Metadaten werden entfernt</p></div>
+    <section className="min-w-0 rounded-2xl border border-slate-800 bg-slate-950/35 p-4 sm:p-5" aria-labelledby={headingId}>
+      <div className={`flex min-w-0 gap-4 ${purpose === "result" ? "flex-col sm:flex-row sm:items-center" : "items-center"}`}>
+        {purpose === "result" && imageUrl ? <Image src={imageUrl} alt={`Grafikbild von ${driverName}`} width={120} height={160} unoptimized className="h-32 w-24 shrink-0 rounded-lg bg-slate-900 object-contain" /> : <DriverAvatar imageUrl={imageUrl} name={driverName} size="lg" priority />}
+        <div className="min-w-0"><h3 id={headingId} className="font-black text-white">{purpose === "result" ? "Result Graphic Image / Driver Render" : "Fahrerbild"}</h3><p className="mt-1 text-xs leading-5 text-slate-400">Optional · PNG, WebP oder JPEG · maximal 3 MB · Metadaten werden entfernt</p>{purpose === "result" ? <p className="mt-2 text-sm leading-6 text-slate-300">Bevorzugtes Bild für Ergebnisgrafiken. Ideal: freigestelltes PNG oder WebP im Hochformat, gerne im Rennanzug. Transparenz und vollständiger Bildausschnitt bleiben erhalten. Ohne Grafikbild wird das Profilbild verwendet.</p> : null}</div>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <label className="master-label">Bild auswählen<input ref={input} type="file" accept="image/png,image/webp,image/jpeg,.png,.webp,.jpg,.jpeg" onChange={(event) => choose(event.target.files?.item(0) ?? null)} disabled={busy} className="form-control mt-2 min-h-12 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-500/15 file:px-3 file:py-2 file:text-blue-100" /></label>
+        <label className="master-label min-w-0">Bild auswählen<input ref={input} type="file" accept="image/png,image/webp,image/jpeg,.png,.webp,.jpg,.jpeg" onChange={(event) => choose(event.target.files?.item(0) ?? null)} disabled={busy} className="form-control mt-2 min-h-12 min-w-0 max-w-full file:mr-3 file:rounded-lg file:border-0 file:bg-blue-500/15 file:px-3 file:py-2 file:text-blue-100" /></label>
         <button type="button" onClick={upload} disabled={!file || busy} className="wizard-primary-button min-h-12 w-full justify-center sm:w-auto"><UploadCloud size={17} />{imageUrl ? "Bild ersetzen" : "Bild hochladen"}</button>
       </div>
       {file ? <p className="mt-2 break-all text-xs text-slate-400"><ImagePlus size={14} className="mr-1 inline" />{file.name}</p> : null}

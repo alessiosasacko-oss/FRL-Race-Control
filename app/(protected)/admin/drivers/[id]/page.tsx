@@ -93,7 +93,7 @@ export default async function DriverAdminDetailPage({
         <section className="surface-panel p-5 sm:p-6">
           <p className="eyebrow">Fahrerprofil</p>
           <h2 className="mt-2 text-xl font-black text-white">Bild und Karrierestatistik</h2>
-          <div className="mt-5 space-y-4"><DriverImageUploader driverId={driver.id} driverName={driver.name} initialImageUrl={driver.imageUrl} /><DriverCareerStatsEditor driverId={driver.id} stats={driver.careerStats} admin /></div>
+          <div className="mt-5 space-y-4"><DriverImageUploader driverId={driver.id} driverName={driver.name} initialImageUrl={driver.imageUrl} /><DriverImageUploader driverId={driver.id} driverName={driver.name} initialImageUrl={driver.resultGraphicImageUrl} purpose="result" /><DriverCareerStatsEditor driverId={driver.id} stats={driver.careerStats} admin /></div>
         </section>
 
         <DriverDangerZone mode="driver" snapshot={deletionSnapshot} actorRoles={actor.roles} />

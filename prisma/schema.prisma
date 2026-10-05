@@ -555,6 +555,7 @@ model Driver {
   flag                     String                   @db.VarChar(16)
   countryCode              String                   @db.Char(2)
   imageUrl                 String?                  @db.Text
+  resultGraphicImageUrl    String?                  @db.Text
   active                   Boolean                  @default(true)
   user                     User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
   team                     Team?                    @relation(fields: [teamId], references: [id], onDelete: SetNull)

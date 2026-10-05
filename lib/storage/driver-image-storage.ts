@@ -42,7 +42,7 @@ function client(): SupabaseClient {
   return cachedClient;
 }
 
-async function processImage(file: File) {
+export async function processDriverImage(file: File, purpose: "profile" | "result" = "profile") {
   const bytes = new Uint8Array(await file.arrayBuffer());
   validateDriverImageFile(file.name, file.type, file.size, bytes);
   try {
@@ -53,7 +53,9 @@ async function processImage(file: File) {
     }
     const original = await source
       .clone()
-      .resize({ width: DRIVER_IMAGE_MAX_EDGE, height: DRIVER_IMAGE_MAX_EDGE, fit: "cover", position: "attention", withoutEnlargement: true })
+      .resize(purpose === "result"
+        ? { width: 1400, height: 1800, fit: "inside", withoutEnlargement: true }
+        : { width: DRIVER_IMAGE_MAX_EDGE, height: DRIVER_IMAGE_MAX_EDGE, fit: "cover", position: "attention", withoutEnlargement: true })
       .webp({ quality: 88, alphaQuality: 100, effort: 5 })
       .toBuffer();
     const thumbnail = await source
@@ -82,11 +84,12 @@ async function publicBucket() {
   return client().storage.from(storage.bucket);
 }
 
-export async function uploadDriverImage(file: File, driverId: number) {
-  const { original, thumbnail } = await processImage(file);
+export async function uploadDriverImage(file: File, driverId: number, purpose: "profile" | "result" = "profile") {
+  const { original, thumbnail } = await processDriverImage(file, purpose);
   const uuid = crypto.randomUUID();
-  const storagePath = `drivers/${driverId}/${uuid}.webp`;
-  const thumbnailPath = `drivers/${driverId}/${uuid}-thumb.webp`;
+  const namespace = purpose === "result" ? `drivers/${driverId}/result` : `drivers/${driverId}`;
+  const storagePath = `${namespace}/${uuid}.webp`;
+  const thumbnailPath = `${namespace}/${uuid}-thumb.webp`;
   const bucket = await publicBucket();
   const uploaded = await bucket.upload(storagePath, original, {
     cacheControl: "31536000",

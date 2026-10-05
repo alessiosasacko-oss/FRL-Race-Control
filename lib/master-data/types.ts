@@ -199,6 +199,7 @@ export type RaceItem = {
 export type DriverItem = {
   id: number;
   imageUrl: string | null;
+  resultGraphicImageUrl: string | null;
   name: string;
   number: number;
   flag: string;
