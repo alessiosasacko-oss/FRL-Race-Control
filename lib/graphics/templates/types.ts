@@ -10,6 +10,7 @@ export type GraphicRow = {
   position: number; name: string; teamName: string; teamColor: string;
   teamLogoDataUrl: string | null; primary: string; secondary: string;
   status?: string | null; imageDataUrl?: string | null; number?: number;
+  grid?: string; bestLap?: string;
 };
 export type ResultGraphicRenderData = {
   template?: GraphicTemplate;

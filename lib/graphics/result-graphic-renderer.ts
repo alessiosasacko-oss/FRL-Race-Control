@@ -8,7 +8,7 @@ export type { GraphicDriver, ResultGraphicRenderData } from "./templates/types";
 export const RESULT_GRAPHIC_WIDTH = 1920;
 export const RESULT_GRAPHIC_HEIGHT = 1080;
 export const RESULT_GRAPHIC_MAX_BYTES = 8 * 1024 * 1024;
-export const RESULT_GRAPHIC_RENDERING_VERSION = 2;
+export const RESULT_GRAPHIC_RENDERING_VERSION = 3;
 
 export function resultGraphicDimensions(data: ResultGraphicRenderData) {
   const grid = data.template === "GRID";
@@ -23,7 +23,7 @@ export function resultGraphicDimensions(data: ResultGraphicRenderData) {
 export function resultGraphicSvg(data: ResultGraphicRenderData): string {
   const { width, height } = resultGraphicDimensions(data);
   const layout = data.template ? graphicTemplates[data.template].layout : "classification";
-  const context = [data.leagueCode, data.seasonName, data.round ? `ROUND ${String(data.round).padStart(2, "0")}` : null, data.circuit || data.raceName, data.sessionLabel].filter(Boolean).join("  /  ");
+  const context = [data.leagueCode, data.seasonName, data.round ? `ROUND ${String(data.round).padStart(2, "0")}` : null, data.raceName, data.circuit && data.circuit !== data.raceName ? data.circuit : null, data.sessionLabel, data.formatLabel].filter(Boolean).join("  /  ");
   const content = layout === "classification" ? classificationLayout(data, height)
     : layout === "grid" ? gridLayout(data) : highlightLayout(data);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">

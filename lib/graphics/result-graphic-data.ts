@@ -2,6 +2,8 @@ import { QualifyingFormat, ResultGraphicType, ResultPublicationStatus, ResultSta
 import { formatTiming } from "@/lib/championship/result-engine";
 import type { RaceResultsView, ResultRowView, ResultSessionView } from "@/lib/championship/types";
 import { graphicTemplates, type GraphicTemplate } from "./templates/catalog";
+import { qualifyingFormatLabels } from "@/domain/labels";
+import type { GraphicDriver, ResultGraphicRenderData } from "./templates/types";
 
 export function selectGraphicSession(race: RaceResultsView, type: GraphicTemplate, sessionId?: number | null) {
   const expected = graphicTemplates[type].session;
@@ -52,6 +54,7 @@ export function prepareSessionGraphic(session: ResultSessionView, type: GraphicT
       : row.lapsBehind ? `+${row.lapsBehind} LAP${row.lapsBehind === 1 ? "" : "S"}`
       : row.gapToWinnerMs !== null ? `+${formatTiming(row.gapToWinnerMs)}` : "—";
     return { driverId: row.driverId, position, name: row.driver.name, number: row.driver.number, imageUrl: row.driver.imageUrl,
+      grid: row.startingPosition !== null && row.startingPosition > 0 ? String(row.startingPosition) : "—", bestLap: timing(row.fastestLapMs),
       teamName: row.representedTeam.name, teamColor: row.representedTeam.color, teamLogoUrl: row.representedTeam.logoUrl,
       primary, secondary: qualifying ? qTime === null ? "—" : `${session.qualifyingFormat === QualifyingFormat.Full ? `Q${qualifyingStage(row, session)} · ` : ""}+${formatTiming(Math.max(0, qTime - best))}` : `${row.racePoints + row.bonusPoints} PTS`, status: row.status };
   };
@@ -61,5 +64,24 @@ export function prepareSessionGraphic(session: ResultSessionView, type: GraphicT
     subtitle: type === "GRID" ? "Confirmed starting positions" : qualifying && session.qualifyingFormat === QualifyingFormat.Full ? "Gap within Q1 / Q2 / Q3" : "",
     isQualifying: qualifying,
     isClassification: type === ResultGraphicType.QualifyingClassification || type === ResultGraphicType.RaceClassification,
+  };
+}
+
+/** Shared by the real query/storage service and the production-like render tests. */
+export function composeSessionGraphic(
+  race: RaceResultsView, session: ResultSessionView, type: GraphicTemplate,
+  prepared: ReturnType<typeof prepareSessionGraphic>,
+  rows: Array<ReturnType<typeof prepareSessionGraphic>["rows"][number] & Pick<GraphicDriver, "imageDataUrl" | "teamLogoDataUrl" | "imageKind">>,
+  frlLogoDataUrl: string | null,
+): ResultGraphicRenderData {
+  const highlights = prepared.highlights.map((row) => rows.find((candidate) => candidate.driverId === row.driverId)).filter((row) => row !== undefined);
+  return {
+    template: type, title: graphicTemplates[type].label, subtitle: prepared.subtitle,
+    leagueCode: race.race.season.league.code, seasonName: race.race.season.name,
+    raceName: race.race.name, circuit: race.race.circuit, round: race.race.round, sessionLabel: session.session,
+    formatLabel: session.qualifyingFormat ? qualifyingFormatLabels[session.qualifyingFormat] : null,
+    draft: false, frlLogoDataUrl,
+    leaderLabel: type === "FASTEST_LAP" ? "FASTEST LAP" : prepared.isQualifying ? "POLE" : "WINNER",
+    leader: highlights[0] ?? null, highlights, rows, columnLabels: prepared.columnLabels,
   };
 }

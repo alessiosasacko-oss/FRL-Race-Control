@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import path from "node:path";
 import sharp from "sharp";
 import { graphicTemplates, type GraphicTemplate } from "./templates/catalog";
 import { graphicFixture, raceFixture, sessionFixture } from "./testing/fixtures";
@@ -8,6 +11,9 @@ import { ResultGraphicType, ResultPublicationStatus, ResultSession, ResultStatus
 import { processDriverImage } from "@/lib/storage/driver-image-storage";
 import { hydrateGraphicAssets, safeGraphicAssetDataUrl } from "./result-graphic-storage";
 import { renderResultGraphicPng, resultGraphicSvg, RESULT_GRAPHIC_MAX_BYTES, type ResultGraphicRenderData } from "./result-graphic-renderer";
+import { graphicsFont, outlineGraphicText } from "./fonts";
+import { preparedTextGraphic } from "./testing/text-render-fixtures";
+import { text } from "./templates/primitives";
 
 function fixture(count = 22): ResultGraphicRenderData {
   return {
@@ -56,6 +62,7 @@ test("every studio template renders a sharp, deterministic PNG including transpa
     data.title = graphicTemplates[template].label;
     data.highlights = data.highlights!.slice(0, template === "PODIUM" ? 3 : template === "FRONT_ROW" ? 2 : 1).map((driver) => ({ ...driver, imageKind: "render", imageDataUrl: `data:image/png;base64,${asset.toString("base64")}`, teamLogoDataUrl: `data:image/png;base64,${asset.toString("base64")}` }));
     data.leader = data.highlights[0];
+    assert.doesNotMatch(resultGraphicSvg(data), /<text\b|font-family/, template);
     const png = await renderResultGraphicPng(data);
     const metadata = await sharp(png).metadata();
     assert.equal(metadata.width, 1920, template);
@@ -63,6 +70,70 @@ test("every studio template renders a sharp, deterministic PNG including transpa
     assert.ok(png.length < RESULT_GRAPHIC_MAX_BYTES, template);
     assert.deepEqual(png, await renderResultGraphicPng(data), template);
   }
+});
+
+test("bundled fonts outline Latin accents, apostrophes and dashes without missing glyphs", async () => {
+  const value = "ä ö ü ß é ø Ä Ö Ü ẞ É Ø O’Neill O'Neill - – —";
+  for (const weight of [400, 700, 900]) {
+    const font = graphicsFont(weight, value);
+    for (const character of value) assert.ok(font.charToGlyphIndex(character), `${character}, ${weight}`);
+    const outlined = outlineGraphicText(value, 20, 70, 48, 900, weight, "start");
+    assert.ok(outlined.path.length > 100);
+    const { data, info } = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="960" height="100">${text(20, 70, value, 48, 900, "#FFFFFF", weight)}</svg>`)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    let paintedPixels = 0;
+    for (let index = 3; index < data.length; index += info.channels) if (data[index] > 0) paintedPixels++;
+    assert.ok(paintedPixels > 1000, "outlines must produce real PNG pixels, not only SVG labels");
+  }
+  assert.equal(outlineGraphicText("e\u0301", 0, 40, 40, 200, 700, "start").path, outlineGraphicText("é", 0, 40, 40, 200, 700, "start").path);
+  assert.throws(() => outlineGraphicText("\u{1F680}", 0, 40, 40, 200, 700, "start"), /UNSUPPORTED_GLYPH/);
+});
+
+test("measured glyph bounds fit long strings for every text alignment", () => {
+  for (const anchor of ["start", "middle", "end"]) {
+    const outlined = outlineGraphicText("AMD Mercedes F1 Team · Jörg Weiß-Søren", 500, 80, 50, 150, 900, anchor);
+    assert.ok(outlined.bounds.x2 - outlined.bounds.x1 <= 150.001);
+    const aligned = anchor === "start" ? outlined.bounds.x1 : anchor === "end" ? outlined.bounds.x2 : (outlined.bounds.x1 + outlined.bounds.x2) / 2;
+    assert.ok(Math.abs(aligned - 500) < .001);
+  }
+});
+
+test("published Results data reaches classification and highlight text through the production composer", async () => {
+  for (const type of [ResultGraphicType.QualifyingClassification, ResultGraphicType.RaceClassification, "POLE", "FRONT_ROW", "GRID", "FASTEST_LAP", "PODIUM", "WINNER"] as const) {
+    const data = await preparedTextGraphic(type);
+    assert.equal(data.seasonName, "Season 7");
+    assert.equal(data.raceName, "Melbourne Grand Prix");
+    assert.equal(data.round, 1);
+    const patrick = data.rows.find((row) => row.name === "Patrick Mahomes")!;
+    assert.equal(patrick.teamName, "AMD Mercedes F1 Team");
+    assert.equal(patrick.bestLap, "1:17.828");
+    assert.equal(patrick.grid, "3");
+    const svg = resultGraphicSvg(data);
+    for (const value of ["Patrick Mahomes", "AMD Mercedes F1 Team", "Season 7", "Melbourne Grand Prix", data.title]) assert.ok(svg.toUpperCase().includes(value.toUpperCase()), `${type}: ${value}`);
+    assert.doesNotMatch(svg, /<text\b|font-family/);
+    if (type === "RACE_CLASSIFICATION") {
+      for (const value of ["GRID", "BEST LAP", "1:17.828", "+0.201", "25 PTS"]) assert.ok(svg.includes(value), value);
+    }
+    if (type === "QUALIFYING_CLASSIFICATION") {
+      assert.equal(patrick.primary, "1:17.828");
+      assert.match(svg, /\+0.201/);
+    }
+  }
+});
+
+test("fresh renderer with empty fontconfig produces the identical PNG", async () => {
+  const data = await preparedTextGraphic(ResultGraphicType.QualifyingClassification);
+  const expected = createHash("sha256").update(await renderResultGraphicPng(data)).digest("hex");
+  const child = spawnSync(process.execPath, ["--conditions=react-server", "--import", "tsx", "--input-type=module", "-e", `
+    import { createHash } from 'node:crypto';
+    import { preparedTextGraphic } from './lib/graphics/testing/text-render-fixtures.ts';
+    import { renderResultGraphicPng } from './lib/graphics/result-graphic-renderer.ts';
+    console.log(createHash('sha256').update(await renderResultGraphicPng(await preparedTextGraphic('QUALIFYING_CLASSIFICATION'))).digest('hex'));
+  `], {
+    encoding: "utf8", timeout: 30000,
+    env: { ...process.env, FONTCONFIG_FILE: path.resolve("lib/graphics/testing/empty-fontconfig.conf"), FONTCONFIG_PATH: path.resolve("lib/graphics/testing") },
+  });
+  assert.equal(child.status, 0, child.stderr);
+  assert.equal(child.stdout.trim(), expected);
 });
 
 test("large fields retain every row, escape text and reject external SVG image references", () => {

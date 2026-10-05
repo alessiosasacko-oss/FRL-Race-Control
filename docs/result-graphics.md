@@ -82,9 +82,21 @@ Textgrößen passen sich ihrer Spaltenbreite an; untrusted Text wird escaped.
 Raster-Assets werden vor dem Einbetten normalisiert. Keine externe Browser-
 oder Screenshot-Engine im Production-Renderer.
 
-Identische Daten liefern in derselben Sharp-/Font-Laufzeit identische PNGs.
-Für pixelidentische Exporte zwischen Betriebssystemen muss auch die Font-
-Installation identisch sein (DejaVu Sans, Fallback Arial/sans-serif).
+Alle Texte werden serverseitig mit OpenType.js aus mitgelieferten Barlow-TTFs
+(Regular/Bold/Black) in SVG-Pfade umgewandelt. Noto Sans Regular/Bold übernimmt
+Textläufe mit zusätzlichen Glyphen wie `ẞ`. Dateien, Herkunft und OFL-Lizenzen
+liegen unter `assets/graphics/fonts`; Next Output Tracing schließt sie explizit
+in Server-Bundles ein. Keine Systemfonts, CSS-Webfonts, Fontconfig-Konfiguration
+oder Laufzeit-Downloads nötig. Sharp erhält ausschließlich geometrische Pfade,
+keine SVG-Textknoten. Preview, Export und automatische Jobs verwenden denselben
+Renderer. Nicht unterstützte Glyphen erzeugen einen kontrollierten Fehler,
+keine stillen Kästchen. Vorhandene PNGs müssen neu erzeugt werden.
+
+Textbreiten werden anhand tatsächlicher Glyphenkonturen begrenzt, inklusive
+Kerning und NFC-Normalisierung. Identische Daten liefern mit denselben
+mitgelieferten Fonts und derselben Sharp-Version deterministische PNGs.
+Race Classification zeigt zusätzlich die gespeicherte Startposition (Grid)
+und schnellste Rundenzeit (Best Lap); fehlende Werte bleiben „—“.
 
 ## Bestehende Automatisierung
 
@@ -108,6 +120,22 @@ sowie transparente Renderbild-Verarbeitung.
 erzeugt lokale PNGs und eine Kontaktübersicht in einem neuen temporären
 Verzeichnis. Die klar beschrifteten synthetischen Fixtures sind ausschließlich
 Testdaten; Production-Routen importieren sie nicht.
+
+`node --conditions=react-server --import tsx scripts/verify-graphics-text.ts`
+erzeugt Qualifying-, Race-, Pole- und Podium-PNGs sowie eine Sonderzeichenprobe
+und Kontaktübersicht im temporären Verzeichnis. Die Beispielstrings durchlaufen
+die echte Session-Auswahl, Ergebnisaufbereitung, Asset-Hydration und denselben
+Composer wie der Production-Service; es gibt keinen Datenbankzugriff.
+Regressionstests prüfen Glyphen, tatsächliche PNG-Textpixel, Spaltenbreiten und
+identische Ausgabe in einem frischen Prozess mit leerer Fontconfig.
+
+Beim Text-Fix wurden alle zehn Templates visuell geprüft; Qualifying, Race,
+Pole und Podium zusätzlich aus der echten Aufbereitung mit den angeforderten
+Beispielstrings. Eine lokale reine PNG-Vorschau wurde bei
+360/390/430/768/1024/1440/1920 px auf vollständiges Laden, Seitenverhältnis und
+Überbreite geprüft. Das Studio-UI wurde dabei nicht geändert; dies ersetzt
+keinen authentifizierten Production-Smoke-Test. Die gebauten Preview-, Results-
+und Automation-Trace-Manifeste enthalten alle fünf TTF-Dateien.
 
 Graphics Studio und Renderbild-Uploader wurden mit den echten Komponenten
 in einer isolierten lokalen UI-Prüfung bei 360/390/430/768/1024/1440/1920 px

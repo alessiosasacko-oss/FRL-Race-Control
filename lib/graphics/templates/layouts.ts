@@ -24,6 +24,7 @@ export function classificationLayout(data: ResultGraphicRenderData, height: numb
   const rowH = data.rows.length > 22 ? 34 : Math.min(62, Math.floor(724 / Math.max(1, data.rows.length)));
   const firstY = 262;
   const headers = data.columnLabels ?? ["TIME / GAP", "POINTS"];
+  const race = data.template === "RACE_CLASSIFICATION";
   const rows = data.rows.map((row, i) => {
     const y = firstY + i * rowH, baseline = y + rowH * .71, fs = Math.min(25, rowH * .59);
     const status = row.status && !["FINISHED", "CLASSIFIED"].includes(row.status) ? row.status : null;
@@ -31,13 +32,14 @@ export function classificationLayout(data: ResultGraphicRenderData, height: numb
       <rect x="60" y="${y}" width="5" height="${rowH - 2}" fill="${safeColor(row.teamColor)}"/>
       ${text(80, baseline, String(row.position).padStart(2, "0"), fs, 55, i === 0 ? t.pink : t.cyan, 900)}
       ${image(row.teamLogoDataUrl, 137, y + 4, 40, rowH - 8)}
-      ${text(190, baseline, row.name, fs, 367)}
-      ${text(585, baseline, row.teamName, fs - 3, 230, t.muted, 500)}
-      ${text(1030, baseline, status ?? row.primary, fs, 195, status ? t.pink : t.white, 700, "end")}
-      ${text(1225, baseline, row.secondary, fs - 2, 172, t.cyan, 700, "end")}</g>`;
+      ${text(190, baseline, row.name, fs, race ? 250 : 367)}
+      ${text(race ? 455 : 585, baseline, row.teamName, fs - 3, race ? 245 : 230, t.muted, 500)}
+      ${race ? `${text(755, baseline, row.grid ?? "—", fs - 2, 40, t.muted, 700, "end")}${text(910, baseline, row.bestLap ?? "—", fs - 2, 135, t.muted, 700, "end")}` : ""}
+      ${text(race ? 1085 : 1030, baseline, status ?? row.primary, fs, race ? 155 : 195, status ? t.pink : t.white, 700, "end")}
+      ${text(1225, baseline, row.secondary, fs - 2, race ? 120 : 172, t.cyan, 700, "end")}</g>`;
   }).join("");
   const leader = data.leader;
-  return `${text(80, 240, "POS", 17, 55, t.muted)}${text(190, 240, "DRIVER", 17, 200, t.muted)}${text(585, 240, "TEAM", 17, 230, t.muted)}${text(1030, 240, headers[0], 17, 195, t.muted, 700, "end")}${text(1225, 240, headers[1], 17, 172, t.muted, 700, "end")}
+  return `${text(80, 240, "POS", 17, 55, t.muted)}${text(190, 240, "DRIVER", 17, 200, t.muted)}${text(race ? 455 : 585, 240, "TEAM", 17, 230, t.muted)}${race ? `${text(755, 240, "GRID", 17, 40, t.muted, 700, "end")}${text(910, 240, "BEST LAP", 17, 135, t.muted, 700, "end")}` : ""}${text(race ? 1085 : 1030, 240, headers[0], 17, race ? 155 : 195, t.muted, 700, "end")}${text(1225, 240, headers[1], 17, race ? 120 : 172, t.muted, 700, "end")}
     ${rows}
     ${text(1310, 246, data.leaderLabel, 38, 545, t.pink, 900)}
     ${portrait(leader, 1310, 278, 550, Math.min(520, height - 510), "classification-portrait")}

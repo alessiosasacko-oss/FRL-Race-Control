@@ -11,7 +11,6 @@ import {
 import {
   ResultGraphicType,
   ResultSession,
-  qualifyingFormatLabels,
 } from "@/domain";
 import { getChampionshipPageData, getRaceResults } from "@/lib/championship/queries";
 
@@ -25,8 +24,8 @@ import {
   type ResultGraphicRenderData,
 } from "./result-graphic-renderer";
 import { hydrateGraphicAssets, uploadResultGraphic } from "./result-graphic-storage";
-import { graphicTemplates, type GraphicTemplate } from "./templates/catalog";
-import { prepareSessionGraphic, selectGraphicSession } from "./result-graphic-data";
+import { type GraphicTemplate } from "./templates/catalog";
+import { composeSessionGraphic, prepareSessionGraphic, selectGraphicSession } from "./result-graphic-data";
 
 export function graphicTypesForSession(session: ResultSession): ResultGraphicType[] {
   if (session === ResultSession.Qualifying) return [ResultGraphicType.QualifyingClassification];
@@ -86,16 +85,7 @@ export async function getResultGraphicRenderData(input: {
     });
     const renderByDriver = new Map(renders.map((driver) => [driver.id, driver.resultGraphicImageUrl]));
     const hydrated = await hydrateGraphicAssets(prepared.rows.map((row) => ({ ...row, imageUrl: driverIds.includes(row.driverId) ? row.imageUrl : null, renderImageUrl: renderByDriver.get(row.driverId) ?? null })));
-    const highlights = prepared.highlights.map((row) => hydrated.find((candidate) => candidate.driverId === row.driverId)).filter((row) => row !== undefined);
-    return {
-      template: input.type, title: graphicTemplates[input.type].label, subtitle: prepared.subtitle,
-      leagueCode: raceResults.race.season.league.code, seasonName: raceResults.race.season.name,
-      raceName: raceResults.race.name, circuit: raceResults.race.circuit, round: raceResults.race.round, sessionLabel: targetSession.session,
-      formatLabel: targetSession.qualifyingFormat ? qualifyingFormatLabels[targetSession.qualifyingFormat] : null,
-      draft: false, frlLogoDataUrl: frlLogo,
-      leaderLabel: input.type === "FASTEST_LAP" ? "FASTEST LAP" : prepared.isQualifying ? "POLE" : "WINNER",
-      leader: highlights[0] ?? null, highlights, rows: hydrated, columnLabels: prepared.columnLabels,
-    };
+    return composeSessionGraphic(raceResults, targetSession, input.type, prepared, hydrated, frlLogo);
   }
 
   const championship = await getChampionshipPageData({ q: "", leagueId: input.leagueId, seasonId: raceResults.race.season.id, table: "drivers" });

@@ -12,6 +12,8 @@ const supabaseHostname = (() => {
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["discord.js"],
+  // Preview and background/server-action graphics use the same bundled fonts.
+  outputFileTracingIncludes: { "/*": ["./assets/graphics/fonts/**/*"] },
   logging: {
     incomingRequests: {
       ignore: [

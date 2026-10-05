@@ -31,6 +31,7 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     console.error("[result-graphics] Preview failed.", { raceId, leagueId, session, errorName: error instanceof Error ? error.name : "UnknownError" });
     const messages: Record<string, string> = {
+      RESULT_GRAPHIC_UNSUPPORTED_GLYPH: "Ein Name enthält ein Zeichen, das der Grafikfont nicht unterstützt. Bitte prüfe Sonderzeichen in Fahrer-, Team- und Rennnamen.",
       RESULT_GRAPHIC_SESSION_NOT_FOUND: "Für diesen Grafiktyp ist noch keine veröffentlichte Session vorhanden.",
       RESULT_GRAPHIC_NOT_PUBLISHED: "Veröffentliche zuerst die Ergebnisse dieser Session.",
       RESULT_GRAPHIC_NO_RESULTS: "Die Session enthält noch keine Ergebnisse.",
