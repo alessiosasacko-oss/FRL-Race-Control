@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { driverDropdownPosition } from "./driver-dropdown-position";
 import {
   ResultPublicationStatus,
   ResultSession,
@@ -212,4 +213,47 @@ test("admin selectors expose professional league, race and session labels", () =
   assert.match(pageSource, /ROUND \{String\(race\.round\)\.padStart/);
   assert.match(pageSource, /Session wählen/);
   assert.match(pageSource, /CountryFlag/);
+});
+
+test("driver dropdown escapes table and mobile clipping through a body portal", () => {
+  const picker = readFileSync(new URL("../../components/championship/DriverSearchCombobox.tsx", import.meta.url), "utf8");
+  assert.match(picker, /createPortal\(/);
+  assert.match(picker, /document\.body/);
+  assert.match(picker, /fixed z-\[100\]/);
+  assert.match(picker, /overflow-y-auto overscroll-contain/);
+  assert.match(picker, /role="combobox"/);
+  assert.match(picker, /aria-activedescendant/);
+  for (const key of ["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"]) assert.ok(picker.includes(`"${key}"`));
+  assert.match(picker, /event\.stopPropagation\(\)/);
+  assert.match(picker, /addEventListener\("pointerdown", dismissOutside/);
+  assert.match(picker, /addEventListener\("scroll", schedulePosition, true\)/);
+  assert.match(picker, /visualViewport/);
+  assert.match(editorSource, /max-h-\[68vh\] overflow-auto/);
+  assert.doesNotMatch(editorSource, /\.slice\(0, 8\)/);
+});
+
+test("driver dropdown stays within mobile and desktop viewports", () => {
+  for (const width of [360, 390, 430, 768, 1024, 1440, 1920]) {
+    const anchor = { left: width - 170, right: width - 10, top: 100, bottom: 144, width: 160 };
+    const menu = driverDropdownPosition(anchor, { left: 0, top: 0, width, height: 900 }, width < 1024);
+    assert.ok(menu.left >= 8);
+    assert.ok(menu.left + menu.width <= width - 8);
+    assert.equal(menu.top, 148);
+    assert.equal(menu.maxHeight, 288);
+    assert.equal(menu.upwards, false);
+  }
+});
+
+test("driver dropdown flips at the bottom and respects the mobile keyboard viewport", () => {
+  const menu = driverDropdownPosition({ left: 30, right: 340, top: 360, bottom: 404, width: 310 }, { left: 0, top: 80, width: 390, height: 350 }, true);
+  assert.equal(menu.upwards, true);
+  assert.equal(menu.top, 356);
+  assert.equal(menu.maxHeight, 268);
+});
+
+test("driver dropdown handles horizontal visual viewport offsets and narrow screens", () => {
+  const menu = driverDropdownPosition({ left: 350, right: 590, top: 50, bottom: 94, width: 240 }, { left: 100, top: 0, width: 240, height: 300 }, false);
+  assert.equal(menu.width, 224);
+  assert.equal(menu.left, 108);
+  assert.equal(menu.maxHeight, 194);
 });

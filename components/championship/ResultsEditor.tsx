@@ -19,7 +19,6 @@ import {
   GripVertical,
   Plus,
   Save,
-  Search,
   ShieldCheck,
   Trash2,
   Undo2,
@@ -78,6 +77,7 @@ import {
 import ActionMessage from "./ActionMessage";
 import ResultGraphicPreview from "./ResultGraphicPreview";
 import ResultsContextHeader from "./ResultsContextHeader";
+import DriverSearchCombobox from "./DriverSearchCombobox";
 
 type ResultsEditorProps = {
   data: ResultAdminData;
@@ -1299,12 +1299,7 @@ type SharedRowProps = {
 };
 
 function DriverPicker({
-  row,
-  selectedDriverIds,
-  data,
-  onUpdate,
-  onSelectDriver,
-  compact = false,
+  row, selectedDriverIds, data, onUpdate, onSelectDriver, compact = false,
 }: {
   row: RowState;
   selectedDriverIds: string;
@@ -1313,80 +1308,28 @@ function DriverPicker({
   onSelectDriver: (driverId: number) => void;
   compact?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
   const selectedIds = new Set(selectedDriverIds.split(",").filter(Boolean).map(Number));
   selectedIds.delete(Number(row.driverId));
-  const suggestions = data.drivers
-    .filter(
-      (driver) =>
-        !selectedIds.has(driver.id) &&
-        matchesDriverSearch(driver, row.driverQuery),
-    )
-    .slice(0, 8);
-
+  const suggestions = data.drivers.filter((driver) => !selectedIds.has(driver.id) && matchesDriverSearch(driver, row.driverQuery));
   return (
-    <div className="relative">
-      <span className="relative block">
-        <Search
-          size={15}
-          className="pointer-events-none absolute left-3 top-3 text-slate-500"
-        />
-        <input
-          data-result-cell
-          value={row.driverQuery}
-          onFocus={() => setOpen(true)}
-          onBlur={() => window.setTimeout(() => setOpen(false), 120)}
-          onChange={(event) => {
-            onUpdate({
-              driverQuery: event.target.value,
-              driverId: "",
-              representedTeamId: "",
-            });
-            setOpen(true);
-          }}
-          placeholder="Fahrer suchen"
-          className={`form-control pl-9 ${
-            compact ? "min-h-11" : "min-w-60"
-          }`}
-        />
-      </span>
-      {open && row.driverQuery ? (
-        <div
-          className={`absolute z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 p-1 shadow-2xl ${
-            compact ? "min-w-0" : "min-w-72"
-          }`}
-        >
-          {suggestions.map((driver) => (
-            <button
-              key={driver.id}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                onSelectDriver(driver.id);
-                setOpen(false);
-              }}
-              className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-800"
-            >
-              <CountryFlag countryCode={null} fallbackFlag={driver.flag} size="sm" />
-              <span className="min-w-0">
-                <span className="block truncate font-medium text-white">
-                  #{driver.number} {driver.name}
-                </span>
-                <span className="block truncate text-xs text-slate-400">
-                  {driver.discordName || "Kein Discord-Name"}
-                  {driver.replacement ? " · Ersatzfahrer" : ""}
-                </span>
-              </span>
-            </button>
-          ))}
-          {suggestions.length === 0 ? (
-            <p className="px-3 py-3 text-sm text-slate-400">
-              Kein verfügbarer Fahrer gefunden.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+    <DriverSearchCombobox
+      value={row.driverQuery}
+      compact={compact}
+      onQueryChange={(driverQuery) => onUpdate({ driverQuery, driverId: "", representedTeamId: "" })}
+      onSelect={onSelectDriver}
+      options={suggestions.map((driver) => ({
+        id: driver.id,
+        content: <>
+          <CountryFlag countryCode={null} fallbackFlag={driver.flag} size="sm" />
+          <span className="min-w-0">
+            <span className="block truncate font-medium text-white">#{driver.number} {driver.name}</span>
+            <span className="block truncate text-xs text-slate-400">
+              {driver.discordName || "Kein Discord-Name"}{driver.replacement ? " · Ersatzfahrer" : ""}
+            </span>
+          </span>
+        </>,
+      }))}
+    />
   );
 }
 
