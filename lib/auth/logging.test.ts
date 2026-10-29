@@ -36,6 +36,8 @@ test("reports Prisma adapter failures without error messages", () => {
       failedPhase: "account_persistence",
       causeErrorName: "PrismaClientKnownRequestError",
       oauthErrorCode: undefined,
+      oauthResponseFields: undefined,
+      oauthResponseCode: undefined,
       httpStatus: undefined,
       prismaErrorCode: "P2002",
       systemErrorCode: undefined,
@@ -101,4 +103,50 @@ test("never exposes nested messages or unsafe identifiers", () => {
   assert.equal(serialized.includes("credentials"), false);
   assert.equal(details.oauthErrorCode, undefined);
   assert.equal(details.provider, undefined);
+});
+
+test("reports only safe OAuth response metadata", () => {
+  const nested = new Error("raw token response") as Error & {
+    code: string;
+    cause: {
+      body: {
+        access_token: string;
+        token_type: string;
+        error: string;
+        error_description: string;
+        code: number;
+        message: string;
+      };
+    };
+  };
+  nested.code = "OAUTH_INVALID_RESPONSE";
+  nested.cause = {
+    body: {
+      access_token: "must-never-be-logged",
+      token_type: "Bearer",
+      error: "invalid_client",
+      error_description: "Sensitive credential explanation",
+      code: 0,
+      message: "Raw upstream message",
+    },
+  };
+
+  const details = safeAuthErrorDetails(
+    authError("CallbackRouteError", nested),
+  );
+  const serialized = JSON.stringify(details);
+
+  assert.equal(details.oauthErrorCode, "invalid_client");
+  assert.deepEqual(details.oauthResponseFields, [
+    "access_token",
+    "token_type",
+    "error",
+    "error_description",
+    "code",
+    "message",
+  ]);
+  assert.equal(details.oauthResponseCode, 0);
+  assert.equal(serialized.includes("must-never-be-logged"), false);
+  assert.equal(serialized.includes("Sensitive credential explanation"), false);
+  assert.equal(serialized.includes("Raw upstream message"), false);
 });

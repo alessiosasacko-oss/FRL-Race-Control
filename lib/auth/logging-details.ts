@@ -25,6 +25,40 @@ function safeHttpStatus(value: unknown): number | undefined {
     : undefined;
 }
 
+const oauthResponseFields = [
+  "access_token",
+  "token_type",
+  "expires_in",
+  "refresh_token",
+  "scope",
+  "id_token",
+  "error",
+  "error_description",
+  "code",
+  "message",
+] as const;
+
+function safeOAuthResponseDetails(value: unknown): {
+  responseFields?: readonly string[];
+  oauthErrorCode?: string;
+  oauthResponseCode?: number;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const response = value as Record<string, unknown>;
+  const responseFields = oauthResponseFields.filter((field) => field in response);
+
+  return {
+    responseFields: responseFields.length > 0 ? responseFields : undefined,
+    oauthErrorCode: safeIdentifier(response.error),
+    oauthResponseCode:
+      typeof response.code === "number" &&
+      Number.isSafeInteger(response.code)
+        ? response.code
+        : undefined,
+  };
+}
+
 function nestedErrorDetails(error: unknown): {
   name?: string;
   code?: string;
@@ -32,6 +66,8 @@ function nestedErrorDetails(error: unknown): {
   modelName?: string;
   httpStatus?: number;
   oauthErrorCode?: string;
+  oauthResponseFields?: readonly string[];
+  oauthResponseCode?: number;
 } {
   if (!(error instanceof Error)) return {};
 
@@ -49,11 +85,14 @@ function nestedErrorDetails(error: unknown): {
           code?: unknown;
           status?: unknown;
           error?: unknown;
+          body?: unknown;
         })
       : undefined;
   const code =
     safeIdentifier(nested.code) ??
     safeIdentifier(nestedCause?.code);
+
+  const response = safeOAuthResponseDetails(nestedCause?.body);
 
   return {
     name: nested.name,
@@ -67,7 +106,10 @@ function nestedErrorDetails(error: unknown): {
       safeHttpStatus(nestedCause?.status),
     oauthErrorCode:
       safeIdentifier(nested.error) ??
-      safeIdentifier(nestedCause?.error),
+      safeIdentifier(nestedCause?.error) ??
+      response.oauthErrorCode,
+    oauthResponseFields: response.responseFields,
+    oauthResponseCode: response.oauthResponseCode,
   };
 }
 
@@ -137,5 +179,7 @@ export function safeAuthErrorDetails(
     systemErrorCode,
     modelName: nested.modelName,
     provider: safeIdentifier(cause?.provider),
+    oauthResponseFields: nested.oauthResponseFields,
+    oauthResponseCode: nested.oauthResponseCode,
   };
 }
