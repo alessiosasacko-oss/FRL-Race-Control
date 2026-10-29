@@ -38,6 +38,7 @@ test("reports Prisma adapter failures without error messages", () => {
       oauthErrorCode: undefined,
       oauthResponseFields: undefined,
       oauthResponseCode: undefined,
+      oauthFailureReason: undefined,
       httpStatus: undefined,
       prismaErrorCode: "P2002",
       systemErrorCode: undefined,
@@ -149,4 +150,18 @@ test("reports only safe OAuth response metadata", () => {
   assert.equal(serialized.includes("must-never-be-logged"), false);
   assert.equal(serialized.includes("Sensitive credential explanation"), false);
   assert.equal(serialized.includes("Raw upstream message"), false);
+});
+
+test("classifies OAuth protocol failures without logging their raw message", () => {
+  const nested = new Error('no authorization code in "callbackParameters"') as Error & {
+    code: string;
+  };
+  nested.code = "OAUTH_INVALID_RESPONSE";
+
+  const details = safeAuthErrorDetails(
+    authError("CallbackRouteError", nested),
+  );
+
+  assert.equal(details.oauthFailureReason, "authorization_code_missing");
+  assert.equal(JSON.stringify(details).includes(nested.message), false);
 });

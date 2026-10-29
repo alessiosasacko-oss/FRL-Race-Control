@@ -59,6 +59,28 @@ function safeOAuthResponseDetails(value: unknown): {
   };
 }
 
+function safeOAuthFailureReason(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+
+  // OAuth4WebAPI messages are reduced to a fixed vocabulary. The original
+  // text may contain provider-controlled data and is never emitted.
+  const reasons: Record<string, string> = {
+    'no authorization code in "callbackParameters"': "authorization_code_missing",
+    '"code" parameter must be provided only once': "authorization_code_duplicate",
+    'response parameter "state" missing': "oauth_state_missing",
+    'unexpected "state" response parameter value': "oauth_state_mismatch",
+    'unexpected "state" response parameter encountered': "oauth_state_unexpected",
+    '"response" body "access_token" property must not be empty': "token_access_token_empty",
+    '"response" body "access_token" property must be a string': "token_access_token_missing",
+    '"response" body "token_type" property must not be empty': "token_type_empty",
+    '"response" body "token_type" property must be a string': "token_type_missing",
+    '"response" body "scope" property must be a string': "token_scope_invalid",
+    '"response" body must be a top level object': "token_body_not_object",
+  };
+
+  return reasons[error.message];
+}
+
 function nestedErrorDetails(error: unknown): {
   name?: string;
   code?: string;
@@ -68,6 +90,7 @@ function nestedErrorDetails(error: unknown): {
   oauthErrorCode?: string;
   oauthResponseFields?: readonly string[];
   oauthResponseCode?: number;
+  oauthFailureReason?: string;
 } {
   if (!(error instanceof Error)) return {};
 
@@ -110,6 +133,7 @@ function nestedErrorDetails(error: unknown): {
       response.oauthErrorCode,
     oauthResponseFields: response.responseFields,
     oauthResponseCode: response.oauthResponseCode,
+    oauthFailureReason: safeOAuthFailureReason(nested),
   };
 }
 
@@ -181,5 +205,6 @@ export function safeAuthErrorDetails(
     provider: safeIdentifier(cause?.provider),
     oauthResponseFields: nested.oauthResponseFields,
     oauthResponseCode: nested.oauthResponseCode,
+    oauthFailureReason: nested.oauthFailureReason,
   };
 }
