@@ -12,6 +12,7 @@ const discordProfileSchema = z.object({
   username: z.string().max(64),
   global_name: z.string().max(160).nullable().optional(),
   avatar: z.string().nullable().optional(),
+  email: z.string().max(320).nullable().optional(),
 });
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
@@ -46,6 +47,9 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
               ? `https://cdn.discordapp.com/avatars/${discordProfile.id}/${discordProfile.avatar}.png`
               : null,
             discordVerifiedAt: new Date(),
+            ...(discordProfile.email
+              ? { email: discordProfile.email.toLowerCase() }
+              : {}),
           },
         });
       } catch (error: unknown) {

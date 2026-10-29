@@ -38,6 +38,20 @@ type AdapterSessionRecord = Pick<
   "sessionToken" | "userId" | "expires"
 >;
 
+/**
+ * Auth.js requires an e-mail shaped value on AdapterUser, while legacy FRL
+ * accounts were created before e-mail addresses were part of the canonical
+ * user model. This value is never persisted: it only lets the verified
+ * Discord identity reach the sign-in callback, which can then synchronize a
+ * real Discord e-mail when one is available.
+ */
+export function canonicalAdapterEmail(
+  email: string | null,
+  userId: number,
+): string {
+  return email ?? `legacy-user-${userId}@auth.frl.invalid`;
+}
+
 function parseUserId(userId: string): number {
   const parsedUserId = entityIdSchema.safeParse(Number(userId));
 
@@ -55,14 +69,10 @@ function toAdapterUser(
     unreadNotificationCount: number;
   },
 ): CanonicalAdapterUser {
-  if (!user.email) {
-    throw new Error(`Canonical user ${user.id} has no authentication email.`);
-  }
-
   return {
     id: String(user.id),
     name: user.displayName,
-    email: user.email,
+    email: canonicalAdapterEmail(user.email, user.id),
     emailVerified: user.emailVerified,
     image: user.avatarUrl,
     displayName: user.displayName,
@@ -150,14 +160,43 @@ export function canonicalPrismaAdapter(): Adapter {
     },
 
     async getUserByAccount({ provider, providerAccountId }) {
-      const account = await getPrismaClient().account.findUnique({
+      const prisma = getPrismaClient();
+      const account = await prisma.account.findUnique({
         where: {
           provider_providerAccountId: { provider, providerAccountId },
         },
         include: { user: true },
       });
 
-      return account ? toAdapterUser(account.user) : null;
+      if (account) return toAdapterUser(account.user);
+
+      // FRL stored Discord IDs before Auth.js Account records existed. Once
+      // Discord has authenticated that provider ID, bind the legacy canonical
+      // user to it instead of creating a duplicate user and hitting the unique
+      // User.discordId constraint during linkAccount.
+      if (provider !== "discord") return null;
+
+      const legacyUser = await prisma.user.findUnique({
+        where: { discordId: providerAccountId },
+        select: { id: true },
+      });
+      if (!legacyUser) return null;
+
+      const repairedAccount = await prisma.account.upsert({
+        where: {
+          provider_providerAccountId: { provider, providerAccountId },
+        },
+        update: {},
+        create: {
+          userId: legacyUser.id,
+          type: "oauth",
+          provider,
+          providerAccountId,
+        },
+        include: { user: true },
+      });
+
+      return toAdapterUser(repairedAccount.user);
     },
 
     async updateUser(user) {
